@@ -1,0 +1,11 @@
+# Shortcuts
+alias startwin="sudo virsh start win10"
+alias stopwin="sudo virsh shutdown win10"
+# Git aliases
+alias g="git"
+alias gs="git status"
+alias gp="git pull"
+alias gP="git push"
+# alias gac="git add .; git commit -m '$1'"
+gac() { git add .; git commit -m "$*" }
+gacp() { git add .; git commit -m "$*"; git push }
