@@ -5,3 +5,5 @@ fi
 if [[ -z $DOTFILES ]]; then
     DOTFILES=$HOME/.dotfiles
 fi
+
+export LANG=en_US.UTF-8
