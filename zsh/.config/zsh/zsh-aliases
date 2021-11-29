@@ -1,5 +1,6 @@
 #  General
 alias ls='ls --color=auto'
+alias tmux='tmux -u'
 
 # Shortcuts
 alias startwin="sudo virsh start win10"
