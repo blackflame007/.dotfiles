@@ -4,3 +4,12 @@
 [submodule "tpm"]
 	path = tmux/.tmux/plugins/tpm
 	url = https://github.com/tmux-plugins/tpm
+[submodule "zsh/.config/zsh/plugins/zsh-autosuggestions"]
+	path = zsh/.config/zsh/plugins/zsh-autosuggestions
+	url = https://github.com/zsh-users/zsh-autosuggestions.git
+[submodule "zsh/.config/zsh/plugins/zsh-autopair"]
+	path = zsh/.config/zsh/plugins/zsh-autopair
+	url = git@github.com:hlissner/zsh-autopair.git
+[submodule "zsh/.config/zsh/plugins/zsh-syntax-highlighting"]
+	path = zsh/.config/zsh/plugins/zsh-syntax-highlighting
+	url = git@github.com:zsh-users/zsh-syntax-highlighting.git
