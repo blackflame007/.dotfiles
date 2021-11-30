@@ -1,5 +1,16 @@
 #  General
-alias ls='ls --color=auto'
+# for ZSH
+case "$OSTYPE" in
+  darwin*)
+    alias ls='ls -G'
+  ;;
+  linux*)
+    alias ls='ls --color=auto'
+  ;;
+  dragonfly*|freebsd*|netbsd*|openbsd*)
+    # ...
+  ;;
+esac
 alias tmux='tmux -u'
 
 # Shortcuts
