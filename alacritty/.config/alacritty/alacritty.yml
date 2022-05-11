@@ -28,8 +28,6 @@ colors:
     cyan: "#88c0d0"
     white: "#abb2bf"
 
-  # background_opacity: 1.0
-
   # Change cursor colors
   cursor:
     text: "#3B4252"
@@ -69,6 +67,8 @@ font:
     x: 0
     y: 0
 window:
+  opacity: 0.7
+
   padding:
     x: 2
     y: 2
