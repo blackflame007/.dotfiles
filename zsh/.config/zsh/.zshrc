@@ -1,9 +1,9 @@
 #!/bin/sh
 export ZDOTDIR=$HOME/.config/zsh
-HISTFILE=$ZDOTDIR/.histfile
+HISTFILE=~/.zsh_history
 SAVEHIST=1000000
 HISTSIZE=1000000
-setopt appendhistory
+setopt incappendhistory
 
 # some useful options (man zshoptions)
 setopt autocd extendedglob nomatch menucomplete
@@ -51,3 +51,4 @@ autoload -U compinit && compinit
 
 # To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
 [[ ! -f $ZDOTDIR/.p10k.zsh ]] || source $ZDOTDIR/.p10k.zsh
+source /usr/share/nvm/init-nvm.sh
