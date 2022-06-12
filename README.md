@@ -27,7 +27,7 @@ stow */ # Everything (the '/' ignores the README)
 stow zsh # Just my zsh config
 ```
 
-Uninstall Example
+## Uninstall Example
 ```bash
 stow -D zsh
 ```
