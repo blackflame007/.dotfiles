@@ -1,0 +1,9 @@
+#!/bin/bash
+picom &
+slstatus &
+nitrogen --restore &
+scream -p 4010 -i virbr0 &
+barrierc --enable-crypto winleft &
+redshift -l 34.0900:-118.3617 &
+dunst &
+exec dwm 
