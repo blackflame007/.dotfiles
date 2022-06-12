@@ -1,0 +1,6 @@
+#!/bin/bash
+
+export DESKTOP_SESSION=plasma
+export KDEWM=/usr/local/bin/dwm
+barrierc --enable-crypto winleft &
+exec /usr/bin/startplasma-x11
