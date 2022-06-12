@@ -44,5 +44,5 @@ pacman -Qqe > ~/.dotfiles/programs/.pacman.list
 To install packages from list make sure to filter out packages from the AUR 
 
 ```bash
-pacman -S --needed $(comm -12 <(pacman -Slq | sort) <(sort pkglist.txt))
+pacman -S --needed $(comm -12 <(pacman -Slq | sort) <(sort .pacman.list))
 ```
