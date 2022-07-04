@@ -13,9 +13,12 @@ case "$OSTYPE" in
 esac
 alias tmux='tmux -u'
 
+# Color
+alias diff='diff --color=auto'
+alias grep='grep --color=auto'
 # Shortcuts
-alias startwin="sudo virsh start win10"
-alias stopwin="sudo virsh shutdown win10"
+alias startwin="sudo virsh start win11"
+alias stopwin="sudo virsh shutdown win11"
 # Git aliases
 alias lg="lazygit"
 alias g="git"
