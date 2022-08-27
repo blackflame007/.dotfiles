@@ -16,3 +16,6 @@
 [submodule "zsh/powerlevel10k"]
 	path = zsh/powerlevel10k
 	url = git@github.com:romkatv/powerlevel10k.git
+[submodule "private"]
+	path = private
+	url = git@github.com:blackflame007/private.git
