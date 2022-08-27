@@ -12,5 +12,6 @@ XDG_DATA_HOME=$HOME/.local/share
 
 export LANG=en_US.UTF-8
 
-path+=('$PATH:$HOME/go/bin')
+path+=("$HOME/go/bin")
+path+=("$HOME/.cargo/bin")
 export PATH
