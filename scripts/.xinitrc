@@ -1,3 +1,3 @@
 #!/bin/sh
 
-/bin/sh ~/.config/scripts
+/bin/sh ~/.config/scripts/dwmstart

@@ -1,6 +1,6 @@
-# if [[  "$(tty)" = "/dev/tty[0-9]*" ]]; then
-# 	startx "$HOME/.xinitrc"
-# fi
+if [[  "$(tty)" = "/dev/tty[0-9]*" ]]; then
+	startx "$HOME/.xinitrc"
+fi
 export DOTFILES=$HOME/.dotfiles
 
 if [[ -z $STOW_FOLDERS ]]; then
