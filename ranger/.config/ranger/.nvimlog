@@ -1,0 +1,219 @@
+DBG 2022-12-20T17:53:43.093 ?.560238   pty_process_save_termios:178: tty_fd=0
+INF 2022-12-20T17:53:43.094 nvim.560238.0 set_init_2:598: startup runtimepath/packpath value: /home/blackflame/.config/nvim,/etc/xdg/nvim,/home/blackflame/.local/share/nvim/site,/home/blackflame/.local/share/flatpak/exports/share/nvim/site,/var/lib/flatpak/exports/share/nvim/site,/usr/local/share/nvim/site,/usr/share/nvim/site,/usr/local/share/nvim/runtime,/usr/local/lib/nvim,/usr/share/nvim/site/after,/usr/local/share/nvim/site/after,/var/lib/flatpak/exports/share/nvim/site/after,/home/blackflame/.local/share/flatpak/exports/share/nvim/site/after,/home/blackflame/.local/share/nvim/site/after,/etc/xdg/nvim/after,/home/blackflame/.config/nvim/after
+DBG 2022-12-20T17:53:43.094 nvim.560238.0 tui_get_stty_erase:2296: stty/termios:erase=
+DBG 2022-12-20T17:53:43.094 nvim.560238.0 tui_tk_ti_getstr:2312: libtermkey:kbs=
+DBG 2022-12-20T17:53:43.094 nvim.560238.0 tui_tk_ti_getstr:2317: libtermkey:kdch1=[3~
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 tui_tk_ti_getstr:2323: libtermkey:kmous=[<
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: option_set
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: option_set (+12 times...)
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: default_colors_set
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: option_set
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: option_set (+4 times...)
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: default_colors_set
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: grid_resize
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: grid_resize (+1 times...)
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: grid_clear
+DBG 2022-12-20T17:53:43.095 nvim.560238.0 UI: update_menu
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 process_spawn:126: new: pid=560240 argv=[/usr/bin/git]
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 UI: update_menu (+10 times...)
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 UI: busy_start
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 UI: mode_info_set
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 UI: mouse_on
+DBG 2022-12-20T17:53:43.096 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 read_cb:118: closing Stream (0x7ffdc4952788): EOF (end of file)
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 read_cb:118: closing Stream (0x7ffdc49525e8): EOF (end of file)
+INF 2022-12-20T17:53:43.097 nvim.560238.0 on_process_exit:404: exited: pid=560240 status=128 stoptime=0
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 stream_close:109: closing Stream: 0x7ffdc49525e8
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 stream_close:109: closing Stream: 0x7ffdc4952788
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 UI: busy_stop
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 UI: msg_set_pos
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 UI: grid_resize
+DBG 2022-12-20T17:53:43.097 nvim.560238.0 UI: raw_line
+INF 2022-12-20T17:53:43.097 nvim.560238.0 emsg_multiline:723: E5113: Error while calling lua chunk: /home/blackflame/.config/nvim/lua/nvim/plugins.lua:15: Vim(packadd):E919: Directory not found in 'packpath': "pack/*/opt/packer.nvim"
+stack traceback:
+	[C]: in function 'cmd'
+	/home/blackflame/.config/nvim/lua/nvim/plugins.lua:15: in main chunk
+	[C]: in function 'require'
+	/home/blackflame/.dotfiles/nvim/.config/nvim/init.lua:2: in main chunk
+INF 2022-12-20T17:53:43.099 nvim.560238.0 emsg_multiline:721: E739: Cannot create directory /home/blackflame/.local: file already exists (<SNR>13_GetManifestPath (line 10))
+DBG 2022-12-20T17:53:43.101 nvim.560238.0 handle_background_color:706: bg response: dark
+INF 2022-12-20T17:53:43.114 nvim.560238.0 emsg_multiline:723: E5113: Error while calling lua chunk: ...e/.dotfiles/nvim/.config/nvim/plugin/packer_compiled.lua:8: Vim(packadd):E919: Directory not found in 'packpath': "pack/*/opt/packer.nvim"
+stack traceback:
+	[C]: in function 'nvim_command'
+	...e/.dotfiles/nvim/.config/nvim/plugin/packer_compiled.lua:8: in main chunk
+INF 2022-12-20T17:53:43.115 nvim.560238.0 emsg_multiline:723: E303: Unable to create directory "/home/blackflame/.local" for swap file, recovery impossible: file already exists
+INF 2022-12-20T17:53:43.115 nvim.560238.0 emsg_multiline:723: E303: Unable to open swap file for "rc.conf", recovery impossible
+INF 2022-12-20T17:53:43.118 nvim.560238.0 main:592: starting main loop
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: raw_line (+3 times...)
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: grid_scroll
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: msg_set_pos
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: raw_line (+41 times...)
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: mode_info_set
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: mode_change
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: mouse_off
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:43.118 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: flush (+1 times...)
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: msg_set_pos
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: raw_line (+96 times...)
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: mouse_on
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 log_key:1106: input: K_EVENT
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:43.644 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 log_key:1106: input: <i>
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: flush (+4 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: mode_change
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line (+5 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: flush (+1 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:44.989 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:45.799 nvim.560238.0 log_key:1106: input: K_EVENT
+DBG 2022-12-20T17:53:45.799 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:45.799 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: flush (+3 times...)
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: raw_line (+91 times...)
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 log_key:1106: input: K_EVENT
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: raw_line (+87 times...)
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:45.800 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 UI: flush (+2 times...)
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:45.801 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: flush (+2 times...)
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 log_key:1106: input: <Esc>
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: mode_change
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:46.899 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 log_key:1106: input: <Esc>
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 UI: flush (+3 times...)
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:47.082 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 log_key:1106: input: <:>
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: flush (+3 times...)
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: raw_line (+3 times...)
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: mode_change
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: mouse_off
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:47.833 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 log_key:1106: input: <w>
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 UI: flush (+2 times...)
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:48.129 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 log_key:1106: input: <q>
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 UI: flush (+4 times...)
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:48.224 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=1 events_pending=0
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 log_key:1106: input: <CR>
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: flush (+4 times...)
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: mode_change
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: mouse_on
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: raw_line
+INF 2022-12-20T17:53:48.798 nvim.560238.0 emsg_multiline:723: E886: Failed to create directory /home/blackflame/.local for writing ShaDa file: file already exists
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: raw_line (+1 times...)
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: grid_scroll
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: msg_set_pos
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: raw_line
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: raw_line (+3 times...)
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: mouse_off
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:48.798 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:52.802 nvim.560238.0 inbuf_poll:468: blocking... events_enabled=0 events_pending=0
+DBG 2022-12-20T17:53:57.947 nvim.560238.0 UI: flush (+1 times...)
+DBG 2022-12-20T17:53:57.947 nvim.560238.0 UI: grid_cursor_goto
+DBG 2022-12-20T17:53:57.947 nvim.560238.0 UI: grid_cursor_goto (+1 times...)
+DBG 2022-12-20T17:53:57.947 nvim.560238.0 UI: mouse_on
+DBG 2022-12-20T17:53:57.947 nvim.560238.0 UI: flush
+DBG 2022-12-20T17:53:57.947 nvim.560238.0 stream_close:109: closing Stream: 0x7f4b7c011018
+DBG 2022-12-20T17:53:57.957 nvim.560238.0 UI: stop
+INF 2022-12-20T17:53:57.957 nvim.560238.0 os_exit:619: Nvim exit: 0
