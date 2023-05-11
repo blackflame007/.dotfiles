@@ -1,0 +1,2 @@
+#!/bin/sh
+setsid kwin_x11 --replace &>/dev/null
