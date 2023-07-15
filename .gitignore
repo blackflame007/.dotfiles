@@ -8,3 +8,4 @@ zsh/.config/zsh/.histfile
 zsh/.config/zsh/.zcompdump
 .vscode/settings.json
 fonts/.local/share/fonts/.uuid
+.DS_Store
