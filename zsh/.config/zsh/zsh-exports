@@ -11,7 +11,13 @@ XDG_CACHE_HOME=$HOME/.cache
 XDG_DATA_HOME=$HOME/.local/share
 
 export LANG=en_US.UTF-8
+export GOROOT=$(go env GOROOT)
+export GOPATH=$(go env GOPATH)
+export GOBIN=$(go env GOBIN)
 
-path+=("$HOME/go/bin")
+path+=("$GOBIN")
+path+=("$GOROOT/bin")
+path+=("$HOME/development/flutter/bin")
+path+=("$HOME/Android/Sdk")
 path+=("$HOME/.cargo/bin")
 export PATH
