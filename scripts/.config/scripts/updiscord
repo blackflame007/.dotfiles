@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Define the directory where the PKGBUILD is located
+pkgbuild_dir="$HOME/pkgbuild/discord"
+
+# Change to the PKGBUILD directory
+cd "$pkgbuild_dir" || { echo "Failed to change directory to $pkgbuild_dir. Exiting."; exit 1; }
+
+# Fetch headers and extract the 'Location' header value
+url=$(curl -sI "https://discord.com/api/download?platform=linux&format=tar.gz" | grep -i location | tr -d '\r') || { echo "Failed to fetch URL. Exiting."; exit 1; }
+
+# Use sed to extract the version part from the URL
+new_version=$(echo "$url" | sed -n 's/.*discord-\(.*\).tar.gz/\1/p')
+if [ -z "$new_version" ]; then
+    echo "Failed to extract new version. Exiting."
+    exit 1
+fi
+
+# Backup the original PKGBUILD
+cp "PKGBUILD" "PKGBUILD.backup" || { echo "Failed to backup PKGBUILD. Exiting."; exit 1; }
+
+# Update the PKGBUILD with the new version
+sed -i "s/pkgver=.*/pkgver=$new_version/" PKGBUILD || { echo "Failed to update PKGBUILD. Exiting."; exit 1; }
+
+# Update package sums
+if ! updpkgsums; then
+    echo "Failed to update package sums. Exiting."
+    exit 1
+fi
+
+# Build the package without installing
+if ! makepkg -s; then
+    echo "Failed to build the package. Exiting."
+    exit 1
+fi
+
+# Install the newly built package
+new_package=$(ls *.pkg.tar.zst | tail -n 1) # Assumes the newest file is the one we want
+if [ -f "$new_package" ]; then
+    sudo pacman -U "$new_package" --noconfirm || { echo "Failed to install the package. Exiting."; exit 1; }
+else
+    echo "New package file not found. Exiting."
+    exit 1
+fi
+
+# Clean up old .zst and .gz files
+find . -type f \( -name '*.zst' -o -name '*.gz' \) -not -name "$new_package" -delete
+
+echo "Package updated, built, and installed successfully."
+
