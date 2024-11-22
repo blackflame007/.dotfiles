@@ -13,11 +13,19 @@ XDG_DATA_HOME=$HOME/.local/share
 export LANG=en_US.UTF-8
 export GOROOT=$(go env GOROOT)
 export GOPATH=$(go env GOPATH)
-export GOBIN=$(go env GOBIN)
+export GOBIN="$GOPATH/bin"
+
+# Pyenv
+export PYENV_ROOT="$HOME/.pyenv"
+command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
 
 path+=("$GOBIN")
 path+=("$GOROOT/bin")
 path+=("$HOME/development/flutter/bin")
 path+=("$HOME/Android/Sdk")
 path+=("$HOME/.cargo/bin")
+path+=("$PYENV_ROOT/bin")
+path+=("$(brew --prefix)/opt/llvm/bin")
 export PATH
