@@ -329,7 +329,7 @@ case $@ in
 "1Password 7")
   icon_result=":one_password:"
   ;;
-"Code" | "Code - Insiders")
+"Code" | "Code - Insiders" | "Cursor")
   icon_result=":code:"
   ;;
 "VSCodium")

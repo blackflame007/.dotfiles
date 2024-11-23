@@ -92,4 +92,12 @@ alt - f : yabai -m window --toggle zoom-fullscreen
 alt + shift - f : yabai -m window --toggle native-fullscreen
 
 # open terminal
-alt + shift - return : open -n /Applications/iTerm.app
+alt + shift - return : open -n /Applications/Alacritty.app
+# Open Browser window
+alt + shift - w : open -n /Applications/Google Chrome.app
+
+
+lalt - space : yabai -m window --toggle float; sketchybar --trigger window_focus
+shift + lalt - f : yabai -m window --toggle zoom-fullscreen; sketchybar --trigger window_focus
+lalt - f : yabai -m window --toggle zoom-parent; sketchybar --trigger window_focus
+shift + lalt - 1 : yabai -m window --space 1 && sketchybar --trigger windows_on_spaces
