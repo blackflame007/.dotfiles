@@ -80,6 +80,7 @@ mods = "Control"
 [window]
 dynamic_title = true
 opacity = 0.7
+decorations = "Buttonless"
 
 [window.padding]
 x = 2
