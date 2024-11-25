@@ -1,11 +1,103 @@
-#!/usr/bin/env zsh
-# I am using zsh instead of bash.  I was having some troubles using bash with
-# arrays.  Didn't want to investigate, so I just did zsh
-pushd $DOTFILES
-for folder in $(echo $STOW_FOLDERS | sed "s/,/ /g")
-do
-    echo "Adding $folder"
-    stow -D $folder
-    stow $folder
-done
-popd
+#!/usr/bin/env bash
+
+# Exit on error
+set -e
+
+# Detect OS
+detect_os() {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        echo "macos"
+    elif [[ -f "/etc/arch-release" ]]; then
+        echo "arch"
+    else
+        echo "unknown"
+    fi
+}
+
+# Install package manager if needed
+setup_package_manager() {
+    local os=$1
+    
+    case $os in
+        macos)
+            if ! command -v brew >/dev/null 2>&1; then
+                echo "Installing Homebrew..."
+                /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            fi
+            ;;
+        arch)
+            if ! command -v yay >/dev/null 2>&1; then
+                echo "Installing yay..."
+                sudo pacman -S --noconfirm base-devel
+                git clone https://aur.archlinux.org/yay.git /tmp/yay
+                (cd /tmp/yay && makepkg -si --noconfirm)
+                rm -rf /tmp/yay
+            fi
+            ;;
+    esac
+}
+
+# Install required packages
+install_packages() {
+    local os=$1
+    
+    case $os in
+        macos)
+            echo "Installing macOS packages..."
+            brew install stow git zsh neovim
+            ;;
+        arch)
+            echo "Installing Arch Linux packages..."
+            yay -S --needed --noconfirm stow git zsh neovim
+            ;;
+        *)
+            echo "Unsupported operating system"
+            exit 1
+            ;;
+    esac
+}
+
+# Setup dotfiles using stow
+setup_dotfiles() {
+    local dotfiles_dir="$HOME/.dotfiles"
+    
+    # Initialize and update submodules
+    echo "Setting up git submodules..."
+    git submodule update --init --recursive
+    
+    # Create necessary directories
+    mkdir -p "$HOME/.config"
+    
+    # Stow all directories
+    echo "Stowing dotfiles..."
+    for folder in */; do
+        if [ -d "$folder" ]; then
+            echo "Stowing $folder"
+            stow -D "$folder" 2>/dev/null || true
+            stow "$folder"
+        fi
+    done
+}
+
+# Change default shell to zsh if needed
+change_shell() {
+    if [[ $SHELL != *"zsh"* ]]; then
+        echo "Changing default shell to zsh..."
+        chsh -s "$(which zsh)"
+    fi
+}
+
+main() {
+    local os
+    os=$(detect_os)
+    echo "Detected OS: $os"
+    
+    setup_package_manager "$os"
+    install_packages "$os"
+    setup_dotfiles
+    change_shell
+    
+    echo "Installation complete! Please restart your terminal."
+}
+
+main
