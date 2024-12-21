@@ -94,7 +94,7 @@ alt + shift - f : yabai -m window --toggle native-fullscreen
 # open terminal
 alt + shift - return : open -n /Applications/Alacritty.app
 # Open Browser window
-alt + shift - w : open -n /Applications/Google Chrome.app
+alt + shift - w : open -n /Applications/Google\ Chrome.app
 
 
 lalt - space : yabai -m window --toggle float; sketchybar --trigger window_focus
