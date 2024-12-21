@@ -1,9 +1,6 @@
 [submodule "nvim/.config/nvim"]
 	path = nvim/.config/nvim
 	url = git@github.com:blackflame007/nvim.git
-[submodule "tpm"]
-	path = tmux/.tmux/plugins/tpm
-	url = git@github.com:tmux-plugins/tpm.git
 [submodule "zsh/.config/zsh/plugins/zsh-autosuggestions"]
 	path = zsh/.config/zsh/plugins/zsh-autosuggestions
 	url = git@github.com:zsh-users/zsh-autosuggestions.git
