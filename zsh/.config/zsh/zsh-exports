@@ -33,5 +33,8 @@ path+=("$HOME/development/flutter/bin")
 path+=("$HOME/Android/Sdk")
 path+=("$HOME/.cargo/bin")
 path+=("$PYENV_ROOT/bin")
-path+=("$(brew --prefix)/opt/llvm/bin")
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    path+=("$(brew --prefix)/opt/llvm/bin")
+fi
+
 export PATH
