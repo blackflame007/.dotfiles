@@ -55,12 +55,11 @@ element-icon {
 window {
     height:   30%;
     width: 15em;
-    location: northwest;
-    anchor:   northwest;
+    location: center;
+    anchor:   center;
     border:  1px 1px 1px 1px;
     border-color: @lightblack;
     text-color: @lightwhite;
-    margin: 0.3em;
     border-radius: 0.4em;
 }
 /* mode-switcher { */
