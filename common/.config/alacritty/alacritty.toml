@@ -33,7 +33,7 @@ blinking = "Never"
 size = 16.0
 
 [font.bold]
-family = "Hack Nerd Font"
+family = "MesloLGM Nerd Font Bold"
 style = "Bold"
 
 [font.glyph_offset]
@@ -41,11 +41,11 @@ x = 0
 y = 0
 
 [font.italic]
-family = "Hack Nerd Font"
+family = "MesloLGM Nerd Font Italic"
 style = "Italic"
 
 [font.normal]
-family = "Hack Nerd Font"
+family = "MesloLGM Nerd Font"
 style = "Regular"
 
 [font.offset]
