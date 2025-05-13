@@ -5,8 +5,8 @@
     // "modules-left": ["custom/launcher", "wlr/workspaces", "hyprland/window"],
     // "modules-left": ["custom/launcher", "wlr/workspaces"],
     "modules-left": ["custom/launcher", "wlr/workspaces"],
-    /* "modules-center": ["custom/spotify"], */
-    "modules-right": ["tray", "pulseaudio", "network", "clock"],
+    "modules-center": ["custom/spotify"],
+    "modules-right": ["tray", "cpu", "memory", "temperature", "pulseaudio", "network", "clock"],
     "wlr/workspaces": {
       "format": "{icon}",
       "on-click": "activate",
@@ -30,16 +30,29 @@
         "spacing": 10
     },
     "clock": {
-        // "format": "<span color='#ffffff'></span> {:%a %b %d}",
-        // "format-alt": "<span color='#ffffff'></span> {:%I:%M %p}"
-        "format": "{:%a %b %d}",
-        "format-alt": "{:%I:%M %p}"
+        "format": "<span color='#ffffff'></span> {:%a %b %d}",
+        "format-alt": "<span color='#ffffff'></span> {:%I:%M %p}"
+        // "format": "{:%a %b %d}",
+        // "format-alt": "{:%I:%M %p}"
     },
     // "clock": {
     //     // "timezone": "America/New_York",
     //     "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
     //     "format-alt": "{:%Y-%m-%d}"
     // },
+    "cpu": {
+        "format": "⧯ Cpu: {usage}%" ,
+        "tooltip": false
+    },
+    "memory": {
+        "interval": 5,
+        "format": "  Mem: {}%",
+        "max-length": 15
+    },
+    "temperature": {
+        "format": " {temperatureC}°C",
+        "tooltip": false
+    },
     "backlight": {
         // "device": "acpi_video1",
         "format": "{icon} {percent}%",
@@ -87,20 +100,37 @@
         // "exec": "$HOME/.config/waybar/scripts/spotify.sh",
         // "return-type": "json",
         // "max-length": 40,
-        // "format": " <span color='#bf616a'> </span>",
-        "format": "",
+        "format": " <span color='#1793d0'> </span>",
+        // "format": "",
         // "format": " <span color='#bf616a'> 異</span>",
         // "format": " <span color='#bf616a'> </span>",
-        "on-click": "rofi -show drun",
+        "on-click": "rofi -show drun"
     },
+    // "custom/spotify": {
+    // "format": "{icon} {} SPOTIFY!!!",
+    // "escape": true,
+    // "return-type": "json",
+    // "max-length": 40,
+    // "interval": 30, // Remove this if your script is endless and write in loop
+    // "on-click": "playerctl -p spotify play-pause",
+    // "on-click-right": "killall spotify",
+    // "smooth-scrolling-threshold": 10, // This value was tested using a trackpad, it should be lowered if using a mouse.
+    // "on-scroll-up" : "playerctl -p spotify next",
+    // "on-scroll-down" : "playerctl -p spotify previous",
+    // "exec": "$HOME/.config/waybar/scripts/mediaplayer.py 2> /dev/null", // Script in resources/custom_modules folder
+    // "exec-if": "pgrep spotify"
+    // },
     "custom/spotify": {
         "exec": "$HOME/.config/waybar/scripts/spotify.sh",
-        // "return-type": "json",
+        "return-type": "text",
         "max-length": 40,
         "format": " {}",
         "on-click": "playerctl play-pause",
         "on-double-click": "playerctl next",
         "on-right-click": "on-click-right"
     },
+    "custom/test": {
+        "format": "TEST!!!"
+    }
 }
 
