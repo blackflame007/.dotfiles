@@ -30,8 +30,8 @@
         "spacing": 10
     },
     "clock": {
-        "format": "<span color='#ffffff'></span> {:%a %b %d}",
-        "format-alt": "<span color='#ffffff'></span> {:%I:%M %p}"
+        "format": "<span color='#ffffff'></span> {:%I:%M %p}",
+        "format-alt": "<span color='#ffffff'></span> {:%a %b %d}",
         // "format": "{:%a %b %d}",
         // "format-alt": "{:%I:%M %p}"
     },
@@ -41,12 +41,12 @@
     //     "format-alt": "{:%Y-%m-%d}"
     // },
     "cpu": {
-        "format": "⧯ Cpu: {usage}%" ,
+        "format": "  Cpu: {usage}%" ,
         "tooltip": false
     },
     "memory": {
         "interval": 5,
-        "format": "  Mem: {}%",
+        "format": "  Mem: {}%",
         "max-length": 15
     },
     "temperature": {
@@ -81,14 +81,14 @@
         // "format": "{volume}% {icon}",
         "format": "{icon} {volume}%",
         "format-bluetooth": "{icon} {volume}% {format_source}",
-        "format-bluetooth-muted": " {icon} {format_source}",
+        "format-bluetooth-muted": "󰂲 {icon} {format_source}",
         "format-muted": "婢",
         // "format-source": "{volume}% ",
         // "format-source-muted": "",
         "format-icons": {
             "headphone": "",
-            "hands-free": "",
-            "headset": "",
+            "hands-free": "",
+            "headset": "",
             "phone": "",
             "portable": "",
             "car": "",
