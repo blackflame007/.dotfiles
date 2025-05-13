@@ -27,6 +27,9 @@ command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
+# Manga
+export MANGA_TUI_DATA_DIR="/mnt/Data/manga"
+
 path+=("$GOBIN")
 path+=("$GOROOT/bin")
 path+=("$HOME/development/flutter/bin")
