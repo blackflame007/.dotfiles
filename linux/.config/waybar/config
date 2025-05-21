@@ -15,8 +15,9 @@
         "2": "",
         "3": "ﱘ",
         "4": "戮",
-        "8": "ﭮ",
-        "9": "",
+        "7": "",
+        "8": "",
+        "9": "󰑋",
         "urgent": "",
         // "active": "",
         "default": ""
@@ -62,18 +63,19 @@
         // "interface": "wlp2*", // (Optional) To force the use of this interface
 
         "format-wifi": "直 {signalStrength}%",
-        "format-ethernet": " {ifname}: {ipaddr}/{cidr}",
+        //"format-ethernet": " {ifname}: {ipaddr}/{cidr}",
         // "format-ethernet": " {ifname}",
-        // "format-ethernet": " wired",
+        "format-ethernet": " wired",
         // "format-ethernet": "",
         "format-disconnected": "睊",
+        "format-alt":" {ifname}", 
         // "on-click": "nmtui"
         // "format-wifi": "{essid} ({signalStrength}%) ",
         // "format-ethernet": "{ipaddr}/{cidr} ",
         // "tooltip-format": "{ifname} via {gwaddr} ",
         // "format-linked": "{ifname} (No IP) ",
         // "format-disconnected": "Disconnected ⚠",
-        "format-alt": "{ifname}: {ipaddr}/{cidr}"
+        //"format-alt": "{ifname}: {ipaddr}/{cidr}"
     },
     "pulseaudio": {
         // "scroll-step": 1, // %, can be a float
