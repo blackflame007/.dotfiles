@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# This script displays quotes with themed cowsay characters
+
+# Check if theme parameter is provided
+if [ "$1" == "" ]; then
+    theme="random"
+else
+    theme="$1"
+fi
+
+# Select theme randomly if not specified
+if [ "$theme" == "random" ]; then
+    themes=("starwars" "doctorwho" "portal" "lotr" "futurama" "montypython" "archer" "linux" "proagent")
+    theme=${themes[RANDOM % ${#themes[@]}]}
+fi
+
+# Star Wars characters
+sw_characters=("R2-D2" "ackbar" "atat" "vader" "luke-koala" "vader-koala" "palpatine" "obi-wan")
+
+# Doctor Who characters
+dw_characters=("dalek-shooting" "dalek" "weeping-angel")
+
+# Portal characters - only using available cowsay files
+portal_characters=("glados" "aperture" "aperture-blank" "cake" "companion-cube" "wheatley")
+
+# LOTR characters
+lotr_characters=("wizard" "dragon" "gandalf" "dragon-and-cow")
+
+# Futurama characters
+futurama_characters=("bender" "fry-money" "zoidberg" "zoidberg2" "hypno" "hypnotoad")
+
+# Monty Python characters
+montypython_characters=("www" "fox" "sheep")
+
+# Archer characters
+archer_characters=("archer")
+
+# Linux characters
+linux_characters=("tux" "tux-big")
+
+# ProAgent characters
+proagent_characters=("bender")
+
+# Get quote and character based on theme
+if [ "$theme" == "starwars" ]; then
+    fortune_output=$(fortune starwars)
+    characters=("${sw_characters[@]}")
+elif [ "$theme" == "doctorwho" ]; then
+    fortune_output=$(fortune doctorwho-new-series)
+    characters=("${dw_characters[@]}")
+elif [ "$theme" == "portal" ]; then
+    # Randomly select a Portal fortune database
+    portal_fortunes=("glados" "wheatley" "cave_johnson")
+    selected_fortune=${portal_fortunes[RANDOM % ${#portal_fortunes[@]}]}
+    fortune_output=$(fortune $selected_fortune)
+    characters=("${portal_characters[@]}")
+elif [ "$theme" == "lotr" ]; then
+    fortune_output=$(fortune lotr)
+    characters=("${lotr_characters[@]}")
+elif [ "$theme" == "futurama" ]; then
+    fortune_output=$(fortune futurama)
+    characters=("${futurama_characters[@]}")
+elif [ "$theme" == "montypython" ]; then
+    fortune_output=$(fortune montypython)
+    characters=("${montypython_characters[@]}")
+elif [ "$theme" == "archer" ]; then
+    fortune_output=$(fortune archer)
+    characters=("${archer_characters[@]}")
+elif [ "$theme" == "linux" ]; then
+    # Randomly select a Linux-related fortune database
+    linux_fortunes=("linux" "vimtips")
+    selected_fortune=${linux_fortunes[RANDOM % ${#linux_fortunes[@]}]}
+    fortune_output=$(fortune $selected_fortune)
+    characters=("${linux_characters[@]}")
+elif [ "$theme" == "proagent" ]; then
+    fortune_output="I'm sick of using DeFi without ProAgent, I'm going to make my own agent with hookers and blackjack... You know what forget the agent!"
+    characters=("${proagent_characters[@]}")
+else
+    echo "Unknown theme: $theme"
+    echo "Available themes: starwars, doctorwho, portal, lotr, futurama, montypython, archer, linux, proagent"
+    exit 1
+fi
+
+# Get a random character for the selected theme
+cowsay_output=${characters[RANDOM % ${#characters[@]}]}
+
+# Display the fortune and cowsay output
+echo "$fortune_output" | cowsay -f "$cowsay_output" | lolcat
+
+# Usage instructions (when run with help parameter)
+if [ "$1" == "help" ]; then
+    echo "Usage: $(basename $0) [theme]"
+    echo "Available themes: starwars, doctorwho, portal, lotr, futurama, montypython, archer, linux, proagent, random (default)"
+fi
