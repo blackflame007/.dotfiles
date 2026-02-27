@@ -1,0 +1,11 @@
+#!/bin/zsh
+# Load Conda into the subshell
+source $(conda info --base)/etc/profile.d/conda.sh
+conda activate comfyenv
+
+# Navigate and Launch
+cd /mnt/Data/AI/ComfyUI
+
+pip install -r requirements.txt
+
+python main.py --highvram

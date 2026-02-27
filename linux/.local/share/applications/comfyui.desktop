@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ComfyUI
+Comment=Stable Diffusion GUI
+Exec=/home/blackflame/.config/scripts//comfyui
+Icon=image-generated
+Terminal=false
+Categories=Development;Graphics;

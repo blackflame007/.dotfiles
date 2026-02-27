@@ -16,11 +16,15 @@ if [ -z "$new_version" ]; then
     exit 1
 fi
 
+echo "New Discord version detected: $new_version"
+
 # Backup the original PKGBUILD
 cp "PKGBUILD" "PKGBUILD.backup" || { echo "Failed to backup PKGBUILD. Exiting."; exit 1; }
 
 # Update the PKGBUILD with the new version
 sed -i "s/pkgver=.*/pkgver=$new_version/" PKGBUILD || { echo "Failed to update PKGBUILD. Exiting."; exit 1; }
+
+echo "Updated PKGBUILD to version $new_version"
 
 # Update package sums
 if ! updpkgsums; then
@@ -28,23 +32,42 @@ if ! updpkgsums; then
     exit 1
 fi
 
+# Clean up old package files before building
+echo "Cleaning up old package files..."
+find . -type f -name "*.pkg.tar.zst" -delete
+
 # Build the package without installing
+echo "Building Discord package version $new_version..."
 if ! makepkg -s; then
     echo "Failed to build the package. Exiting."
     exit 1
 fi
 
-# Install the newly built package
-new_package=$(ls *.pkg.tar.zst | tail -n 1) # Assumes the newest file is the one we want
+# Find the newly built package by looking for files created after the build started
+# and matching the expected naming pattern
+echo "Looking for newly built package..."
+new_package=$(find . -type f -name "discord-${new_version}-*.pkg.tar.zst" -newer PKGBUILD | head -n 1)
+
+if [ -z "$new_package" ]; then
+    echo "New package not found. Trying alternative detection method..."
+    # Fallback: look for the most recently modified package file
+    new_package=$(find . -type f -name "*.pkg.tar.zst" -printf '%T@ %p\n' | sort -n | tail -n 1 | cut -d' ' -f2-)
+fi
+
 if [ -f "$new_package" ]; then
+    echo "Installing package: $new_package"
     sudo pacman -U "$new_package" --noconfirm || { echo "Failed to install the package. Exiting."; exit 1; }
 else
     echo "New package file not found. Exiting."
+    echo "Available package files:"
+    ls -la *.pkg.tar.zst 2>/dev/null || echo "No package files found"
     exit 1
 fi
 
-# Clean up old .zst and .gz files
-find . -type f \( -name '*.zst' -o -name '*.gz' \) -not -name "$new_package" -delete
+# Clean up old .zst and .gz files, keeping only the newly installed package
+echo "Cleaning up old package files..."
+find . -type f \( -name '*.zst' -o -name '*.gz' \) -not -name "$(basename "$new_package")" -delete
 
 echo "Package updated, built, and installed successfully."
+echo "Installed Discord version: $new_version"
 

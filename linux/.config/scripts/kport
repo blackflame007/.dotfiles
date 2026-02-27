@@ -1,0 +1,12 @@
+#! /usr/bin/bash
+
+# Kill the process listening on the given port
+# Usage: kport <port>
+
+if ! lsof -t -i:$1 > /dev/null; then
+    echo "No process listening on port $1"
+    exit 1
+fi
+
+kill $(lsof -t -i:$1)
+echo "Killed process listening on port $1"
