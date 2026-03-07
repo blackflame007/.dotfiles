@@ -1,0 +1,5 @@
+# Optional config (source if present)
+# p10k: run `p10k configure` to customize
+[[ -f $ZDOTDIR/.zshenv ]] && source $ZDOTDIR/.zshenv
+[[ -f $ZDOTDIR/.p10k.zsh ]] && source $ZDOTDIR/.p10k.zsh
+[[ -f /usr/share/nvm/init-nvm.sh ]] && source /usr/share/nvm/init-nvm.sh

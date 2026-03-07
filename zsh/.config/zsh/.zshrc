@@ -49,17 +49,10 @@ zsh_add_plugin "hlissner/zsh-autopair"
 # Used to zsh-completions and zsh-syntax-highlighting
 autoload -U compinit && compinit
 
-# To customize prompt, run `p10k configure` or edit ~/.config/zsh/.p10k.zsh.
-[[ ! -f $ZDOTDIR/.zshenv ]] || source $ZDOTDIR/.zshenv
-[[ ! -f $ZDOTDIR/.p10k.zsh ]] || source $ZDOTDIR/.p10k.zsh
-[[ ! -f /usr/share/nvm/init-nvm.sh ]] || source /usr/share/nvm/init-nvm.sh
 
-
-[ -f /opt/miniconda3/etc/profile.d/conda.sh ] && source /opt/miniconda3/etc/profile.d/conda.sh
-# pnpm
-export PNPM_HOME="/home/blackflame/.local/share/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
+# Optional tools & runtimes (inits)
+zsh_add_file "zsh-fzf"
+zsh_add_file "zsh-optional"
+zsh_add_file "zsh-conda"
+zsh_add_file "zsh-pnpm"
+zsh_add_file "zsh-docker"
