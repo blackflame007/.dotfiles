@@ -28,3 +28,5 @@ alias gP="git push"
 # alias gac="git add .; git commit -m '$1'"
 gac() { git add .; git commit -m "$*" }
 gacp() { git add .; git commit -m "$*"; git push }
+
+kport() { kill -9 $(lsof -t -i:$1) }

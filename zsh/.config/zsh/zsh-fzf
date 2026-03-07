@@ -1,0 +1,2 @@
+# fzf — key bindings and fuzzy completion
+[[ -n $(command -v fzf) ]] && source <(fzf --zsh)

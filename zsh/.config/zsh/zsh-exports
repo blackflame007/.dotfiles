@@ -7,13 +7,17 @@ if [[ -z $DOTFILES ]]; then
 fi
 
 # GVM
-[[ -s "/home/blackflame/.gvm/scripts/gvm" ]] && source "/home/blackflame/.gvm/scripts/gvm"
+[[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"
 
 # NVM
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
+# Ensure proper terminal type
+if [[ -n $SSH_CONNECTION ]]; then
+  export TERM=xterm-256color
+fi
 
 XDG_CONFIG_HOME=$HOME/.config
 XDG_CACHE_HOME=$HOME/.cache
@@ -29,6 +33,9 @@ export GOBIN="$GOPATH/bin"
 
 # luarocks
 eval "$(luarocks path --bin)"
+
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
 
 # Pyenv
 export PYENV_ROOT="$HOME/.pyenv"
