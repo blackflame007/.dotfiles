@@ -52,6 +52,8 @@ path+=("$HOME/development/flutter/bin")
 path+=("$HOME/Android/Sdk")
 path+=("$HOME/.cargo/bin")
 path+=("$PYENV_ROOT/bin")
+path+=("$HOME/.antigravity/antigravity/bin")
+path+=("$HOME/.bun/bin")
 if [[ "$OSTYPE" == "darwin"* ]]; then
     path+=("$(brew --prefix)/opt/llvm/bin")
 fi
