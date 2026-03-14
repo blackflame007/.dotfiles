@@ -1,2 +1,2 @@
-# Docker CLI completions
-[[ -d $HOME/.docker/completions ]] && fpath=("$HOME/.docker/completions" $fpath) && autoload -Uz compinit && compinit
+# Docker CLI completions (compinit called once in .zshrc)
+[[ -d $HOME/.docker/completions ]] && fpath=("$HOME/.docker/completions" $fpath)
