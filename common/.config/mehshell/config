@@ -15,6 +15,12 @@ instant_prompt = true
 # Swap prompt character on vi keymap change.
 vi_mode = true
 
+# Show Nerd Font icons. Set to false for text labels instead.
+icons = true
+
+# Prompt style: lean, classic, or rainbow.
+style = lean
+
 # ── Left segments ───────────────────────────────────────
 
 os = true

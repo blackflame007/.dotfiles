@@ -6,3 +6,4 @@ antigravity-accounts.json.*.tmp
 antigravity-signature-cache.json
 antigravity-logs/
 *.bak.*
+.gitignore
