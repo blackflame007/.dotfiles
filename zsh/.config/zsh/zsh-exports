@@ -6,13 +6,40 @@ if [[ -z $DOTFILES ]]; then
     DOTFILES=$HOME/.dotfiles
 fi
 
-# GVM
-[[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"
+# GVM — source cached environment instead of full scripts (saves ~180ms)
+# Full gvm command is lazy-loaded below
+if [[ -s "$HOME/.gvm/environments/default" ]]; then
+    source "$HOME/.gvm/environments/default"
+fi
+gvm() {
+    unfunction gvm
+    [[ -s "$HOME/.gvm/scripts/gvm" ]] && source "$HOME/.gvm/scripts/gvm"
+    gvm "$@"
+}
 
-# NVM
+# NVM — add default node to PATH without sourcing nvm.sh (saves ~230ms)
+# Full nvm command is lazy-loaded below
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+if [[ -d "$NVM_DIR" ]]; then
+    # Resolve default alias chain (e.g. lts/* -> lts/krypton -> v24.14.0)
+    _nvm_ver=""
+    [[ -f "$NVM_DIR/alias/default" ]] && _nvm_ver=$(<"$NVM_DIR/alias/default")
+    while [[ -n "$_nvm_ver" && ! "$_nvm_ver" =~ ^v[0-9] && -f "$NVM_DIR/alias/$_nvm_ver" ]]; do
+        _nvm_ver=$(<"$NVM_DIR/alias/$_nvm_ver")
+    done
+    if [[ -n "$_nvm_ver" ]]; then
+        _nvm_match=("$NVM_DIR/versions/node/"${_nvm_ver}*(NY1On))
+        [[ -n "$_nvm_match" ]] && path=("${_nvm_match[1]}/bin" $path)
+        unset _nvm_match
+    fi
+    unset _nvm_ver
+fi
+nvm() {
+    unfunction nvm
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    nvm "$@"
+}
 
 # Ensure proper terminal type
 if [[ -n $SSH_CONNECTION ]]; then
@@ -27,21 +54,34 @@ XDG_DATA_HOME=$HOME/.local/share
 export EDITOR=nvim
 
 export LANG=en_US.UTF-8
-export GOROOT=$(go env GOROOT)
-export GOPATH=$(go env GOPATH)
+
+# Go paths — GOROOT and GOPATH already set by GVM environment above
 export GOBIN="$GOPATH/bin"
 
-# luarocks
-eval "$(luarocks path --bin)"
+# luarocks — cache output to avoid fork on every shell (saves ~40ms)
+# Delete ~/.cache/zsh_luarocks_env to force refresh after luarocks updates
+if command -v luarocks >/dev/null 2>&1; then
+    _lr_cache="${XDG_CACHE_HOME:-$HOME/.cache}/zsh_luarocks_env"
+    if [[ ! -f "$_lr_cache" ]]; then
+        mkdir -p "${_lr_cache:h}"
+        luarocks path --bin 2>/dev/null | command grep -v '^export PATH' > "$_lr_cache"
+    fi
+    source "$_lr_cache" 2>/dev/null
+    path+=("$HOME/.luarocks/bin")
+    unset _lr_cache
+fi
 
-export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
-
-# Pyenv
+# Pyenv — add shims to PATH, lazy-load full init (saves ~80ms)
 export PYENV_ROOT="$HOME/.pyenv"
-command -v pyenv >/dev/null || export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+if [[ -d "$PYENV_ROOT" ]]; then
+    path=("$PYENV_ROOT/shims" "$PYENV_ROOT/bin" $path)
+    pyenv() {
+        unfunction pyenv
+        eval "$(command pyenv init -)"
+        eval "$(command pyenv virtualenv-init -)"
+        pyenv "$@"
+    }
+fi
 
 # Manga
 export MANGA_TUI_DATA_DIR="/mnt/Data/manga"
@@ -51,11 +91,15 @@ path+=("$GOROOT/bin")
 path+=("$HOME/development/flutter/bin")
 path+=("$HOME/Android/Sdk")
 path+=("$HOME/.cargo/bin")
-path+=("$PYENV_ROOT/bin")
 path+=("$HOME/.antigravity/antigravity/bin")
 path+=("$HOME/.bun/bin")
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    path+=("$(brew --prefix)/opt/llvm/bin")
+    # Avoid brew --prefix fork; use standard Homebrew locations
+    if [[ -d "/opt/homebrew" ]]; then
+        path+=("/opt/homebrew/opt/llvm/bin")
+    elif [[ -d "/usr/local/Homebrew" ]]; then
+        path+=("/usr/local/opt/llvm/bin")
+    fi
 fi
 
 export PATH
