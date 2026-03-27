@@ -5,6 +5,12 @@
     "oh-my-opencode"
   ],
   "provider": {
+    "anthropic": {
+      "options": {
+        "baseURL": "http://127.0.0.1:3456",
+        "apiKey": "dummy"
+      }
+    },
     "google": {
       "models": {
         "antigravity-gemini-3-pro": {
