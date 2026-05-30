@@ -11,3 +11,4 @@ fonts/.local/share/fonts/.uuid
 .DS_Store
 /zsh/.config/zsh/.zcompcache
 /zsh/.config/zsh/.zcompdump.Nicks-MacBook-Pro.local.56558
+/zsh/.config/zsh/zsh-secrets
