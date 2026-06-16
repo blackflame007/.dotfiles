@@ -62,6 +62,10 @@ export KUBECONFIG=~/github.com/bromigos-org/homelab/ansible/kubeconfig.yml
 
 export VAULT_ADDR=http://vault.homelab.local
 
+# Meridian — Claude Max proxy for OpenCode
+export ANTHROPIC_API_KEY=x
+export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
+
 # luarocks — cache output to avoid fork on every shell (saves ~40ms)
 # Delete ~/.cache/zsh_luarocks_env to force refresh after luarocks updates
 if command -v luarocks >/dev/null 2>&1; then
