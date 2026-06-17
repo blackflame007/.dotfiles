@@ -2,38 +2,38 @@
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/dev/assets/oh-my-opencode.schema.json",
   "agents": {
     "sisyphus": {
-      "model": "anthropic/claude-opus-4-7"
+      "model": "litellm/kimi-k2.7-code-og"
     },
     "hephaestus": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/copilot-gpt-5.4",
       "variant": "medium"
     },
     "oracle": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/copilot-gpt-5.4",
       "variant": "high"
     },
     "librarian": {
-      "model": "litellm/gpt-5.4-mini"
+      "model": "litellm/qwen3.6-plus-og"
     },
     "explore": {
-      "model": "litellm/gpt-5.4-mini"
+      "model": "litellm/qwen3.6-plus-og"
     },
     "multimodal-looker": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/copilot-gpt-5.4",
       "variant": "medium"
     },
     "prometheus": {
-      "model": "litellm/gpt-5.5"
+      "model": "litellm/copilot-claude-opus-4.8"
     },
     "metis": {
-      "model": "anthropic/claude-sonnet-4-6"
+      "model": "litellm/glm-5.1-og"
     },
     "momus": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/copilot-gpt-5.4",
       "variant": "xhigh"
     },
     "atlas": {
-      "model": "anthropic/claude-sonnet-4-6"
+      "model": "litellm/kimi-k2.7-code-og"
     }
   },
   "categories": {
@@ -41,64 +41,64 @@
       "model": "litellm/qwen3.6-plus-og"
     },
     "ultrabrain": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/copilot-gpt-5.4",
       "variant": "xhigh"
     },
     "deep": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/copilot-gpt-5.4",
       "variant": "medium"
     },
     "artistry": {
       "model": "litellm/qwen3.6-plus-og"
     },
     "quick": {
-      "model": "litellm/gpt-5.4-mini"
+      "model": "litellm/copilot-gemini-3.5-flash"
     },
     "unspecified-low": {
       "model": "litellm/kimi-k2.7-code-og"
     },
     "unspecified-high": {
-      "model": "litellm/gpt-5.5-pro"
+      "model": "litellm/copilot-claude-opus-4.8"
     },
     "writing": {
-      "model": "litellm/gpt-5.4-mini"
+      "model": "litellm/kimi-k2.7-code-og"
     }
   },
   "fallback_models": {
     "agents": {
       "sisyphus": [
-        "litellm/gpt-5.5",
-        "anthropic/claude-sonnet-4-6"
+        "litellm/copilot-claude-opus-4.8",
+        "litellm/glm-5.1-og"
       ],
       "prometheus": [
         "litellm/kimi-k2.7-code-og",
-        "anthropic/claude-opus-4-7"
+        "litellm/glm-5.1-og"
       ],
       "metis": [
-        "litellm/gpt-5.5",
+        "litellm/copilot-gpt-5.4",
         "litellm/kimi-k2.7-code-og"
       ],
       "oracle": [
-        "litellm/gpt-5.5-pro",
-        "anthropic/claude-opus-4-7"
+        "litellm/copilot-claude-opus-4.8",
+        "litellm/glm-5.1-og"
       ]
     },
     "categories": {
       "visual-engineering": [
-        "litellm/gpt-5.5",
+        "litellm/copilot-gemini-3.5-flash",
         "litellm/gemini-3.1-pro"
       ],
       "artistry": [
-        "litellm/gpt-5.5",
+        "litellm/copilot-gemini-3.5-flash",
         "litellm/gemini-3.1-pro"
       ],
       "unspecified-high": [
-        "litellm/gpt-5.5",
-        "anthropic/claude-opus-4-7"
+        "litellm/copilot-claude-sonnet-4.6",
+        "litellm/glm-5.1-og"
       ],
       "writing": [
         "litellm/kimi-k2.7-code-og",
-        "litellm/gemini-3-flash"
+        "litellm/copilot-gemini-3.5-flash"
       ]
     }
   }

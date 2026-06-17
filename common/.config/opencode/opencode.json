@@ -1,44 +1,9 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "oh-my-openagent",
-    "/opt/homebrew/lib/node_modules/@rynfar/meridian/plugin/meridian.ts"
+    "oh-my-openagent"
   ],
   "provider": {
-    "anthropic": {
-      "npm": "@ai-sdk/anthropic",
-      "options": {
-        "baseURL": "http://127.0.0.1:3456",
-        "apiKey": "x",
-        "headers": {
-          "x-meridian-profile": "personal"
-        }
-      },
-      "models": {
-        "claude-opus-4-7": {
-          "name": "Claude Opus 4.7 (Max)",
-          "limit": {
-            "context": 1000000,
-            "output": 32768
-          },
-          "modalities": {
-            "input": ["text", "image", "pdf"],
-            "output": ["text"]
-          }
-        },
-        "claude-sonnet-4-6": {
-          "name": "Claude Sonnet 4.6 (Max)",
-          "limit": {
-            "context": 1000000,
-            "output": 64000
-          },
-          "modalities": {
-            "input": ["text", "image", "pdf"],
-            "output": ["text"]
-          }
-        }
-      }
-    },
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
       "options": {
@@ -78,17 +43,6 @@
             "output": ["text"]
           }
         },
-        "gpt-5.5-pro": {
-          "name": "GPT-5.5 Pro (ChatGPT Pro)",
-          "limit": {
-            "context": 128000,
-            "output": 16384
-          },
-          "modalities": {
-            "input": ["text", "image"],
-            "output": ["text"]
-          }
-        },
         "gpt-5.4": {
           "name": "GPT-5.4 (ChatGPT Pro)",
           "limit": {
@@ -100,8 +54,19 @@
             "output": ["text"]
           }
         },
-        "gpt-5.4-pro": {
-          "name": "GPT-5.4 Pro (ChatGPT Pro)",
+        "copilot-gpt-5.4": {
+          "name": "GPT-5.4 (GitHub Copilot)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "copilot-gpt-5.5": {
+          "name": "GPT-5.5 (GitHub Copilot)",
           "limit": {
             "context": 128000,
             "output": 16384
@@ -122,8 +87,8 @@
             "output": ["text"]
           }
         },
-        "gpt-5.4-nano": {
-          "name": "GPT-5.4 Nano (ChatGPT Pro)",
+        "copilot-gpt-5.4-mini": {
+          "name": "GPT-5.4 Mini (GitHub Copilot)",
           "limit": {
             "context": 128000,
             "output": 16384
@@ -298,6 +263,28 @@
             "output": ["text"]
           }
         },
+        "copilot-claude-opus-4.8": {
+          "name": "Claude Opus 4.8 (GitHub Copilot)",
+          "limit": {
+            "context": 200000,
+            "output": 32768
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
+          }
+        },
+        "copilot-claude-sonnet-4.6": {
+          "name": "Claude Sonnet 4.6 (GitHub Copilot)",
+          "limit": {
+            "context": 200000,
+            "output": 64000
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
+          }
+        },
         "gemini-3.1-pro": {
           "name": "Gemini 3.1 Pro (Direct API)",
           "limit": {
@@ -311,6 +298,17 @@
         },
         "gemini-3-flash": {
           "name": "Gemini 3 Flash (Direct API)",
+          "limit": {
+            "context": 1048576,
+            "output": 65536
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "copilot-gemini-3.5-flash": {
+          "name": "Gemini 3.5 Flash (GitHub Copilot)",
           "limit": {
             "context": 1048576,
             "output": 65536
