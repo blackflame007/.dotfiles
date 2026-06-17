@@ -5,11 +5,11 @@
       "model": "litellm/kimi-k2.7-code-og"
     },
     "hephaestus": {
-      "model": "litellm/copilot-gpt-5.4",
+      "model": "litellm/gpt-5.5",
       "variant": "medium"
     },
     "oracle": {
-      "model": "litellm/copilot-gpt-5.4",
+      "model": "litellm/gpt-5.5",
       "variant": "high"
     },
     "librarian": {
@@ -19,7 +19,7 @@
       "model": "litellm/qwen3.6-plus-og"
     },
     "multimodal-looker": {
-      "model": "litellm/copilot-gpt-5.4",
+      "model": "litellm/gpt-5.5",
       "variant": "medium"
     },
     "prometheus": {
@@ -29,7 +29,7 @@
       "model": "litellm/glm-5.1-og"
     },
     "momus": {
-      "model": "litellm/copilot-gpt-5.4",
+      "model": "litellm/gpt-5.5",
       "variant": "xhigh"
     },
     "atlas": {
@@ -41,18 +41,18 @@
       "model": "litellm/qwen3.6-plus-og"
     },
     "ultrabrain": {
-      "model": "litellm/copilot-gpt-5.4",
+      "model": "litellm/gpt-5.5",
       "variant": "xhigh"
     },
     "deep": {
-      "model": "litellm/copilot-gpt-5.4",
+      "model": "litellm/gpt-5.5",
       "variant": "medium"
     },
     "artistry": {
-      "model": "litellm/qwen3.6-plus-og"
+      "model": "litellm/copilot-gemini-3.5-flash"
     },
     "quick": {
-      "model": "litellm/copilot-gemini-3.5-flash"
+      "model": "litellm/gpt-5.4-mini"
     },
     "unspecified-low": {
       "model": "litellm/kimi-k2.7-code-og"
@@ -75,7 +75,7 @@
         "litellm/glm-5.1-og"
       ],
       "metis": [
-        "litellm/copilot-gpt-5.4",
+        "litellm/gpt-5.5",
         "litellm/kimi-k2.7-code-og"
       ],
       "oracle": [
