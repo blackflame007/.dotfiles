@@ -30,3 +30,6 @@ gac() { git add .; git commit -m "$*" }
 gacp() { git add .; git commit -m "$*"; git push }
 
 kport() { kill -9 $(lsof -t -i:$1) }
+
+# Meridian — Claude Max proxy for OpenCode (scoped to this process only)
+ocm() { ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:3456 opencode "$@" }

@@ -63,3 +63,4 @@ zsh_add_file "zsh-conda"
 zsh_add_file "zsh-pnpm"
 zsh_add_file "zsh-bun"
 zsh_add_file "zsh-docker"
+

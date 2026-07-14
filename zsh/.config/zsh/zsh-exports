@@ -62,10 +62,6 @@ export KUBECONFIG=~/github.com/bromigos-org/homelab/ansible/kubeconfig.yml
 
 export VAULT_ADDR=http://vault.homelab.local
 
-# Meridian — Claude Max proxy for OpenCode
-export ANTHROPIC_API_KEY=x
-export ANTHROPIC_BASE_URL=http://127.0.0.1:3456
-
 # luarocks — cache output to avoid fork on every shell (saves ~40ms)
 # Delete ~/.cache/zsh_luarocks_env to force refresh after luarocks updates
 if command -v luarocks >/dev/null 2>&1; then
@@ -97,8 +93,12 @@ export MANGA_TUI_DATA_DIR="/mnt/Data/manga"
 path+=("$GOBIN")
 path+=("$GOROOT/bin")
 path+=("$HOME/development/flutter/bin")
-path+=("$HOME/Android/Sdk")
+path+=("$HOME/Library/Android/sdk/platform-tools")
+path+=("$HOME/Library/Android/sdk/cmdline-tools/latest/bin")
 path+=("$HOME/.cargo/bin")
+
+export ANDROID_HOME="$HOME/Library/Android/sdk"
+export JAVA_HOME="/opt/homebrew/opt/openjdk@21"
 path+=("$HOME/.antigravity/antigravity/bin")
 path+=("$HOME/.bun/bin")
 if [[ "$OSTYPE" == "darwin"* ]]; then
