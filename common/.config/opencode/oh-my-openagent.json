@@ -25,10 +25,10 @@
       "variant": "high"
     },
     "librarian": {
-      "model": "litellm/gpt-5.4-mini-fast"
+      "model": "litellm/gpt-5.4-mini"
     },
     "explore": {
-      "model": "litellm/gpt-5.4-mini-fast"
+      "model": "litellm/gpt-5.4-mini"
     },
     "multimodal-looker": {
       "model": "litellm/gpt-5.5",
