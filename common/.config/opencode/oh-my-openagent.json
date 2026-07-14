@@ -1,11 +1,23 @@
 {
   "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-opencode/dev/assets/oh-my-opencode.schema.json",
+  "model_fallback": true,
+  "runtime_fallback": {
+    "enabled": true,
+    "max_fallback_attempts": 3,
+    "notify_on_fallback": true,
+    "restore_primary_after_cooldown": true
+  },
   "agents": {
     "sisyphus": {
-      "model": "litellm/kimi-k2.7-code-og"
+      "model": "litellm/claude-fable-5",
+      "variant": "max",
+      "ultrawork": {
+        "model": "litellm/claude-fable-5",
+        "variant": "max"
+      }
     },
     "hephaestus": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/gpt-5.6-sol",
       "variant": "medium"
     },
     "oracle": {
@@ -13,43 +25,49 @@
       "variant": "high"
     },
     "librarian": {
-      "model": "litellm/qwen3.6-plus-og"
+      "model": "litellm/gpt-5.4-mini-fast"
     },
     "explore": {
-      "model": "litellm/qwen3.6-plus-og"
+      "model": "litellm/gpt-5.4-mini-fast"
     },
     "multimodal-looker": {
       "model": "litellm/gpt-5.5",
       "variant": "medium"
     },
     "prometheus": {
-      "model": "litellm/copilot-claude-opus-4.8"
+      "model": "litellm/claude-opus-4-8",
+      "variant": "max"
     },
     "metis": {
-      "model": "litellm/glm-5.1-og"
+      "model": "litellm/claude-sonnet-4-6"
     },
     "momus": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/gpt-5.6-sol",
       "variant": "xhigh"
     },
     "atlas": {
-      "model": "litellm/kimi-k2.7-code-og"
+      "model": "litellm/claude-sonnet-4-6"
+    },
+    "sisyphus-junior": {
+      "model": "litellm/claude-sonnet-4-6"
     }
   },
   "categories": {
     "visual-engineering": {
-      "model": "litellm/qwen3.6-plus-og"
+      "model": "litellm/gemini-3.1-pro",
+      "variant": "high"
     },
     "ultrabrain": {
-      "model": "litellm/gpt-5.5",
+      "model": "litellm/gpt-5.6-sol",
       "variant": "xhigh"
     },
     "deep": {
-      "model": "litellm/gpt-5.5",
-      "variant": "medium"
+      "model": "litellm/gpt-5.6-terra",
+      "variant": "xhigh"
     },
     "artistry": {
-      "model": "litellm/copilot-gemini-3.5-flash"
+      "model": "litellm/gemini-3.1-pro",
+      "variant": "high"
     },
     "quick": {
       "model": "litellm/gpt-5.4-mini"
@@ -58,47 +76,124 @@
       "model": "litellm/kimi-k2.7-code-og"
     },
     "unspecified-high": {
-      "model": "litellm/copilot-claude-opus-4.8"
+      "model": "litellm/claude-opus-4-8",
+      "variant": "max"
     },
     "writing": {
-      "model": "litellm/kimi-k2.7-code-og"
+      "model": "litellm/claude-sonnet-4-6"
     }
   },
   "fallback_models": {
     "agents": {
       "sisyphus": [
-        "litellm/copilot-claude-opus-4.8",
-        "litellm/glm-5.1-og"
+        "litellm/claude-opus-4-8",
+        "litellm/claude-sonnet-4-6",
+        "litellm/kimi-k2.7-code-og",
+        "litellm/kimi-k2.6-og",
+        "litellm/glm-5.2-og",
+        "litellm/gpt-5.5"
       ],
       "prometheus": [
+        "litellm/claude-fable-5",
         "litellm/kimi-k2.7-code-og",
-        "litellm/glm-5.1-og"
+        "litellm/gpt-5.5",
+        "litellm/glm-5.2-og",
+        "litellm/gemini-3.1-pro"
+      ],
+      "hephaestus": [
+        "litellm/gpt-5.5"
+      ],
+      "momus": [
+        "litellm/gpt-5.5",
+        "litellm/claude-opus-4-8",
+        "litellm/gemini-3.1-pro",
+        "litellm/glm-5.2-og"
+      ],
+      "multimodal-looker": [
+        "litellm/kimi-k2.6-og",
+        "litellm/glm-5.1-og",
+        "litellm/gpt-5.5"
       ],
       "metis": [
+        "litellm/claude-opus-4-8",
         "litellm/gpt-5.5",
-        "litellm/kimi-k2.7-code-og"
+        "litellm/kimi-k2.6-og"
       ],
       "oracle": [
-        "litellm/copilot-claude-opus-4.8",
-        "litellm/glm-5.1-og"
+        "litellm/gemini-3.1-pro",
+        "litellm/glm-5.2-og"
+      ],
+      "atlas": [
+        "litellm/kimi-k2.7-code-og",
+        "litellm/kimi-k2.6-og",
+        "litellm/gpt-5.5",
+        "litellm/minimax-m3-og",
+        "litellm/minimax-m2.7-og"
+      ],
+      "librarian": [
+        "litellm/qwen3.5-plus-og",
+        "litellm/minimax-m3-og",
+        "litellm/minimax-m2.7-og",
+        "litellm/gpt-5.4-nano"
+      ],
+      "explore": [
+        "litellm/qwen3.5-plus-og",
+        "litellm/minimax-m3-og",
+        "litellm/minimax-m2.7-og",
+        "litellm/gpt-5.4-nano"
+      ],
+      "sisyphus-junior": [
+        "litellm/kimi-k2.7-code-og",
+        "litellm/kimi-k2.6-og",
+        "litellm/gpt-5.5"
       ]
     },
     "categories": {
       "visual-engineering": [
-        "litellm/copilot-gemini-3.5-flash",
-        "litellm/gemini-3.1-pro"
+        "litellm/qwen3.6-plus-og",
+        "litellm/gemini-3-flash",
+        "litellm/glm-5-og",
+        "litellm/glm-5.2-og"
       ],
       "artistry": [
-        "litellm/copilot-gemini-3.5-flash",
-        "litellm/gemini-3.1-pro"
+        "litellm/claude-opus-4-8",
+        "litellm/gpt-5.5",
+        "litellm/gemini-3-flash"
+      ],
+      "ultrabrain": [
+        "litellm/gpt-5.5",
+        "litellm/gemini-3.1-pro",
+        "litellm/glm-5.2-og"
+      ],
+      "deep": [
+        "litellm/gpt-5.6-sol",
+        "litellm/gpt-5.5",
+        "litellm/gemini-3.1-pro",
+        "litellm/kimi-k2.6-og",
+        "litellm/glm-5.2-og"
+      ],
+      "quick": [
+        "litellm/gemini-3-flash",
+        "litellm/minimax-m3-og",
+        "litellm/minimax-m2.7-og",
+        "litellm/gpt-5.4-nano"
       ],
       "unspecified-high": [
-        "litellm/copilot-claude-sonnet-4.6",
-        "litellm/glm-5.1-og"
+        "litellm/kimi-k2.7-code-og",
+        "litellm/gpt-5.5",
+        "litellm/glm-5-og",
+        "litellm/glm-5.2-og",
+        "litellm/kimi-k2.5-og"
+      ],
+      "unspecified-low": [
+        "litellm/gpt-5.6-luna",
+        "litellm/gpt-5.5"
       ],
       "writing": [
         "litellm/kimi-k2.7-code-og",
-        "litellm/copilot-gemini-3.5-flash"
+        "litellm/gemini-3-flash",
+        "litellm/kimi-k2.6-og",
+        "litellm/minimax-m3-og"
       ]
     }
   }

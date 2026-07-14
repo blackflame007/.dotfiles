@@ -32,11 +32,55 @@
             "output": ["text"]
           }
         },
+        "gpt-5.6-sol": {
+          "name": "GPT-5.6 Sol (ChatGPT Pro)",
+          "limit": {
+            "context": 128000,
+            "output": 32768
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "gpt-5.6-terra": {
+          "name": "GPT-5.6 Terra (ChatGPT Pro)",
+          "limit": {
+            "context": 128000,
+            "output": 32768
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "gpt-5.6-luna": {
+          "name": "GPT-5.6 Luna (ChatGPT Pro)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text"],
+            "output": ["text"]
+          }
+        },
         "gpt-5.5": {
           "name": "GPT-5.5 (ChatGPT Pro)",
           "limit": {
             "context": 128000,
             "output": 16384
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "gpt-5.5-codex": {
+          "name": "GPT-5.5 Codex (ChatGPT Pro)",
+          "limit": {
+            "context": 128000,
+            "output": 32768
           },
           "modalities": {
             "input": ["text", "image"],
@@ -78,6 +122,28 @@
         },
         "gpt-5.4-mini": {
           "name": "GPT-5.4 Mini (ChatGPT Pro)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text"],
+            "output": ["text"]
+          }
+        },
+        "gpt-5.4-mini-fast": {
+          "name": "GPT-5.4 Mini Fast (ChatGPT Pro)",
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text"],
+            "output": ["text"]
+          }
+        },
+        "gpt-5.4-nano": {
+          "name": "GPT-5.4 Nano (ChatGPT Pro)",
           "limit": {
             "context": 128000,
             "output": 16384
@@ -142,6 +208,17 @@
             "output": ["text"]
           }
         },
+        "kimi-k2.7": {
+          "name": "Kimi K2.7 (Moonshot)",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
         "kimi-k2.7-code-og": {
           "name": "Kimi K2.7 Code (OpenCode Go)",
           "limit": {
@@ -153,8 +230,41 @@
             "output": ["text"]
           }
         },
+        "kimi-k2.5-og": {
+          "name": "Kimi K2.5 (OpenCode Go)",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "glm-5.2-og": {
+          "name": "GLM 5.2 (OpenCode Go)",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
         "glm-5.1-og": {
           "name": "GLM 5.1 (OpenCode Go)",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "glm-5-og": {
+          "name": "GLM 5 (OpenCode Go)",
           "limit": {
             "context": 131072,
             "output": 16384
@@ -208,8 +318,30 @@
             "output": ["text"]
           }
         },
+        "qwen3.5-plus-og": {
+          "name": "Qwen3.5 Plus (OpenCode Go)",
+          "limit": {
+            "context": 131072,
+            "output": 16384
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
         "minimax-m3-og": {
           "name": "MiniMax M3 (OpenCode Go)",
+          "limit": {
+            "context": 1048576,
+            "output": 32768
+          },
+          "modalities": {
+            "input": ["text", "image", "video"],
+            "output": ["text"]
+          }
+        },
+        "minimax-m2.7-og": {
+          "name": "MiniMax M2.7 (OpenCode Go)",
           "limit": {
             "context": 1048576,
             "output": 32768
@@ -241,8 +373,19 @@
             "output": ["text"]
           }
         },
-        "claude-opus-4-7": {
-          "name": "Claude Opus 4.7 (Direct API)",
+        "claude-fable-5": {
+          "name": "Claude Fable 5 (Direct API)",
+          "limit": {
+            "context": 200000,
+            "output": 32768
+          },
+          "modalities": {
+            "input": ["text", "image", "pdf"],
+            "output": ["text"]
+          }
+        },
+        "claude-opus-4-8": {
+          "name": "Claude Opus 4.8 (Direct API)",
           "limit": {
             "context": 200000,
             "output": 32768
@@ -254,28 +397,6 @@
         },
         "claude-sonnet-4-6": {
           "name": "Claude Sonnet 4.6 (Direct API)",
-          "limit": {
-            "context": 200000,
-            "output": 64000
-          },
-          "modalities": {
-            "input": ["text", "image", "pdf"],
-            "output": ["text"]
-          }
-        },
-        "copilot-claude-opus-4.8": {
-          "name": "Claude Opus 4.8 (GitHub Copilot)",
-          "limit": {
-            "context": 200000,
-            "output": 32768
-          },
-          "modalities": {
-            "input": ["text", "image", "pdf"],
-            "output": ["text"]
-          }
-        },
-        "copilot-claude-sonnet-4.6": {
-          "name": "Claude Sonnet 4.6 (GitHub Copilot)",
           "limit": {
             "context": 200000,
             "output": 64000
