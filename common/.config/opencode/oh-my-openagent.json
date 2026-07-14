@@ -81,7 +81,7 @@
       "variant": "max"
     },
     "writing": {
-      "model": "litellm/claude-sonnet-4-6"
+      "model": "litellm/kimi-k2.5-og"
     }
   },
   "fallback_models": {
@@ -193,9 +193,9 @@
         "litellm/gemini-3-flash"
       ],
       "writing": [
-        "litellm/kimi-k2.7-code-og",
         "litellm/gemini-3-flash",
         "litellm/kimi-k2.6-og",
+        "litellm/claude-sonnet-4-6",
         "litellm/minimax-m3-og"
       ]
     }
