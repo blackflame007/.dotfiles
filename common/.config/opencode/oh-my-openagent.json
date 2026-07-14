@@ -73,7 +73,8 @@
       "model": "litellm/gpt-5.4-mini"
     },
     "unspecified-low": {
-      "model": "litellm/kimi-k2.7-code-og"
+      "model": "litellm/gpt-5.6-luna",
+      "variant": "xhigh"
     },
     "unspecified-high": {
       "model": "litellm/claude-opus-4-8",
@@ -186,8 +187,10 @@
         "litellm/kimi-k2.5-og"
       ],
       "unspecified-low": [
-        "litellm/gpt-5.6-luna",
-        "litellm/gpt-5.5"
+        "litellm/gpt-5.5",
+        "litellm/kimi-k2.7-code-og",
+        "litellm/kimi-k2.6-og",
+        "litellm/gemini-3-flash"
       ],
       "writing": [
         "litellm/kimi-k2.7-code-og",
