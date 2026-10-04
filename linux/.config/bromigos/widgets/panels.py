@@ -679,18 +679,20 @@ class SwitchboardPanel(Panel):
 
 # =================================================================== SHORTCUTS
 class ShortcutsPanel(Panel):
-    """Live Hyprland keybinds as keycaps. Scroll to move; click a LAUNCH or BROMIGOS
-    line to run it (window, workspace and system binds stay keyboard-only)."""
+    """Live Hyprland keybinds as keycaps, Bromigos sections first. Scroll to move; click a
+    Bromigos, launch or capture line to run it (window, workspace, system and hold-to-use
+    binds stay keyboard-only)."""
     name, title = "shortcuts", "SHORTCUTS"
     height = 384
     interval = 5.0
     ROW, HEAD = 24, 26
-    RUNNABLE = ("LAUNCH", "BROMIGOS")
+    RUNNABLE = None                         # keybinds.RUNNABLE, set in __init__
 
     def __init__(self, cfg=None):
         super().__init__(cfg)
         import keybinds
         self.kb = keybinds
+        self.RUNNABLE = tuple(keybinds.RUNNABLE)
         self.items, self.mtime, self.offset = [], -1, 0
         self.tick()
 
@@ -728,7 +730,7 @@ class ShortcutsPanel(Panel):
     def draw(self, cr, w, h):
         top = D.frame(cr, w, h, self.title, f"{len(self.items)} BINDS · SUPER+SHIFT+K SEARCH")
         self.region(0, 0, w, 34, "Every Hyprland keybind, read live from Hyprland (it refreshes when "
-                    "a hypr .conf changes). Scroll to move; click a launch or Bromigos line to run it. "
+                    "a hypr .conf changes). Bromigos keys first. Scroll to move; click a Bromigos, launch or capture line to run it. "
                     "SUPER+SHIFT+K opens a searchable version.")
         x0, x1 = 16, w - 16
         view_top, view_bot = top, h - 10
@@ -741,8 +743,9 @@ class ShortcutsPanel(Panel):
             if s != sec:
                 sec = s
                 if view_top - self.HEAD <= y <= view_bot:
+                    lw = D.layout(cr, s.upper(), 10, "semibold", 0.18).get_pixel_size()[0]
                     D.label(cr, x0, y + 6, s, "phosphor", size=10)
-                    D.rule(cr, x0 + 110, y + 13, x1, "dim", 0.35)
+                    D.rule(cr, x0 + lw + 10, y + 13, x1, "dim", 0.35)
                 y += self.HEAD
             if view_top - self.ROW <= y <= view_bot:
                 kx = x0

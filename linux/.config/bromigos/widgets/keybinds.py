@@ -16,7 +16,14 @@ import subprocess
 import sys
 
 MOD = "ALT"                     # $mainMod in hyprland.conf
-SECTIONS = ["LAUNCH", "WINDOWS", "WORKSPACES", "BROMIGOS", "MEDIA", "SYSTEM"]
+# Display order. The Bromigos pieces come first, grouped by what they're for; the
+# stock window-manager binds follow. Within a section, rows follow the order of the
+# EXEC / DISPATCH tables below (not the order in hyprland.conf).
+SECTIONS = ["PILOT", "HOLOGRAMS", "PANELS + NOTES", "LIVE LAYER",
+            "LAUNCH", "CAPTURE", "WINDOWS", "WORKSPACES", "MEDIA", "SYSTEM"]
+BROMIGOS = SECTIONS[:4]
+# Sections whose rows can be clicked to run (the panel) — hold-to-use binds never are.
+RUNNABLE = BROMIGOS + ["LAUNCH", "CAPTURE"]
 
 KEYNAMES = {
     "RETURN": "ENTER", "ESCAPE": "ESC", "LEFT": "←", "RIGHT": "→", "UP": "↑", "DOWN": "↓",
@@ -27,26 +34,35 @@ KEYNAMES = {
     "XF86AUDIOPLAY": "PLAY", "XF86AUDIOPREV": "PREV", "XF86AUDIONEXT": "NEXT",
 }
 
-# (regex on the exec command, description, section). First match wins.
+# (regex on the exec command, description, section). First match wins; the list
+# order is also the row order inside each section.
 EXEC = [
-    (r"bromigos-live\b.*scan-pin", "Scanner: pin hardware schematic", "BROMIGOS"),
-    (r"bromigos-live\b.*scan-hold", "Scanner: hold to scan", "BROMIGOS"),
-    (r"bromigos-live\b.*holodeck", "Holo deck", "BROMIGOS"),
-    (r"bromigos-live\b.*arbiter", "ARBITER deck (the Floor)", "BROMIGOS"),
-    (r"bromigos-live\b.*driftmap", "Drift map (lore star chart)", "BROMIGOS"),
-    (r"bromigos-live\b.*timeline", "Timeline (scrub the history)", "BROMIGOS"),
-    (r"bromigos-live\b.*radial", "Radial menu", "BROMIGOS"),
-    (r"bromigos-live\b.*toggle", "Live background on/off", "BROMIGOS"),
-    (r"bromigos-live\b.*codec-quiet", "Codec calls: voice on/off", "BROMIGOS"),
-    (r"bromigos-live\b.*mute", "Live layer sound on/off", "BROMIGOS"),
-    (r"bromigos-live\b.*wallpaper", "Wallpaper", "BROMIGOS"),
-    (r"bromigos-widgets toggle all", "All desktop panels", "BROMIGOS"),
-    (r"bromigos-widgets toggle (\w+)", lambda m: f"{m.group(1).capitalize()} panel", "BROMIGOS"),
-    (r"bromigos-widgets notes", "Type in field notes", "BROMIGOS"),
-    (r"keybinds\.py rofi", "Search shortcuts", "BROMIGOS"),
-    (r"quick-note", "Quick note", "BROMIGOS"),
-    (r"power-menu", "Power menu", "BROMIGOS"),
-    (r"lock-session|hyprlock", "Lock", "BROMIGOS"),
+    # PILOT: the console tech and its voice
+    (r"bromigos-holo\b.*\bpilot\b", "PILOT: show / minimize", "PILOT"),
+    (r"bromigos-holo\b.*\bptt\b", "PILOT: hold to talk", "PILOT"),
+    (r"bromigos-holo\b.*\bmute\b", "PILOT: voice on/off", "PILOT"),
+    # HOLOGRAMS: the full-screen decks and 3D views
+    (r"bromigos-live\b.*holodeck", "Holo deck (this machine)", "HOLOGRAMS"),
+    (r"bromigos-holo\b.*\bgallery\b", "3D model gallery", "HOLOGRAMS"),
+    (r"bromigos-live\b.*arbiter", "ARBITER deck (the Floor)", "HOLOGRAMS"),
+    (r"bromigos-live\b.*timeline", "Timeline (scrub the last 72 h)", "HOLOGRAMS"),
+    (r"bromigos-live\b.*driftmap", "Drift map (lore star chart)", "HOLOGRAMS"),
+    (r"bromigos-live\b.*radial", "Radial quick-launch", "HOLOGRAMS"),
+    # PANELS + NOTES: the desktop widgets
+    (r"bromigos-widgets toggle all", "All desktop panels", "PANELS + NOTES"),
+    (r"bromigos-widgets toggle shortcuts", "This shortcuts panel", "PANELS + NOTES"),
+    (r"keybinds\.py rofi", "Search shortcuts (Enter runs)", "PANELS + NOTES"),
+    (r"bromigos-widgets toggle (\w+)", lambda m: f"{m.group(1).capitalize()} panel", "PANELS + NOTES"),
+    (r"bromigos-widgets notes", "Type in field notes", "PANELS + NOTES"),
+    (r"quick-note", "Quick note from anywhere", "PANELS + NOTES"),
+    # LIVE LAYER: the animated background
+    (r"bromigos-live\b.*scan-pin", "Scanner: pin hardware schematic", "LIVE LAYER"),
+    (r"bromigos-live\b.*scan-hold", "Scanner: hold to scan", "LIVE LAYER"),
+    (r"bromigos-live\b.*codec-quiet", "Codec calls: voice on/off", "LIVE LAYER"),
+    (r"bromigos-live\b.*mute", "Live layer sounds on/off", "LIVE LAYER"),
+    (r"bromigos-live\b.*toggle", "Live background on/off", "LIVE LAYER"),
+    (r"bromigos-live\b.*wallpaper", "Wallpaper", "LIVE LAYER"),
+    # LAUNCH
     (r"rofi -show drun", "Launcher", "LAUNCH"),
     (r"rofi -show window", "Window switcher", "LAUNCH"),
     (r"rofi -show run", "Run a command", "LAUNCH"),
@@ -59,6 +75,11 @@ EXEC = [
     (r"^obs\b", "OBS", "LAUNCH"),
     (r"^steam\b", "Steam", "LAUNCH"),
     (r"reStream", "reMarkable mirror", "LAUNCH"),
+    # CAPTURE
+    (r"bromigos-shot\b.*region|^grim\b", "Screenshot a region", "CAPTURE"),
+    (r"bromigos-shot\b.*screen", "Screenshot the screen", "CAPTURE"),
+    (r"bromigos-rec\b|wf-recorder", "Record a region (again to stop)", "CAPTURE"),
+    # MEDIA
     (r"set-sink-mute", "Mute", "MEDIA"),
     (r"set-sink-volume\S* \S+ -", "Volume down", "MEDIA"),
     (r"set-sink-volume\S* \S+ \+", "Volume up", "MEDIA"),
@@ -68,10 +89,11 @@ EXEC = [
     (r"playerctl play-pause", "Play / pause", "MEDIA"),
     (r"playerctl previous", "Previous track", "MEDIA"),
     (r"playerctl next", "Next track", "MEDIA"),
-    (r"SIGUSR1 waybar", "Show / hide bar", "SYSTEM"),
+    # SYSTEM
+    (r"lock-session|hyprlock", "Lock", "SYSTEM"),
+    (r"power-menu", "Power menu", "SYSTEM"),
     (r"systemctl suspend", "Suspend", "SYSTEM"),
-    (r"^grim\b", "Screenshot a region", "SYSTEM"),
-    (r"wf-recorder", "Record a region", "SYSTEM"),
+    (r"SIGUSR1 waybar", "Show / hide bar", "SYSTEM"),
 ]
 
 DISPATCH = {
@@ -89,6 +111,7 @@ DISPATCH = {
     ("exit", ""): ("Quit Hyprland", "SYSTEM"),
 }
 DIRS = {"l": "left", "r": "right", "u": "up", "d": "down"}
+_DRANK = {k: len(EXEC) + i for i, k in enumerate(DISPATCH)}
 
 
 # ------------------------------------------------------------------ sources
@@ -110,6 +133,8 @@ def _hypr_binds():
     for b in raw:
         mm = b.get("modmask", 0)
         mods = [n for bit, n in ((64, "SUPER"), (8, MOD), (4, "CTRL"), (1, "SHIFT")) if mm & bit]
+        if b.get("release"):                   # the key-up half of a hold bind
+            continue
         binds.append((mods, b["key"], b["dispatcher"], b.get("arg", "")))
     return binds
 
@@ -143,6 +168,8 @@ def _conf_binds(path=os.path.expanduser("~/.config/hypr/hyprland.conf"), seen=No
         for k, v in variables.items():
             mods_s = mods_s.replace("$" + k, "MAINMOD" if k == "mainMod" else v)
         mods = [MOD if t.upper() == "MAINMOD" else t.upper() for t in mods_s.split()]
+        if m.group(1).startswith("bindr"):      # the key-up half of a hold bind
+            continue
         disp, arg = (parts[2], parts[3]) if m.group(1) != "bindm" else ("mouse", parts[2])
         binds.append((mods, parts[1], disp, arg))
     return binds
@@ -155,23 +182,25 @@ def keyname(k):
 
 
 def describe(disp, arg):
+    """(description, section, rank) — rank orders rows inside a section."""
     if disp == "exec":
-        for pat, desc, sec in EXEC:
+        for i, (pat, desc, sec) in enumerate(EXEC):
             m = re.search(pat, arg)
             if m:
-                return (desc(m) if callable(desc) else desc), sec
-        return os.path.basename(arg.split()[0]) if arg else "Run", "LAUNCH"
+                return (desc(m) if callable(desc) else desc), sec, i
+        return (os.path.basename(arg.split()[0]) if arg else "Run"), "LAUNCH", 999
     if (disp, arg) in DISPATCH:
-        return DISPATCH[(disp, arg)]
+        return DISPATCH[(disp, arg)] + (_DRANK[(disp, arg)],)
+    n = len(EXEC) + len(DISPATCH)
     if disp == "movefocus":
-        return f"Focus {DIRS.get(arg, arg)}", "WINDOWS"
+        return f"Focus {DIRS.get(arg, arg)}", "WINDOWS", n
     if disp == "movewindow":
-        return f"Move window {DIRS.get(arg, arg)}", "WINDOWS"
+        return f"Move window {DIRS.get(arg, arg)}", "WINDOWS", n + 1
     if disp == "resizeactive":
-        return ("Narrower" if arg.strip().startswith("-") else "Wider"), "WINDOWS"
+        return ("Narrower" if arg.strip().startswith("-") else "Wider"), "WINDOWS", n + 2
     if disp.startswith("workspace") or disp.startswith("movetoworkspace") or disp == "focusmonitor":
-        return f"{disp} {arg}".strip(), "WORKSPACES"
-    return f"{disp} {arg}".strip(), "SYSTEM"
+        return f"{disp} {arg}".strip(), "WORKSPACES", n + 3
+    return f"{disp} {arg}".strip(), "SYSTEM", n + 4
 
 
 def shortcuts():
@@ -199,15 +228,27 @@ def shortcuts():
             continue
         if disp == "focusmonitor":
             continue
-        desc, sec = describe(disp, arg)
-        out.append((sec, mods + [keyname(key)], desc, (disp, arg) if disp != "mouse" else None))
+        desc, sec, rank = describe(disp, arg)
+        hold = "hold" in desc                   # press-and-hold binds can't be run from a click
+        out.append((sec, mods + [keyname(key)], desc, None if disp == "mouse" or hold else (disp, arg), rank))
     for group, desc in ((ws_go, "Go to workspace"), (ws_move, "Move window to workspace")):
         if group:
             keys = [k for _, k in group]
             rng = f"{keys[0]}–{keys[-1]}" if len(keys) > 1 else keys[0]
-            out.append(("WORKSPACES", group[0][0] + [rng], desc, None))
-    out.sort(key=lambda s: SECTIONS.index(s[0]) if s[0] in SECTIONS else 99)
-    return out
+            out.append(("WORKSPACES", group[0][0] + [rng], desc, None, 10_000))
+    out.sort(key=lambda s: (SECTIONS.index(s[0]) if s[0] in SECTIONS else 99, s[4]))   # stable: ties keep conf order
+    merged, seen = [], {}
+    for sec, keys, desc, action, _ in out:     # two binds, one job (ALT+C and ALT+SHIFT+C both close)
+        if (sec, desc) in seen:
+            i = seen[(sec, desc)]
+            s0, k0, d0, a0 = merged[i]
+            if len(keys) < len(k0):              # show the shorter chord on the keycaps
+                k0, keys = keys, k0
+            merged[i] = (s0, k0, f"{d0} (also {'+'.join(keys)})", a0)
+            continue
+        seen[(sec, desc)] = len(merged)
+        merged.append((sec, keys, desc, action))
+    return merged
 
 
 def config_mtime():
