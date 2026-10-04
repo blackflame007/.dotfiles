@@ -5,13 +5,16 @@ import os
 import tomllib
 
 HERE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-PATH = os.path.join(os.path.expanduser("~/.config/bromigos-live"), "config.toml")
+PATH = os.environ.get("BROMIGOS_LIVE_CONFIG") or os.path.join(os.path.expanduser("~/.config/bromigos-live"), "config.toml")
 if not os.path.exists(PATH):
     PATH = os.path.join(HERE, "config.toml")
 
 DEFAULTS = {
     "general": {"monitor": "DP-1", "fps": 30, "fps_covered": 20, "reduced_motion": False},
-    "background": {"enabled": True, "underlay": "", "underlay_brightness": 1.0, "glow": 0.85, "den": True},
+    "background": {"enabled": True, "underlay": "", "underlay_fallback": "", "underlay_brightness": 1.0,
+                   "glow": 0.85, "den": True, "den_plate": "", "den_plates": {}},
+    "loops": {"streaks": True, "streak_period": 10, "rows": True, "row_period": 12, "row_amp": 1.0,
+              "steam": ["den", "empty", "masked", "v1"], "steam_period": 7, "steam_intensity": 0.55},
     "rain": {"enabled": True, "region": [0, 30, 2390, 600], "brightness": 0.55, "bursts": True},
     "floor": {"enabled": True, "horizon_y": 926, "vanish_x": 690, "lane_slope": 0.98, "lane_offset": 0.71,
               "max_x": 1000, "draw_grid": False},

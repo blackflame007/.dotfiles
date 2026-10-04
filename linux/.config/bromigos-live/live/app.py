@@ -371,6 +371,17 @@ class App:
         if c == "transmission":
             self.overlay("transmission", summary=arg or "TEST TRANSMISSION")
             return "ok"
+        if c in ("scan", "scan-pin", "scan-hold"):
+            r = self.bg.renderer if self.bg else None
+            if not r:
+                return "background off"
+            if c == "scan":
+                r.scan()
+                return "scanning"
+            if c == "scan-pin":
+                return "schematic pinned" if r.scan_pin_toggle() else "schematic unpinned"
+            r.scan_hold(arg.strip() != "off")
+            return "hold " + ("off" if arg.strip() == "off" else "on")
         if c == "burst":
             if self.bg and self.bg.renderer:
                 self.bg.renderer.burst(int(arg or 0))

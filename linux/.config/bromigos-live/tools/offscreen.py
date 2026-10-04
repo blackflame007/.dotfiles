@@ -72,6 +72,8 @@ def main():
     tgt = glkit.Target(W, H)
     clock = {"t": 0.0}
     r.now = lambda: clock["t"]
+    if hasattr(r, "loop_clock"):
+        r.loop_clock = lambda: clock["t"] + float(os.environ.get("OFF_LOOP0", 0.0))
 
     # OFF_SCRIPT="3.0 burst 2; 4.5 select CPU" — scripted real-event stand-ins for demo clips
     script = []
@@ -90,6 +92,10 @@ def main():
                     r.selected = ev[2][0]
                     r.sel_t = t + 0.01
                     r.built_at = None
+                elif ev[1] == "scan":
+                    r.scan()
+                elif ev[1] == "pin":
+                    r.scan_pin_toggle()
                 elif ev[1] == "radial":
                     r._select(int(ev[2][0]))
         if hasattr(r, "tick"):

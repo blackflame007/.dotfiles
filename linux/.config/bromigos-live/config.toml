@@ -12,18 +12,47 @@ fps = 30                 # desktop visible (empty workspace)
 fps_covered = 20       # windows tiled over it, only the gaps show
 reduced_motion = false   # no tears, no rotation; crossfades only
 
+# DATA vs DECORATION — what each moving layer means:
+#   data (real readings/events): rain density+speed (CPU) and bursts (notifications,
+#     lab alerts, ARBITER fills), floor pulses (network throughput), den scope
+#     (network), den meters (CPU/GPU), relay map, scanner schematic values, ship
+#     density (network), relay beam (lab all green), health tint, rings,
+#     constellation, hologram.
+#   decoration (fixed calm pace, tied to nothing): [loops] streaks, floor-row
+#     scroll and mug steam, stars, the emblem's rotation, the scanner sweep itself.
+
 [background]
-enabled = true           # the live background layer (ALT+SHIFT+B / SUPER+SHIFT+B toggles at runtime)
-# The theme's static wallpaper, drawn as the base plate so the live layer
-# continues it instead of replacing it. Empty = pure void.
-underlay = "~/.config/wallpaper/bromigos-den-2560x1440.jpg"
+enabled = true           # the live background layer (SUPER+SHIFT+B toggles at runtime)
+# The den wallpaper, drawn as the base plate. The current choice is local state
+# kept by bromigos-wallpaper (never a tracked file); the committed canonical link
+# is the fallback when nothing has been chosen yet.
+underlay = "~/.local/state/bromigos/wallpaper/den.jpg"
+underlay_fallback = "~/.config/wallpaper/bromigos-den-2560x1440.jpg"
 underlay_brightness = 1.0
 den = true               # make the den's own screens live: scope, burn-in monitor, meters, relay map
-# The den screens and floor lanes are fitted to one image (rects in live/scene.py
-# DEN, floor values below). The wallpaper is reloaded whenever the file changes;
-# if its sha1 no longer matches, those fitted overlays switch off by themselves.
-den_fit_sha1 = "ca67fdd84abec3580141b5569dd00dfdcf58eccd"
+# The clean v1 plate every variant is composited onto: the source for removing
+# baked steam before it is redrawn live.
+den_plate = "~/.config/wallpaper/bromigos-den-2560x1440-v1.jpg"
 glow = 0.85              # bloom on vector lines (no scanlines, no vignette, no CRT pass)
+
+# Approved den images (sha1 -> variant). All share the v1 plate, so the fitted
+# overlays (den screens, floor lanes, loops) switch on only for these; any other
+# image gets the generic layers alone. Re-fit and add a line for a new variant.
+[background.den_plates]
+"ca67fdd84abec3580141b5569dd00dfdcf58eccd" = "den"
+"05c5e22f69049d5ae5e4f19a044f4ddee9c429fd" = "empty"
+"fbe4eb7d666f6a8068d7fce7d7d18d3f663b6b54" = "masked"
+"2c5d34445075bde7f434a022ce6390f9e9a58b22" = "v1"
+
+[loops]                  # DECORATION: seamless loops over the clean plate (baked versions removed)
+streaks = true           # the left side's glitch streaks, re-drawn drifting/stretching/fading
+streak_period = 10       # seconds per loop
+rows = true              # the floor grid's rows scroll toward you, one cell per loop
+row_period = 12          # seconds per cell (constant, tied to no metric)
+row_amp = 1.0
+steam = ["den", "empty", "masked", "v1"]   # variants whose mug steams (baked wisps are masked)
+steam_period = 7         # seconds per loop
+steam_intensity = 0.55
 
 [rain]                   # "Drift script" glyph rain: density and speed track CPU load
 enabled = true
@@ -42,8 +71,10 @@ draw_grid = false        # true when there is no underlay grid to ride on
 
 [sweep]                  # the X-ray scanner pass that reveals this machine's schematic
 enabled = true
-period = 24              # seconds between passes
-duration = 5.5
+period = 24              # seconds between passes (SUPER+X pins it, hold SUPER+Z to scan)
+duration = 5.5           # the beam's crossing time
+afterglow_hold = 1.2     # what it revealed stays fully lit this long...
+afterglow_fade = 2.8     # ...then fades over this long, so the values can be read
 
 [space]                  # the Drift: behind the art in the background, full vista in the screensaver
 stars = true             # parallax star layers

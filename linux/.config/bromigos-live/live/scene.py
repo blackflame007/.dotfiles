@@ -48,12 +48,22 @@ class Background:
         self.under = None
         self.under_sig = None
         self.fitted = False
+        self.variant = None
+        self.segs = []
+        self.steam_on = False
         self.face = (0.62, 0.8, 0.55)
         self.checked_at = 0.0
         self._load_under()
         self.schem_tex = None
         self.schem_next = time.monotonic() + 6.0
         self.sweep_t0 = None
+        self.scan_req = False
+        self.scan_pin = False
+        self.scan_held = False
+        self.pin_amt = 0.0
+        self.hold_amt = 0.0
+        self.schem_at = 0.0
+        self.beam_speed = 600.0
         self.bursts = [(0.0, 0.0, 0.0, 0.0)] * 6
         self.burst_i = 0
         self.wipe_t0 = -10.0
@@ -63,45 +73,112 @@ class Background:
         self.last_build = 0.0
         self.t0 = time.monotonic()
 
+    def _path(self):
+        bg = self.cfg["background"]
+        for key in ("underlay", "underlay_fallback"):
+            p = os.path.expanduser(bg.get(key, "") or "")
+            if p and os.path.exists(p):
+                return p
+        return None
+
     def _sig(self):
-        path = os.path.expanduser(self.cfg["background"].get("underlay", "") or "")
+        path = self._path()
         try:
-            st = os.stat(path)
-            return (path, st.st_mtime_ns, st.st_size)
-        except OSError:
+            real = os.path.realpath(path)
+            st = os.stat(real)
+            return (path, real, st.st_mtime_ns, st.st_size)
+        except (OSError, TypeError):
             return None
 
     def _load_under(self):
-        """(Re)load the wallpaper by path. The den overlays (screens, meters, floor
-        lanes) are fitted to one specific image: they only switch on when the file's
-        sha1 matches background.den_fit_sha1, so a regenerated wallpaper never gets
-        misplaced overlays (re-fit DEN rects and update the sha1 to re-enable)."""
+        """(Re)load the den by path (bromigos-wallpaper switches it). An image on
+        the committed allowlist (background.den_plates, sha1 -> variant) is a den
+        variant on the shared v1 plate: it gets the fitted overlays and the clean
+        plate (baked steam/streaks/rows removed, redrawn live as loops). Any other
+        image is drawn as is, with only the generic layers."""
         import hashlib
+        from . import plate
         bg = self.cfg["background"]
+        lp = self.cfg.get("loops", {})
         sig = self._sig()
         self.under_sig = sig
         if self.under is not None:
             GL.glDeleteTextures([self.under])
             self.under = None
         self.fitted = False
-        if sig:
-            path = sig[0]
-            with open(path, "rb") as fh:
-                self.fitted = hashlib.sha1(fh.read()).hexdigest() == bg.get("den_fit_sha1", "")
-            raw, pb = load_image(path, self.w, self.h)
-            self.under = glkit.texture_rgba(raw, self.w, self.h, GL.GL_RGB)
+        self.variant = None
+        self.segs = []
+        if not sig:
+            return
+        path = sig[1]
+        with open(path, "rb") as fh:
+            self.variant = (bg.get("den_plates") or {}).get(hashlib.sha1(fh.read()).hexdigest())
+        self.fitted = self.variant is not None
+        steam = self.fitted and self.variant in (lp.get("steam") or [])
+        if self.fitted and (steam or lp.get("streaks", True) or lp.get("rows", True)):
+            v1 = os.path.expanduser(bg.get("den_plate", "") or "")
+            img, self.segs, info = plate.clean_plate(path, v1, steam=steam, streaks=bool(lp.get("streaks", True)),
+                                                    rows=bool(lp.get("rows", True)))
+            if (self.w, self.h) != (plate.PLATE_W, plate.PLATE_H):
+                import cairo  # noqa: F401  (scale through GdkPixbuf)
+                import gi
+                gi.require_version("GdkPixbuf", "2.0")
+                from gi.repository import GdkPixbuf, GLib
+                pb = GdkPixbuf.Pixbuf.new_from_bytes(GLib.Bytes.new(img.tobytes()), GdkPixbuf.Colorspace.RGB,
+                                                     False, 8, plate.PLATE_W, plate.PLATE_H, plate.PLATE_W * 3)
+                pb = pb.scale_simple(self.w, self.h, GdkPixbuf.InterpType.BILINEAR)
+                st = pb.get_rowstride()
+                raw = np.frombuffer(pb.get_pixels(), dtype=np.uint8).reshape(self.h, st)[:, :self.w * 3]
+                raw = np.ascontiguousarray(raw).reshape(self.h, self.w, 3)
+            else:
+                raw = img
+        else:
+            raw, _pb = load_image(path, self.w, self.h)
             if not self.fitted:
-                print("bromigos-live: wallpaper differs from the fitted den; den overlays off", flush=True)
-            # the meter faces' own colour, so the live faces match the art
-            m = DEN["meter0"]
-            sx, sy = self.w / 2560.0, self.h / 1440.0
-            x0, y0 = int(m[0] * sx), int(m[1] * sy)
-            patch = raw[y0 + 4:y0 + int(m[3] * sy) - 4, x0 + 4:x0 + int(m[2] * sx) - 4]
-            if patch.size:
-                rgb = patch.reshape(-1, 3).astype(np.float32) / 255.0
-                lum = rgb @ np.array([0.3, 0.59, 0.11], dtype=np.float32)
-                top = rgb[lum >= np.percentile(lum, 70)]
-                self.face = tuple(float(x) for x in top.mean(axis=0))
+                print("bromigos-live: wallpaper is not an approved den variant; den overlays off", flush=True)
+        self.steam_on = steam
+        self.under = glkit.texture_rgba(raw, self.w, self.h, GL.GL_RGB)
+        print(f"bromigos-live: plate {os.path.basename(path)} variant={self.variant} steam={steam} "
+              f"streaks={len(self.segs)}", flush=True)
+        # the meter faces' own colour, so the live faces match the art
+        m = DEN["meter0"]
+        sx, sy = self.w / 2560.0, self.h / 1440.0
+        x0, y0 = int(m[0] * sx), int(m[1] * sy)
+        patch = raw[y0 + 4:y0 + int(m[3] * sy) - 4, x0 + 4:x0 + int(m[2] * sx) - 4]
+        if patch.size:
+            rgb = patch.reshape(-1, 3).astype(np.float32) / 255.0
+            lum = rgb @ np.array([0.3, 0.59, 0.11], dtype=np.float32)
+            top = rgb[lum >= np.percentile(lum, 70)]
+            self.face = tuple(float(x) for x in top.mean(axis=0))
+
+    def loop_uniforms(self, f):
+        """Decorative loops. Phases come from wall-clock seconds in double precision
+        (time.monotonic), each wrapped by its own period, so every loop closes exactly."""
+        from . import plate
+        lp = self.cfg.get("loops", {})
+        sx, sy = self.w / 2560.0, self.h / 1440.0
+        on = self.under is not None and self.fitted      # independent of the den-screens toggle
+        T_s = float(lp.get("streak_period", 10))
+        T_r = float(lp.get("row_period", 12))
+        T_st = float(lp.get("steam_period", 7))
+        now = self.loop_clock()
+        f.f("u_loop", (now % T_s) / T_s, (now % T_r) / T_r, (now % T_st) / T_st, T_s)
+        sk = np.zeros((16, 4), dtype=np.float32)
+        sk2 = np.zeros((16, 4), dtype=np.float32)
+        if on and lp.get("streaks", True):
+            for i, sg in enumerate(self.segs[:16]):
+                sk[i] = (sg["x0"] * sx, sg["y"] * sy, sg["x1"] * sx, sg["thick"] * sy)
+                sk2[i] = (sg["amp"], 0.137 * (i + 1) + 0.71, 1.0 if sg["x0"] == 0 else 0.0, 1.0)
+        f.fv("u_sk", sk, 4)
+        f.fv("u_sk2", sk2, 4)
+        f.fv("u_rows", np.array(plate.ROWS, dtype=np.float32) * sy, 1)
+        f.f("u_rowfx", 1.0 if (on and lp.get("rows", True)) else 0.0, plate.FLOOR_X1 * sx, 926.0 * sy,
+            float(lp.get("row_amp", 1.0)))
+        f.f("u_steam", 1347.0 * sx, 1204.0 * sy, 47.0 * sx, 1.0 if (on and self.steam_on) else 0.0)
+        f.f("u_steam2", 175.0 * sy, float(lp.get("steam_intensity", 0.55)), T_st, 100.0 * sy)
+
+    def loop_clock(self):
+        return time.monotonic()
 
     # ------------------------------------------------------------------ events
     def burst(self, kind=0, x=None, strength=1.0):
@@ -162,18 +239,35 @@ class Background:
         # network pulses
         rx, tx = d.get("rx") or 0.0, d.get("tx") or 0.0
         lv = lambda v: max(0.0, min(1.0, math.log10(1 + v) / 7.5))  # noqa: E731
-        # sweep scheduling
+        # sweep scheduling: periodic, on demand (scan), held, pinned
         sw = cfg["sweep"]
         sweep_x, sweep_on = 0.0, 0.0
-        if sw.get("enabled", True):
-            if self.sweep_t0 is None or t - self.sweep_t0 > float(sw.get("period", 24)):
+        dur = float(sw.get("duration", 5.5))
+        glow_hold, glow_fade = float(sw.get("afterglow_hold", 1.2)), float(sw.get("afterglow_fade", 2.8))
+        if sw.get("enabled", True) or self.scan_req or self.scan_held:
+            due = self.sweep_t0 is None or t - self.sweep_t0 > float(sw.get("period", 24))
+            if self.scan_req or (due and sw.get("enabled", True)):
+                self.scan_req = False
                 self.sweep_t0 = t
                 self._draw_schematic(d)
-            st = t - self.sweep_t0
-            dur = float(sw.get("duration", 5.5))
-            if st < dur + 2.0:
-                sweep_on = 1.0
-                sweep_x = -200 + (self.w + 400) * (st / dur)
+            if self.sweep_t0 is not None:
+                st = t - self.sweep_t0
+                if st < dur + glow_hold + glow_fade + 0.5:
+                    sweep_on = 1.0
+                    sweep_x = -200 + (self.w + 400) * (st / dur)
+        if self.scan_held and mono - getattr(self, "hold_t", mono) > 15.0:
+            self.scan_held = False                     # a lost key release never sticks
+        # pinned / held: keep the readings live (redraw every 2 s), ease in and out
+        live = self.scan_pin or self.scan_held
+        if live and mono - self.schem_at > 2.0:
+            self._draw_schematic(d)
+        dt = max(0.0, min(t - getattr(self, "_ease_t", t), 1.0))
+        self._ease_t = t
+        k_in = 1.0 - math.exp(-dt / 0.18)
+        k_out = 1.0 - math.exp(-dt / glow_fade * 3.0)      # released/unpinned: fades like the afterglow
+        self.pin_amt += ((1.0 if self.scan_pin else 0.0) - self.pin_amt) * (k_in if self.scan_pin else k_out)
+        self.hold_amt += ((1.0 if self.scan_held else 0.0) - self.hold_amt) * (k_in if self.scan_held else k_out)
+        self.beam_speed = (self.w + 400) / dur
         # the space constellation on the big CRT
         p = self.stage.painter
         bx, by, bw, bh = self._px(DEN["big"])
@@ -213,6 +307,8 @@ class Background:
             1.0 if (fl.get("enabled", True) and (self.fitted or not self.under)) else 0.0, 0.0)
         f.f("u_net", lv(rx), lv(tx), 0.10 + 0.35 * lv(rx), 0.10 + 0.35 * lv(tx))
         f.f("u_sweep", sweep_x, sweep_on, 1.0, 1.0 if self.schem_tex else 0.0)
+        f.f("u_scan", glow_hold, glow_fade, self.hold_amt, self.pin_amt)
+        f.f("u_scan2", self.beam_speed, 0.0, 0.0, 0.0)
         f.f("u_schem_rect", *self._px(DEN["schem"]))
         wp = (t - self.wipe_t0) / 0.45
         f.f("u_wipe", wp if (0 <= wp <= 1 and cfg["events"].get("workspace_wipe", True)) else -1.0)
@@ -239,9 +335,27 @@ class Background:
         f.f("u_sun", 0.0, 0.0, 0.0, 0.0)
         bx0, by0 = 2000.0 * sx, 370.0 * sy
         f.f("u_beam", bx0, by0, -2.5, 0.12 + min(rps, 6.0) / 12.0)
+        self.loop_uniforms(f)
         self.stage.fs.draw()
 
+    # ---- scanner control (bromigos-live scan / scan-pin / scan-hold on|off)
+    def scan(self):
+        self.scan_req = True
+
+    def scan_pin_toggle(self):
+        self.scan_pin = not self.scan_pin
+        if self.scan_pin:
+            self.schem_at = 0.0
+        return self.scan_pin
+
+    def scan_hold(self, on):
+        if on and not self.scan_held:
+            self.scan_req = True
+        self.scan_held = on
+        self.hold_t = time.monotonic()
+
     def _draw_schematic(self, d):
+        self.schem_at = time.monotonic()
         surf = schematic.draw(d, self.st)
         if self.schem_tex is None:
             self.schem_tex = glkit.texture_from_cairo(surf)

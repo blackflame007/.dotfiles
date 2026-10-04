@@ -29,6 +29,8 @@ KEYNAMES = {
 
 # (regex on the exec command, description, section). First match wins.
 EXEC = [
+    (r"bromigos-live\b.*scan-pin", "Scanner: pin hardware schematic", "BROMIGOS"),
+    (r"bromigos-live\b.*scan-hold", "Scanner: hold to scan", "BROMIGOS"),
     (r"bromigos-live\b.*holodeck", "Holo deck", "BROMIGOS"),
     (r"bromigos-live\b.*radial", "Radial menu", "BROMIGOS"),
     (r"bromigos-live\b.*toggle", "Live background on/off", "BROMIGOS"),

@@ -5,86 +5,87 @@
 #   bromigos-wallpaper empty   the Wick, chair empty, headphones on the desk
 #   bromigos-wallpaper masked  the operator at the desk, the burn-in over his face
 #   bromigos-wallpaper v1      the original den plate
+#   bromigos-wallpaper apply   (re)apply the saved choice — session start
 #   bromigos-wallpaper status  print the active variant
 #
-# swaybg, hyprlock and the live layer all read the canonical paths
-# bromigos-den-2560x1440.jpg / bromigos-lock-2560x1440.jpg; this script just
-# repoints those symlinks, restarts swaybg on the same outputs and tells
-# bromigos-live to reload its base plate.
+# The choice is local state, never a tracked file: two symlinks in
+#   ~/.local/state/bromigos/wallpaper/{den,lock}.jpg  (+ a 'variant' file)
+# which swaybg, hyprlock and the live layer read. The committed canonical
+# bromigos-{den,lock}-2560x1440.jpg links stay at the default (den) and are only
+# the fallback when no choice has been made. Switching never dirties ~/.dotfiles.
 #
-# Every variant is composited onto the v1 plate, so the den rects the live
-# layer draws into (CRTs, meters, floor grid) are pixel-identical across all
-# variants. That is why it is safe to re-point background.den_fit_sha1 at the
-# new file instead of leaving the den overlays switched off.
+# Every variant is composited onto the v1 plate, so the live layer's den overlays
+# fit all four; it gates them on a committed sha1 allowlist (bromigos-live
+# config.toml [background.den_plates]), not on anything this script writes.
 set -euo pipefail
 
 WP="$HOME/.config/wallpaper"
-DEN="$WP/bromigos-den-2560x1440.jpg"
-LOCK="$WP/bromigos-lock-2560x1440.jpg"
-LIVE_CFG="$HOME/.config/bromigos-live/config.toml"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos/wallpaper"
 LIVE_BIN="$HOME/.config/bromigos-live/bin/bromigos-live"
+mkdir -p "$STATE"
+
+files_for() {
+    case "$1" in
+        den|operator) echo "bromigos-den-operator-2560x1440.jpg bromigos-lock-operator-2560x1440.jpg" ;;
+        empty)        echo "bromigos-den-empty-2560x1440.jpg bromigos-lock-empty-2560x1440.jpg" ;;
+        masked)       echo "bromigos-den-masked-2560x1440.jpg bromigos-lock-masked-2560x1440.jpg" ;;
+        v1)           echo "bromigos-den-2560x1440-v1.jpg bromigos-lock-2560x1440-v1.jpg" ;;
+        *) return 1 ;;
+    esac
+}
+
+current() { cat "$STATE/variant" 2>/dev/null || echo den; }
+
+restart_swaybg() {
+    local img="$1" old outputs
+    old=$(pgrep -x swaybg || true)
+    outputs=$(pgrep -ax swaybg | grep -o -- '-o [^ ]*' | awk '{print $2}' | tr -d '"' | sort -u || true)
+    [ -n "$outputs" ] || outputs="DP-1 DP-2"
+    if command -v swaybg >/dev/null && ! pgrep -x hyprpaper >/dev/null; then
+        for o in $outputs; do
+            setsid -f swaybg -o "$o" -m fill -i "$img" >/dev/null 2>&1
+        done
+        sleep 0.6
+        [ -n "$old" ] && kill $old 2>/dev/null || true
+    fi
+    if pgrep -x hyprpaper >/dev/null; then
+        hyprctl hyprpaper reload ",$img" >/dev/null 2>&1 || true
+    fi
+}
+
+set_variant() {
+    local name="$1" den lock
+    read -r den lock < <(files_for "$name") || { echo "unknown variant: $name" >&2; exit 2; }
+    [ -f "$WP/$den" ] || { echo "missing $WP/$den" >&2; exit 1; }
+    ln -sfn "$WP/$den" "$STATE/den.jpg"
+    if [ -f "$WP/$lock" ]; then ln -sfn "$WP/$lock" "$STATE/lock.jpg"; else ln -sfn "$WP/bromigos-lock-2560x1440.jpg" "$STATE/lock.jpg"; fi
+    echo "$name" >"$STATE/variant"
+}
 
 case "${1:-status}" in
-    den|operator) den=bromigos-den-operator-2560x1440.jpg; lock=bromigos-lock-operator-2560x1440.jpg ;;
-    empty)        den=bromigos-den-empty-2560x1440.jpg;    lock=bromigos-lock-empty-2560x1440.jpg ;;
-    masked)       den=bromigos-den-masked-2560x1440.jpg;   lock=bromigos-lock-masked-2560x1440.jpg ;;
-    v1)           den=bromigos-den-2560x1440-v1.jpg;       lock=bromigos-lock-2560x1440-v1.jpg ;;
+    den|operator|empty|masked|v1)
+        name="$1"; [ "$name" = operator ] && name=den
+        set_variant "$name"
+        restart_swaybg "$STATE/den.jpg"
+        [ -x "$LIVE_BIN" ] && "$LIVE_BIN" ctl reload >/dev/null 2>&1 || true
+        notify-send -a bromigos -u low "WALLPAPER" "den: $name" 2>/dev/null || true
+        echo "den -> $(readlink "$STATE/den.jpg")"
+        ;;
+    apply)
+        # session start: recreate the links from the saved choice, then start swaybg
+        set_variant "$(current)"
+        restart_swaybg "$STATE/den.jpg"
+        ;;
     status)
-        cur=$(readlink "$DEN" || echo "$DEN")
-        case "$cur" in
-            *operator*) name=den ;; *empty*) name=empty ;; *masked*) name=masked ;; *-v1*) name=v1 ;; *) name="?" ;;
-        esac
-        printf 'current: %s  (%s)\n' "$name" "$cur"
-        printf 'lock:    %s\n\n' "$(readlink "$LOCK" || echo "$LOCK")"
+        printf 'current: %s  (%s)\n' "$(current)" "$(readlink "$STATE/den.jpg" 2>/dev/null || echo "not set: default den")"
+        printf 'lock:    %s\n\n' "$(readlink "$STATE/lock.jpg" 2>/dev/null || echo "default")"
         printf 'choices:\n'
         printf '  den     the Wick with the operator at the desk\n'
         printf '  empty   the Wick, chair empty, headphones on the desk\n'
         printf '  masked  the operator at the desk, the burn-in over his face\n'
         printf '  v1      the original den plate\n\n'
-        printf 'usage: bromigos-wallpaper [den|empty|masked|v1|status]\n'
-        exit 0 ;;
-    -h|--help|help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "usage: bromigos-wallpaper [den|empty|masked|v1|status]" >&2; exit 2 ;;
+        printf 'usage: bromigos-wallpaper [den|empty|masked|v1|apply|status]\n'
+        ;;
+    -h|--help|help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' ;;
+    *) echo "usage: bromigos-wallpaper [den|empty|masked|v1|apply|status]" >&2; exit 2 ;;
 esac
-
-[ -f "$WP/$den" ] || { echo "missing $WP/$den" >&2; exit 1; }
-[ -f "$WP/$lock" ] || lock=""
-
-# Refuse to clobber a real file at the canonical path (only ever replace a symlink).
-for p in "$DEN" "$LOCK"; do
-    if [ -e "$p" ] && [ ! -L "$p" ]; then
-        echo "$p is a regular file, not a variant symlink; move it aside first" >&2
-        exit 1
-    fi
-done
-
-ln -sfn "$den" "$DEN"
-[ -n "$lock" ] && ln -sfn "$lock" "$LOCK"
-
-# Live layer: re-fit the den overlays to the new plate, then reload it.
-if [ -f "$LIVE_CFG" ] && grep -q '^den_fit_sha1' "$LIVE_CFG"; then
-    sha=$(sha1sum "$WP/$den" | cut -d' ' -f1)
-    sed -i "s/^den_fit_sha1 = \"[0-9a-f]*\"/den_fit_sha1 = \"$sha\"/" "$LIVE_CFG"
-fi
-
-# swaybg: start the new instances on the same outputs, then drop the old ones (no flash).
-old=$(pgrep -x swaybg || true)
-outputs=$(pgrep -ax swaybg | grep -o -- '-o [^ ]*' | awk '{print $2}' | tr -d '"' | sort -u || true)
-[ -n "$outputs" ] || outputs="DP-1 DP-2"
-if command -v swaybg >/dev/null && { [ -n "$old" ] || ! pgrep -x hyprpaper >/dev/null; }; then
-    for o in $outputs; do
-        setsid -f swaybg -o "$o" -m fill -i "$DEN" >/dev/null 2>&1
-    done
-    sleep 0.6
-    [ -n "$old" ] && kill $old 2>/dev/null || true
-fi
-if pgrep -x hyprpaper >/dev/null; then
-    hyprctl hyprpaper reload ",$DEN" >/dev/null 2>&1 || true
-fi
-
-if [ -x "$LIVE_BIN" ]; then
-    "$LIVE_BIN" ctl reload >/dev/null 2>&1 || true
-fi
-
-notify-send -a bromigos -u low "WALLPAPER" "den: ${1}" 2>/dev/null || true
-echo "den -> $den${lock:+, lock -> $lock}"
