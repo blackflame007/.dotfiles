@@ -69,6 +69,13 @@ def main():
     else:
         from live import overlays
         r = overlays.offscreen(kind, cfg, data, W, H)
+    if hasattr(r, "feed"):                      # wait for the first full read
+        t_end = time.time() + 40
+        while time.time() < t_end:
+            d, *_ = r.feed.snapshot()
+            if all(k in d for k in ("roster", "road", "now", "overview", "trades", "positions")) and r.feed.bars:
+                break
+            time.sleep(0.5)
     tgt = glkit.Target(W, H)
     clock = {"t": 0.0}
     r.now = lambda: clock["t"]

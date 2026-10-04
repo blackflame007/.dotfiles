@@ -419,7 +419,7 @@ class HoloDeck(Base):
             anchor = gadgets.PART_ANCHOR[self.hover]
             b.text(f"{self.hover} · CLICK FOR READINGS", anchor[0], anchor[1], col("white"), font="xs", track=1.5,
                    space=3, z=anchor[2], dx=12, dy=12)
-        b.text("ESC CLOSES · SUPER+H TOGGLES", self.w / 2, self.h - 40 * s, col("dim", 0.8), font="xs", track=3,
+        b.text("ESC CLOSES · SUPER+H TOGGLES · TAB: ARBITER DECK", self.w / 2, self.h - 40 * s, col("dim", 0.8), font="xs", track=3,
                align="c", reveal=T + 1.2)
 
     sel_t = 0.0
@@ -500,6 +500,10 @@ class HoloDeck(Base):
     def key(self, name):
         if name in ("Escape", "q"):
             self.close()
+        elif name == "Tab" and self.app:
+            self.close()
+            from gi.repository import GLib
+            GLib.timeout_add(300, lambda: (self.app.overlay("arbiter"), False)[1])
         elif name in ("Left", "h"):
             self.yaw -= 0.2
         elif name in ("Right", "l"):
@@ -726,6 +730,13 @@ KINDS = {"intercept": Intercept, "transmission": Transmission, "holodeck": HoloD
          "screensaver": Screensaver, "radial": Radial}
 
 
+def kind_class(kind):
+    if kind == "arbiter" and "arbiter" not in KINDS:
+        from .arbiter_deck import ArbiterDeck
+        KINDS["arbiter"] = ArbiterDeck
+    return KINDS[kind]
+
+
 def offscreen(kind, cfg, data, w, h):
     kw = {}
     if kind == "intercept":
@@ -738,7 +749,7 @@ def offscreen(kind, cfg, data, w, h):
     if kind == "transmission":
         kw["rect"] = (w - 440, 60, 400, 96)
         kw["summary"] = "TEST"
-    return KINDS[kind](cfg, data, w, h, **kw)
+    return kind_class(kind)(cfg, data, w, h, **kw)
 
 
 # ======================================================================== windows
@@ -790,7 +801,7 @@ def make(app, kind, **kw):
         if kind == "transmission":
             args["rect"] = holder.get("rect")
             args["rect_fn"] = lambda: notification_rect(mon)
-        r = KINDS[kind](cfg, data, w, h, app=app, **args)
+        r = kind_class(kind)(cfg, data, w, h, app=app, **args)
         holder["r"] = r
         return r
     if kind == "transmission":

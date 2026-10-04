@@ -93,7 +93,8 @@ token_file = "~/.local/share/bromigos/lab-token"
 ca_file = "~/.config/homelab/homelab-ca.crt"
 poll_seconds = 25
 
-[arbiter]                # paper fills -> rain burst; set url = "" to disable
+[arbiter]                # paper fills -> rain burst; set url = "" to disable. SUPER+G: the ARBITER deck (read-only GETs)
+console = "https://arbiter.redacted"
 url = "https://arbiter.redacted/api/trades?limit=1"
 poll_seconds = 30
 

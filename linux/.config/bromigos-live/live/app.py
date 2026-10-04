@@ -206,7 +206,7 @@ class App:
     def overlay(self, kind, **kw):
         from . import overlays
         cur = self.overlays.get(kind)
-        if cur and kind in ("holodeck", "radial", "screensaver"):
+        if cur and kind in ("holodeck", "arbiter", "radial", "screensaver"):
             cur.close()
             return
         if cur:
@@ -230,7 +230,7 @@ class App:
         windows, full, _mon = hypr.monitor_state(self.cfg["general"]["monitor"])
         self.covered, self.fullscreen = windows, full
         g = self.cfg["general"]
-        own_full = [k for k in ("screensaver", "holodeck") if k in self.overlays]
+        own_full = [k for k in ("screensaver", "holodeck", "arbiter") if k in self.overlays]
         if self.locked:
             mode, why = "paused", "session locked"
         elif full:
@@ -361,7 +361,7 @@ class App:
             return "background " + ("on" if self.bg_enabled else "off")
         if c == "mute":
             return "muted" if toggle_mute() else "unmuted"
-        if c in ("intercept", "holodeck", "radial", "screensaver"):
+        if c in ("intercept", "holodeck", "arbiter", "radial", "screensaver"):
             if c == "screensaver" and not self.cfg["screensaver"].get("enabled", True):
                 return "screensaver disabled"
             self.overlay(c)
