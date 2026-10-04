@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# bromigos-holo — the Stark-lab hologram system: PILOT (the Wick's console tech) and the
+# model gallery, on one shared renderer. Starts its daemon on first use.
+#
+#   bromigos-holo pilot              summon / dismiss PILOT (typed)
+#   bromigos-holo ask "question"     ask PILOT without typing in the window
+#   bromigos-holo gallery [model]    open / close the hologram gallery
+#   bromigos-holo ptt on|off         push-to-talk (bound to SUPER+V press / release)
+#   bromigos-holo mute               PILOT's voice on/off
+#   bromigos-holo status | stop | restart | log
+set -u
+HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+RUN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+SOCK="$RUN/bromigos-holo.sock"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos"
+LOG="$STATE/holo.log"
+PY=/usr/bin/python3
+mkdir -p "$STATE"
+
+send() {
+    "$PY" - "$SOCK" "$*" <<'EOF'
+import socket, sys
+s = socket.socket(socket.AF_UNIX)
+s.settimeout(6)
+try:
+    s.connect(sys.argv[1])
+except OSError:
+    sys.exit(3)
+s.sendall(sys.argv[2].encode())
+print(s.recv(65536).decode())
+EOF
+}
+
+start() {
+    send status >/dev/null 2>&1 && return 0
+    if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+        HYPRLAND_INSTANCE_SIGNATURE="$(ls -t "$RUN/hypr" 2>/dev/null | head -1)"
+        export HYPRLAND_INSTANCE_SIGNATURE
+    fi
+    [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt 2000000 ] && mv -f "$LOG" "$LOG.1"
+    (cd "$HERE" && setsid "$PY" -m holo.app >>"$LOG" 2>&1 < /dev/null &)
+    for _ in $(seq 1 50); do
+        send status >/dev/null 2>&1 && return 0
+        sleep 0.1
+    done
+    echo "bromigos-holo: daemon did not start (see $LOG)" >&2
+    return 1
+}
+
+case "${1:-status}" in
+    pilot|gallery|ask|ptt|mute|pilot-show|pilot-hide|gallery-hide|gallery-do|snap)
+        start && send "$@" ;;
+    status) send status || echo "not running" ;;
+    stop) send stop >/dev/null 2>&1; sleep 0.3; echo stopped ;;
+    restart) send stop >/dev/null 2>&1; sleep 0.6; start && echo started ;;
+    log) tail -n 40 "$LOG" ;;
+    *) sed -n '2,12p' "$0"; exit 1 ;;
+esac

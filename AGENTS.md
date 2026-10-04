@@ -105,6 +105,8 @@ The Hyprland desktop is themed as the operator's control center in the Bromigos 
 | GTK, icons, cursor | `linux/.config/bromigos/gtk/` builds `linux/.local/share/themes/Bromigos`, `icons/Bromigos`, `icons/Bromigos-cursor` | GTK3/GTK4 theme generated from the toolkit's own dark theme with the palette mapped in (edit `overrides.css`, rerun `build-gtk-theme.py`); folder icons recoloured from Breeze Dark; cursors drawn in `build-icons-cursor.py` (Xcursor written directly, no xcursorgen). Applied with gsettings; libadwaita colours come from `libadwaita.css`, imported by `~/.config/gtk-4.0/gtk.css` |
 | Shell | `zsh/.config/zsh/zsh-bromigos`, `linux/.config/bromigos/shell/` | mehshell prompt recoloured to the palette (precmd hook, 24-bit terminals only); `bromigos` prints the emblem in braille with live host, kernel, uptime, load, memory and disk (about 3 ms). Shown on login shells; `BROMIGOS_BANNER=always` for every shell, `off` to hide |
 | Screenshots, recording | `linux/.config/bromigos/bin/bromigos-shot`, `bromigos-rec` | Save, copy, a quiet cue from the live layer's sounds (honours its mute), and a themed notification (dunst rules `capture.*`). Click a shot's notification to annotate it in swappy |
+| Holograms and PILOT | `linux/.config/bromigos/holo/` (`bin/bromigos-holo`) | One daemon (`python -m holo.app`, started on first key) with one shared renderer (`holo/render.py`: projection table, part-indexed wireframes, scan sweep, bloom). **PILOT** (SUPER+E) is the Wick's console tech, an original character: a construct of relay light on its emitter, typed chat with qwen3.8-flash-next on the homelab LiteLLM, read-only tools (`holo/pilot/tools.py`) and a live model on its side table for whatever it's discussing. **Gallery** (SUPER+O): the 3D models as holograms with suit-diagnostic explode, callouts on live data, click-to-isolate. `bromigos-holo status` reports fps and frame time; logs in `~/.local/state/bromigos/` (`holo.log`, `pilot-chat.log`, `pilot-audit.log`, all local only) |
+| 3D models | `linux/.config/bromigos/brand/3d/` | Workstation, the Wick, the rack, the ARBITER monolith (nolgia concept + hunyuan3d-v3) and the burn-in (extruded from the canon SVGs). `README.md` has prompts, credits, the part manifest and the `.holo` format; `tools/bake.py` rebakes from `manifest.json` in the venv `~/.local/share/bromigos/venv` |
 
 Rules the operator set:
 
@@ -114,6 +116,7 @@ Rules the operator set:
 - Original IP only. Personal art in the operator's likeness is fine for his own desktop; the lore canon keeps BLACKFLAME's face unseen.
 - Custom image, video and audio assets are made with the operator's `nolgia` CLI.
 - The LAB panel reads EchoCraft Lab's `/api/status` with a read-only token (`~/.local/share/bromigos/lab-token`, from Vault `secret/<vault-path>`).
+- PILOT sees, it doesn't touch. Its tools are allowlisted in code: this machine; the Lab; the cluster through the `pilot-readonly` ServiceAccount (`~/.local/share/bromigos/pilot-kubeconfig`, Vault `secret/<vault-path>`; get/list/watch only, no secrets, configmaps or exec); Prometheus queries; Argo CD; `gh` read commands for bromigos-org; fixed ARBITER console GETs (never trading or arming); Gnosis search only; the docs and lore. Its only writes are appending to FIELD NOTES, launching apps or links, panels, wallpaper, the scanner and holograms. No shell, no deletes, no installs. It never speaks as BLACKFLAME. Keys stay in mode-600 files under `~/.local/share/bromigos/` (`litellm-key`, `gnosis-read-token`), never in the repo or logs.
 
 Key binds (ALT is `$mainMod`):
 
@@ -128,6 +131,8 @@ Key binds (ALT is `$mainMod`):
 | SUPER X | Scanner: pin the hardware schematic |
 | SUPER Z (hold) | Scanner: hold to scan |
 | SUPER A | Radial launcher |
+| SUPER E | PILOT (type, Enter to send, Esc to dismiss) |
+| SUPER O | Hologram gallery (drag rotate, scroll explode, click a part to isolate, ←/→ model, Esc) |
 | SUPER SHIFT B | Live layer on or off |
 | SUPER SHIFT M | Mute |
 | SUPER SHIFT C | Codec calls: voice on/off (quiet mode) |
