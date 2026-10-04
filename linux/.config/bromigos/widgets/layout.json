@@ -1,0 +1,19 @@
+{
+  "_comment": "Panel positions in px from the top-left of the usable area (below the bar) on `monitor`. Edit and run `bromigos-widgets reload`. visible=false starts a panel hidden (toggle it with its keybind).",
+  "monitor": "DP-1",
+  "panels": [
+    { "name": "system",      "x": 28,  "y": 16,  "width": 470, "height": 470 },
+    { "name": "network",     "x": 28,  "y": 502, "width": 470, "height": 262,
+      "_ping": "Hosts for the latency radar. host omitted = the default gateway. NAS from homelab helm/homepage values (nas.url), INGRESS = Traefik's LAN address (homelab CLAUDE.md).",
+      "ping": [
+        { "label": "GATEWAY" },
+        { "label": "NAS", "host": "10.0.0.x" },
+        { "label": "INGRESS", "host": "10.0.0.x" },
+        { "label": "WAN", "host": "1.1.1.1" }
+      ] },
+    { "name": "storage",     "x": 28,  "y": 780, "width": 470, "height": 214 },
+    { "name": "lab",         "x": 514, "y": 16,  "width": 470, "height": 752 },
+    { "name": "switchboard", "x": 514, "y": 784, "width": 470, "height": 158 },
+    { "name": "notes",       "x": 514, "y": 958, "width": 470, "height": 410 }
+  ]
+}

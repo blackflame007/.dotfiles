@@ -1,0 +1,475 @@
+#!/usr/bin/env python3
+"""Bromigos desktop widgets: SYSTEM, NETWORK, STORAGE, LAB, SWITCHBOARD, FIELD NOTES.
+
+One GTK3 process, one layer-shell surface per panel on the BOTTOM layer of the
+monitor named in layout.json (above any background/live layer, below windows).
+
+  bromigos-widgets                 run (Hyprland exec-once)
+  bromigos-widgets toggle NAME     show/hide one panel (system|network|storage|lab|switchboard|notes)
+  bromigos-widgets toggle all      show/hide every panel
+  bromigos-widgets notes           focus FIELD NOTES for typing (Esc hands focus back)
+  bromigos-widgets reload          re-read layout.json
+  bromigos-widgets stats           print draw counts and coverage to the app's stderr
+
+Redraws pause while the active workspace on that monitor has tiled or
+fullscreen windows covering the desktop; sampling continues (cheaply) so the
+waterfall and scope have history when you come back.
+"""
+import json
+import os
+import signal
+import socket
+import sys
+import threading
+import time
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, HERE)
+
+SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "bromigos-widgets.sock")
+LAYOUT = os.path.join(HERE, "layout.json")
+NOTES = os.path.expanduser("~/.local/share/bromigos/notes.md")
+
+
+def client(argv):
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        s.sendto(" ".join(argv).encode(), SOCK)
+    except OSError:
+        sys.exit("bromigos-widgets is not running")
+
+
+if len(sys.argv) > 1:
+    if sys.argv[1] in ("-h", "--help", "help"):
+        sys.exit(__doc__)
+    client(sys.argv[1:])
+    sys.exit(0)
+
+import gi  # noqa: E402
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("GtkLayerShell", "0.1")
+from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
+
+import draw as D  # noqa: E402
+import panels as P  # noqa: E402
+
+
+# ------------------------------------------------------------------ Hyprland: which monitor, is it covered?
+def hypr_request(cmd):
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if not sig:
+        return None
+    path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr", sig, ".socket.sock")
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            s.connect(path)
+            s.sendall(cmd.encode())
+            buf = b""
+            while True:
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                buf += chunk
+        return json.loads(buf or b"null")
+    except (OSError, ValueError):
+        return None
+
+
+class Coverage(threading.Thread):
+    """Listens to Hyprland's event socket and tracks whether the desktop on our
+    monitor is covered by tiled/fullscreen windows."""
+
+    def __init__(self, monitor, on_change):
+        super().__init__(daemon=True)
+        self.monitor = monitor
+        self.on_change = on_change
+        self.covered = False
+        self.check()
+
+    def check(self):
+        mons = hypr_request("j/monitors") or []
+        mon = next((m for m in mons if m["name"] == self.monitor), {})
+        shown = {mon.get("activeWorkspace", {}).get("id"), (mon.get("specialWorkspace") or {}).get("id") or None}
+        shown.discard(None)
+        clients = hypr_request("j/clients") or []
+        cov = any(c["workspace"]["id"] in shown and (not c["floating"] or c.get("fullscreen"))
+                  and c.get("mapped", True) and not c.get("hidden") for c in clients)
+        if cov != self.covered:
+            self.covered = cov
+            GLib.idle_add(self.on_change)
+
+    def run(self):
+        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+        if not sig:
+            return
+        path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr", sig, ".socket2.sock")
+        watch = (b"workspace", b"openwindow", b"closewindow", b"movewindow", b"changefloatingmode",
+                 b"fullscreen", b"focusedmon", b"activespecial")
+        while True:
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                    s.connect(path)
+                    f = s.makefile("rb")
+                    for line in f:
+                        if line.split(b">>")[0] in watch:
+                            self.check()
+            except OSError:
+                time.sleep(5)
+
+
+def gdk_monitor(name):
+    """Map a Hyprland output name to the Gdk.Monitor with the same geometry."""
+    mons = hypr_request("j/monitors") or []
+    m = next((m for m in mons if m["name"] == name), None)
+    disp = Gdk.Display.get_default()
+    if m:
+        for i in range(disp.get_n_monitors()):
+            g = disp.get_monitor(i).get_geometry()
+            if g.x == m["x"] and g.y == m["y"]:
+                return disp.get_monitor(i)
+    return disp.get_primary_monitor() or disp.get_monitor(0)
+
+
+# ------------------------------------------------------------------ windows
+CSS = b"""
+window.bromigos { background: transparent; }
+.notes-box { background-color: rgba(0, 19, 0, 0.84); }
+textview.notes, textview.notes text {
+  background-color: transparent; color: #9cff8a; caret-color: #39ff14;
+  font-family: "Geist Mono"; font-size: 13px;
+}
+textview.notes text selection { background-color: #39ff14; color: #000500; }
+tooltip, tooltip.background { background-color: #000500; border: 1px solid #159b09; border-radius: 0; }
+tooltip label { color: #9cff8a; font-family: "Geist Mono"; font-size: 13px; padding: 4px 6px; }
+"""
+
+
+def layer_window(monitor, x, y, w, h, keyboard=False):
+    win = Gtk.Window()
+    win.get_style_context().add_class("bromigos")
+    win.set_app_paintable(True)
+    vis = win.get_screen().get_rgba_visual()
+    if vis:
+        win.set_visual(vis)
+    GtkLayerShell.init_for_window(win)
+    GtkLayerShell.set_namespace(win, "bromigos-widgets")
+    GtkLayerShell.set_layer(win, GtkLayerShell.Layer.BOTTOM)
+    GtkLayerShell.set_monitor(win, monitor)
+    GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.TOP, True)
+    GtkLayerShell.set_anchor(win, GtkLayerShell.Edge.LEFT, True)
+    GtkLayerShell.set_margin(win, GtkLayerShell.Edge.TOP, y)
+    GtkLayerShell.set_margin(win, GtkLayerShell.Edge.LEFT, x)
+    GtkLayerShell.set_keyboard_mode(win, GtkLayerShell.KeyboardMode.ON_DEMAND if keyboard
+                                    else GtkLayerShell.KeyboardMode.NONE)
+    win.set_size_request(w, h)
+    return win
+
+
+class PanelWindow:
+    def __init__(self, app, panel, monitor, x, y):
+        self.app, self.panel = app, panel
+        self.win = layer_window(monitor, x, y, panel.width, panel.height)
+        self.area = Gtk.DrawingArea()
+        self.area.set_size_request(panel.width, panel.height)
+        self.area.set_has_tooltip(True)
+        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.POINTER_MOTION_MASK)
+        self.area.connect("draw", self.on_draw)
+        self.area.connect("query-tooltip", self.on_tip)
+        self.area.connect("button-press-event", self.on_click)
+        self.area.connect("motion-notify-event", self.on_motion)
+        self.win.add(self.area)
+        self._hand = None
+        self.last_tick = 0
+
+    def on_draw(self, _w, cr):
+        self.draws = getattr(self, "draws", 0) + 1
+        self.panel.render(cr, self.panel.width, self.panel.height)
+        return True
+
+    def on_tip(self, _w, x, y, _kb, tooltip):
+        r = self.panel.hit(x, y)
+        if not r:
+            return False
+        tooltip.set_text(r[4] + ("" if r[5] or "Click" in r[4] else ""))
+        return True
+
+    def on_click(self, _w, ev):
+        r = self.panel.hit(ev.x, ev.y)
+        if r and r[5]:
+            r[5]()
+        return True
+
+    def on_motion(self, _w, ev):
+        r = self.panel.hit(ev.x, ev.y)
+        want = bool(r and r[5])
+        if want != self._hand:
+            self._hand = want
+            disp = self.win.get_display()
+            self.win.get_window().set_cursor(Gdk.Cursor.new_from_name(disp, "pointer") if want else None)
+        return False
+
+    def visible(self):
+        return self.win.get_visible()
+
+    def redraw(self):
+        self.area.queue_draw()
+
+
+class NotesWindow:
+    """FIELD NOTES: a plain-text pad that autosaves to ~/.local/share/bromigos/notes.md."""
+    name = "notes"
+
+    def __init__(self, app, monitor, x, y, w, h):
+        self.app = app
+        self.w, self.h = w, h
+        self.win = layer_window(monitor, x, y, w, h, keyboard=True)
+        overlay = Gtk.Overlay()
+        self.header = Gtk.DrawingArea()
+        self.header.set_size_request(w, h)
+        self.header.connect("draw", self.on_draw)
+        self.header.set_has_tooltip(True)
+        self.header.connect("query-tooltip", self.on_tip)
+        overlay.add(self.header)
+        self.view = Gtk.TextView()
+        self.view.get_style_context().add_class("notes")
+        self.view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.view.set_left_margin(4)
+        self.view.set_right_margin(4)
+        sc = Gtk.ScrolledWindow()
+        sc.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        sc.add(self.view)
+        sc.set_margin_top(44)
+        sc.set_margin_bottom(16)
+        sc.set_margin_start(14)
+        sc.set_margin_end(14)
+        overlay.add_overlay(sc)
+        self.win.add(overlay)
+        self.buf = self.view.get_buffer()
+        self.saved_at = None
+        self._save_id = None
+        self._mtime = 0
+        self.load()
+        self.buf.connect("changed", self.on_changed)
+        self.view.connect("key-press-event", self.on_key)
+        self.view.connect("focus-out-event", lambda *a: self.release())
+        GLib.timeout_add_seconds(5, self.watch_file)
+
+    def load(self):
+        try:
+            with open(NOTES) as f:
+                txt = f.read()
+            self._mtime = os.path.getmtime(NOTES)
+        except OSError:
+            txt = ""
+        self._loading = True
+        self.buf.set_text(txt)
+        self._loading = False
+
+    def watch_file(self):
+        """Pick up appends from the rofi quick-note prompt."""
+        try:
+            m = os.path.getmtime(NOTES)
+        except OSError:
+            return True
+        if m > self._mtime + 0.01 and self._save_id is None and not self.view.has_focus():
+            self.load()
+            self.saved_at = time.time()
+            self.header.queue_draw()
+        return True
+
+    def on_changed(self, _b):
+        if getattr(self, "_loading", False):
+            return
+        if self._save_id:
+            GLib.source_remove(self._save_id)
+        self._save_id = GLib.timeout_add(800, self.save)
+        self.header.queue_draw()
+
+    def save(self):
+        self._save_id = None
+        os.makedirs(os.path.dirname(NOTES), exist_ok=True)
+        s, e = self.buf.get_bounds()
+        tmp = NOTES + ".tmp"
+        with open(tmp, "w") as f:
+            f.write(self.buf.get_text(s, e, True))
+        os.replace(tmp, NOTES)
+        self._mtime = os.path.getmtime(NOTES)
+        self.saved_at = time.time()
+        self.header.queue_draw()
+        return False
+
+    def focus(self):
+        self.win.show_all()
+        GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.EXCLUSIVE)
+        self.win.present()
+        self.view.grab_focus()
+        self.buf.place_cursor(self.buf.get_end_iter())
+        self.view.scroll_to_mark(self.buf.get_insert(), 0, False, 0, 0)
+
+    def release(self):
+        GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.ON_DEMAND)
+        return False
+
+    def on_key(self, _w, ev):
+        if ev.keyval == Gdk.KEY_Escape:
+            if self._save_id:
+                GLib.source_remove(self._save_id)
+                self.save()
+            GtkLayerShell.set_keyboard_mode(self.win, GtkLayerShell.KeyboardMode.NONE)
+            GLib.timeout_add(150, self.release)
+            return True
+        return False
+
+    def on_tip(self, _w, x, y, _kb, tooltip):
+        if y > 34:
+            return False
+        tooltip.set_text(f"Field notes: plain text saved to {NOTES} as you type. "
+                         "Alt+N focuses it, Esc hands focus back; Alt+Shift+N appends a quick note from anywhere.")
+        return True
+
+    def on_draw(self, _w, cr):
+        import cairo
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.paint()
+        cr.set_operator(cairo.OPERATOR_OVER)
+        if self._save_id:
+            right, col = "EDITING", "amber"
+        elif self.saved_at:
+            right, col = "SAVED " + time.strftime("%H:%M", time.localtime(self.saved_at)), "static"
+        else:
+            s, e = self.buf.get_bounds()
+            n = len(self.buf.get_text(s, e, True).splitlines())
+            right, col = f"{n} LINES", "static"
+        D.frame(cr, self.w, self.h, "FIELD NOTES", right, col)
+        return False
+
+    def visible(self):
+        return self.win.get_visible()
+
+    def redraw(self):
+        self.header.queue_draw()
+
+
+# ------------------------------------------------------------------ app
+class App:
+    def __init__(self):
+        self.cfg = self.read_layout()
+        self.monitor_name = self.cfg.get("monitor", "DP-1")
+        prov = Gtk.CssProvider()
+        prov.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov,
+                                                 Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        mon = gdk_monitor(self.monitor_name)
+        self.windows = {}
+        lab = None
+        for spec in self.cfg["panels"]:
+            name = spec["name"]
+            if name == "notes":
+                win = NotesWindow(self, mon, spec["x"], spec["y"], spec.get("width", 470), spec.get("height", 420))
+            else:
+                cls = {"system": P.SystemPanel, "network": P.NetworkPanel, "storage": P.StoragePanel,
+                       "lab": P.LabPanel, "switchboard": P.SwitchboardPanel}[name]
+                if cls is P.LabPanel:
+                    panel = cls(spec, wake=self.wake)
+                    lab = panel
+                elif cls is P.SwitchboardPanel:
+                    panel = cls(spec, lab=lab)
+                else:
+                    panel = cls(spec)
+                panel.width = spec.get("width", panel.width)
+                panel.height = spec.get("height", panel.height)
+                win = PanelWindow(self, panel, mon, spec["x"], spec["y"])
+            self.windows[name] = win
+            if spec.get("visible", True):
+                win.win.show_all()
+        self.coverage = Coverage(self.monitor_name, self.on_coverage)
+        self.coverage.start()
+        self.listen()
+        GLib.timeout_add(int(os.environ.get("BROMIGOS_TICK_MS", "100")), self.loop)
+
+    def read_layout(self):
+        with open(LAYOUT) as f:
+            return json.load(f)
+
+    def wake(self, panel):
+        GLib.idle_add(self.redraw_panel, panel)
+
+    def redraw_panel(self, panel):
+        for w in self.windows.values():
+            if getattr(w, "panel", None) is panel and w.visible() and not self.coverage.covered:
+                w.redraw()
+        return False
+
+    def on_coverage(self):
+        if not self.coverage.covered:
+            for w in self.windows.values():
+                if w.visible():
+                    w.redraw()
+        return False
+
+    def loop(self):
+        """100 ms heartbeat: sample each panel on its own interval; redraw at
+        10 fps only while a panel runs a short animation (the Lab's sync pulse)."""
+        now = time.monotonic()
+        show = not self.coverage.covered
+        for w in self.windows.values():
+            p = getattr(w, "panel", None)
+            if p is None:
+                continue
+            if now - w.last_tick >= p.interval - 0.01:
+                p.tick()
+                w.last_tick = now
+                if show and w.visible():
+                    w.redraw()
+            elif p.animating and show and w.visible():
+                w.redraw()
+        return True
+
+    # --- IPC
+    def listen(self):
+        try:
+            os.unlink(SOCK)
+        except OSError:
+            pass
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        self.sock.bind(SOCK)
+        GLib.io_add_watch(self.sock.fileno(), GLib.IO_IN, self.on_cmd)
+
+    def on_cmd(self, *_):
+        msg = self.sock.recv(1024).decode().split()
+        if not msg:
+            return True
+        if msg[0] == "toggle" and len(msg) > 1:
+            names = list(self.windows) if msg[1] == "all" else [msg[1]]
+            if msg[1] == "all":
+                show = not any(w.visible() for w in self.windows.values())
+            for n in names:
+                w = self.windows.get(n)
+                if not w:
+                    continue
+                vis = show if msg[1] == "all" else not w.visible()
+                w.win.show_all() if vis else w.win.hide()
+        elif msg[0] == "notes" and "notes" in self.windows:
+            self.windows["notes"].focus()
+        elif msg[0] == "stats":
+            print(f"covered={self.coverage.covered} " + " ".join(
+                f"{n}:draws={getattr(w, 'draws', 0)},visible={w.visible()}" for n, w in self.windows.items()),
+                file=sys.stderr, flush=True)
+        elif msg[0] == "reload":
+            os.execv(sys.executable, [sys.executable, os.path.realpath(__file__)])
+        return True
+
+
+def main():
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    App()
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    main()
