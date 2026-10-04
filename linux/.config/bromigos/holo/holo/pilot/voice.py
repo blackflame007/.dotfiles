@@ -189,8 +189,19 @@ class Voice:
             m = SENT_END.match(self.pending)
             if not m or (m.end(1) == len(self.pending) and not m.group(2)):
                 break
-            self._enqueue(m.group(1))
-            self.pending = self.pending[m.end():]
+            end = m.end()
+            # a "*stage direction*" can span sentence ends; wait for its closing
+            # asterisk so spoken() drops it whole (up to a sane length)
+            while self.pending[:end].count("*") % 2 and len(self.pending) < 600:
+                nxt = SENT_END.match(self.pending, end)
+                if not nxt or (nxt.end(1) == len(self.pending) and not nxt.group(2)):
+                    end = None
+                    break
+                end = nxt.end()
+            if end is None:
+                break
+            self._enqueue(self.pending[:end])
+            self.pending = self.pending[end:]
 
     def flush(self):
         if self.pending.strip() and not self.muted:
