@@ -115,6 +115,13 @@ def main():
                     r.selected = ev[2][0]
                     r.sel_t = t + 0.01
                     r.built_at = None
+                elif ev[1] == "key":
+                    r.typed = ev[2][0] if len(ev[2][0]) == 1 else ""
+                    r.key(ev[2][0])
+                elif ev[1] == "part":
+                    r.selected = ev[2][0]
+                    r.sel_t = t + 0.01
+                    r.built_at = None
                 elif ev[1] == "notes":
                     r.notes.toggle()
                     if ev[2]:

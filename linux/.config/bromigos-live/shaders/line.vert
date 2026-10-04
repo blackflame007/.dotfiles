@@ -11,8 +11,14 @@ out float v_hw;
 out float v_along;
 out float v_dash;
 void main() {
-    vec3 s0 = project(a_p0.xyz, a_p0.w);
-    vec3 s1 = project(a_p1.xyz, a_ex2.x);
+    vec3 q0 = a_p0.xyz, q1 = a_p1.xyz;
+    if (a_ex.x >= 0.0 && a_ex.x < 31.5) {               // a model part: apply its explode offset
+        int pi = int(a_ex.x + 0.5);
+        q0 += u_partoff[pi].xyz;
+        if (a_ex2.y > 0.5) q1 += u_partoff[pi].xyz;     // leader lines move one end only
+    }
+    vec3 s0 = project(q0, a_p0.w);
+    vec3 s1 = project(q1, a_ex2.x);
     float r = reveal(a_ex.y, 0.45);
     s1.xy = mix(s0.xy, s1.xy, r);
     vec2 d = s1.xy - s0.xy;

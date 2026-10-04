@@ -74,6 +74,13 @@ class Base:
         st = self.stage
         st.begin_emit()
         st.painter.draw((float(self.w), float(self.h)), t, {"fade": u.get("gadget_fade", 1.0)})
+        pm = getattr(self, "pm", None)
+        if pm is not None and getattr(self, "pm_on", False):
+            pm.rot[:] = st.painter.rot
+            pm.ctr[:] = st.painter.ctr
+            pm.parts[:] = st.painter.parts
+            pm.partoff[:] = st.painter.partoff
+            pm.draw((float(self.w), float(self.h)), t, {"fade": u.get("gadget_fade", 1.0)}, which=("lines",))
         p2 = getattr(self, "p2", None)
         if p2 is not None and getattr(self, "p2_on", False):
             # a second layer that occludes: its plates first darken what is already drawn,
@@ -349,6 +356,11 @@ class HoloDeck(Base):
     name = "holodeck"
     rebuild_every = 1.0
 
+    def close(self):
+        if getattr(self, "arb_feed", None):
+            self.arb_feed.close()
+        super().close()
+
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
         s = self.h / 1440.0
@@ -373,6 +385,19 @@ class HoloDeck(Base):
         self.typed = ""
         self.p2 = None
         self.p2_on = False
+        from . import holomodel
+        self.hm = holomodel
+        self.models = holomodel.available()
+        self.mi = 0
+        self.model = None
+        self.model_cache = {}
+        self.pm = None
+        self.pm_on = False
+        self.explode = 1.0            # assembles from exploded on open
+        self.explode_to = 0.0
+        self.part_light = []
+        self.arb_feed = None
+        self.ex_t = None
 
     def rebuild_due(self, t):
         if self.built_at is None:
@@ -414,10 +439,15 @@ class HoloDeck(Base):
         cx, cy, sz = self.L["con"]
         gadgets.constellation(b, d, 0, 0, sz, space=2, t0=T + 0.5)
         x, y, w, h = self.L["holo_panel"]
-        gadgets.frame(b, x, y, w, h, "HOLOGRAM // THIS RIG", T + 0.45, sub="DRAG TO SPIN · CLICK A PART")
-        gadgets.hologram(b, d, self.st, space=3, t0=T + 0.7)
+        if self.models:
+            self._model_panel(b, d, t, T)
+        else:
+            gadgets.frame(b, x, y, w, h, "HOLOGRAM // THIS RIG", T + 0.45, sub="DRAG TO SPIN · CLICK A PART")
+            gadgets.hologram(b, d, self.st, space=3, t0=T + 0.7)
         # selection callout
-        if self.selected:
+        if self.models:
+            pass
+        elif self.selected:
             title, lines = gadgets.part_readings(self.selected, d, self.st)
             px, py = x + 24 * s, y + h - 150 * s
             b.plate(px - 8, py - 30, w - 32 * s, 130 * s, 0.9)
@@ -432,7 +462,7 @@ class HoloDeck(Base):
         else:
             b.text("CLICK A PART FOR ITS READINGS", x + w / 2, y + h - 40 * s, col("dim"), font="xs", track=2.5,
                    align="c", reveal=T + 1.4)
-        if self.hover and self.hover != self.selected:
+        if self.hover and self.hover != self.selected and not self.models:
             anchor = gadgets.PART_ANCHOR[self.hover]
             b.text(f"{self.hover} · CLICK FOR READINGS", anchor[0], anchor[1], col("white"), font="xs", track=1.5,
                    space=3, z=anchor[2], dx=12, dy=12)
@@ -446,6 +476,127 @@ class HoloDeck(Base):
         self.p2.upload(b2)
         self.p2_on = self.notes.on
 
+    # ---- the brand-kit hologram models
+    def _load_model(self, t):
+        name = self.models[self.mi % len(self.models)]
+        if name not in self.model_cache:
+            self.model_cache[name] = self.hm.load(name)
+        self.model = self.model_cache[name]
+        if self.pm is None:
+            self.pm = glkit.Painter(self.stage.atlas)
+        arr = self.model.line_array(space=3, t0=t + 0.05, alpha=0.42)
+        self.pm.lines.upload(arr)
+        self.pm.arcs.upload(np.zeros((0, 24), dtype=np.float32))
+        self.pm.glyphs.upload(np.zeros((0, 20), dtype=np.float32))
+        self.pm_on = True
+        self.selected = None
+        self.explode, self.explode_to = 1.0, 0.0
+        if name == "monolith" and self.arb_feed is None:
+            from .arbiter import Feed
+            self.arb_feed = Feed(self.cfg)
+            self.arb_feed.start()
+
+    def _model_panel(self, b, d, t, T):
+        s = self.s
+        x, y, w, h = self.L["holo_panel"]
+        if self.model is None:
+            self._load_model(t)
+        m = self.model
+        arb = self.arb_feed.snapshot()[0] if (self.arb_feed and m.name == "monolith") else None
+        title = (m.meta.get("title") or m.name).upper()
+        gadgets.frame(b, x, y, w, h, f"HOLOGRAM // {title}", T + 0.45,
+                      sub=f"[ ] MODEL {self.mi % len(self.models) + 1}/{len(self.models)} · E EXPLODE · DRAG · CLICK")
+        b.text((m.meta.get("subtitle") or "").upper(), x + 18 * s, y + 60 * s, col("dim"), font="xs", track=2,
+               reveal=T + 0.6)
+        # holo pad
+        for k, r in enumerate((0.62, 0.48, 0.30)):
+            pts = [(math.cos(i / 48 * TAU) * r, -0.56, math.sin(i / 48 * TAU) * r) for i in range(49)]
+            for i in range(48):
+                b.line(pts[i], pts[i + 1], col("dim", 0.8 - k * 0.15), space=3, reveal=T + 0.05 * k)
+        # parts: light from live readings, labels at their anchors (moving with the explode)
+        self.part_light = []
+        for i, pt in enumerate(m.parts):
+            lines, inten, heat = self.hm.readings(pt.get("bind", ""), d, self.st, arb)
+            self.part_light.append((inten, heat, lines))
+        ex = max(self.explode, 0.0)
+        for i, pt in enumerate(m.parts):
+            a = np.asarray(pt.get("anchor") or pt.get("centroid") or [0, 0, 0], dtype=np.float32)
+            pa = m.p(a)
+            off = m.offset(i, ex + (0.35 if pt["id"] == self.selected else 0.0))
+            q = (pa[0] + off[0], pa[1] + off[1], pa[2] + off[2])
+            on = pt["id"] in (self.selected, self.hover) or ex > 0.25
+            if on:
+                lab = (q[0] * 1.0 + (0.12 if q[0] >= 0 else -0.12), q[1] + 0.06, q[2])
+                b.line(q, lab, col("soft", 0.7), space=3)
+                b.text(pt.get("label", pt["id"]).upper(), *lab[:2], col("white" if pt["id"] == self.selected else "soft"),
+                       font="xs", track=1.5, space=3, z=lab[2], dx=4 if q[0] >= 0 else -4, dy=-4,
+                       align="l" if q[0] >= 0 else "r")
+            b.arc(q, 0, 2.4 * s, 0, TAU, col("soft"), kind=2, space=3)
+        # hover hint and the selected part's live readings
+        if self.hover and self.hover != self.selected:
+            pt = next((p_ for p_ in m.parts if p_["id"] == self.hover), None)
+            if pt:
+                b.plate(x + 18 * s, y + h - 108 * s, w - 36 * s, 60 * s, 0.88)
+                b.text(pt.get("label", "").upper() + " · CLICK FOR READINGS", x + 30 * s, y + h - 84 * s, col("white"),
+                       font="xs", track=1.5)
+                b.text((pt.get("hint") or "").upper()[:62], x + 30 * s, y + h - 62 * s, col("dim"), font="xs", track=0.5)
+        if self.selected:
+            i = next((k for k, p_ in enumerate(m.parts) if p_["id"] == self.selected), None)
+            if i is not None:
+                pt = m.parts[i]
+                lines = self.part_light[i][2]
+                ph = (60 + 24 * len(lines)) * s
+                px, py = x + 18 * s, y + h - ph - 30 * s
+                b.plate(px, py, w - 36 * s, ph, 0.92)
+                b.brackets(px, py, w - 36 * s, ph, col("soft"), l=10, reveal=self.sel_t)
+                b.text(pt.get("label", "").upper(), px + 12 * s, py + 26 * s, col("white"), font="m", track=1.5,
+                       reveal=self.sel_t, type_rate=0.01)
+                for k, ln in enumerate(lines):
+                    b.text(str(ln).upper()[:46], px + 12 * s, py + 52 * s + k * 24 * s, col("phosphor"), font="s",
+                           track=0.8, reveal=self.sel_t + 0.05 + k * 0.04, type_rate=0.004)
+        elif not self.hover:
+            b.text("HOVER A PART · CLICK FOR ITS READINGS", x + w / 2, y + h - 40 * s, col("dim"), font="xs", track=2.5,
+                   align="c", reveal=T + 1.4)
+
+    def _model_frame(self, t, p):
+        m = self.model
+        if m is None:
+            return
+        dt = min(max(t - (self.ex_t if self.ex_t is not None else t), 0.0), 0.2)
+        self.ex_t = t
+        target = self.explode_to
+        if t < 0.35:
+            target = 1.0                                   # hold exploded, then assemble
+        k = 1.0 - math.exp(-dt / 0.35)
+        self.explode += (target - self.explode) * k
+        breathe = 0.02 * math.sin(t * 1.3) if self.explode_to == 0.0 else 0.0
+        for i in range(min(len(m.parts), 32)):
+            extra = 0.35 if m.parts[i]["id"] == self.selected else 0.0
+            off = m.offset(i, max(self.explode + breathe, 0.0) + extra)
+            p.partoff[i, :3] = off
+            if i < len(self.part_light):
+                inten, heat, _ = self.part_light[i]
+                sel = m.parts[i]["id"] == self.selected
+                p.parts[i] = (inten, heat, 1.0 if sel else 0.0, 0.0)
+        if abs(target - self.explode) > 0.004:
+            self.built_at = None if (t - (self.built_at or 0)) > 0.1 else self.built_at   # labels follow
+
+    def _model_pick(self, x, y):
+        m = self.model
+        if m is None:
+            return None
+        p = self.stage.painter
+        pts, ids = [], []
+        for i, pt in enumerate(m.parts):
+            a = np.asarray(pt.get("anchor") or pt.get("centroid") or [0, 0, 0], dtype=np.float32)
+            pa = np.asarray(m.p(a)) + m.offset(i, max(self.explode, 0.0) + (0.35 if pt["id"] == self.selected else 0))
+            pts.append(pa)
+            ids.append(pt["id"])
+        pr = glkit.project(np.array(pts), p.rot[3], p.ctr[3])
+        dd = np.hypot(pr[:, 0] - x, pr[:, 1] - y)
+        i = int(np.argmin(dd))
+        return ids[i] if dd[i] < 70 * self.s else None
+
     sel_t = 0.0
 
     def frame(self, t, d):
@@ -458,10 +609,14 @@ class HoloDeck(Base):
         p.ctr[2] = (cx, cy, sz, 3.2)
         hx, hy, hs = self.L["holo"]
         p.rot[3] = glkit.rot_matrix(self.yaw, self.pitch)
-        p.ctr[3] = (hx, hy, hs, 3.0)
-        st = gadgets.part_state(d)
-        for i, (inten, heat) in enumerate(st):
-            p.parts[i] = (inten, heat, 1.0 if gadgets.PARTS[i] == self.selected else 0.0, 0.0)
+        zoom = 1.0 - 0.32 * min(max(self.explode, 0.0), 1.0) if self.models else 1.0
+        p.ctr[3] = (hx, hy, hs * zoom, 3.0)
+        if self.models:
+            self._model_frame(t, p)
+        else:
+            st = gadgets.part_state(d)
+            for i, (inten, heat) in enumerate(st):
+                p.parts[i] = (inten, heat, 1.0 if gadgets.PARTS[i] == self.selected else 0.0, 0.0)
         fade = min(t / 0.25, 1.0)
         if self.closing_at is not None:
             k = (t - self.closing_at) / 0.25
@@ -473,6 +628,8 @@ class HoloDeck(Base):
 
     # ---- interaction
     def _pick(self, x, y):
+        if self.models:
+            return self._model_pick(x, y)
         p = self.stage.painter
         names = list(gadgets.PART_ANCHOR)
         pts = glkit.project([gadgets.PART_ANCHOR[n] for n in names], p.rot[3], p.ctr[3])
@@ -529,6 +686,15 @@ class HoloDeck(Base):
     def key(self, name):
         if self.notes.on and name != "Tab":
             self.notes.key(name, self.typed)
+            self.built_at = None
+            return True
+        if self.models and name in ("bracketleft", "bracketright"):
+            self.mi += -1 if name == "bracketleft" else 1
+            self._load_model(self.now())
+            self.built_at = None
+            return True
+        if self.models and name in ("e", "E"):
+            self.explode_to = 0.0 if self.explode_to > 0.5 else 1.0
             self.built_at = None
             return True
         if name in ("n", "N", "slash"):

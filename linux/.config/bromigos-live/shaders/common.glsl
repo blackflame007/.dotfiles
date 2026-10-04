@@ -5,6 +5,7 @@ uniform float u_fade;
 uniform mat3 u_rot[4];
 uniform vec4 u_ctr[4];      // x, y, scale, perspective (0 = flat)
 uniform vec4 u_part[32];    // intensity, heat 0..1, selected, unused
+uniform vec4 u_partoff[32]; // per-part model offset (explode), xyz
 
 vec3 project(vec3 p, float space) {
     int s = int(space + 0.5);

@@ -243,6 +243,10 @@ class Data:
                     d = json.load(r)
                 keep = {k: d.get(k) for k in ("cluster", "nodes", "gpu", "ai", "argocd", "traefik",
                                                "network", "proxmox", "services", "generatedAt")}
+                so = d.get("solar") or {}       # production only: the solar block also names a street address
+                keep["solar"] = {"productionW": so.get("productionW"), "energyTodayWh": so.get("energyTodayWh")}
+                nas = d.get("nas") or {}
+                keep["nas"] = {"pool": nas.get("pool")}
                 self._set(cluster=keep, cluster_ok=True, cluster_at=time.time())
                 cl = keep.get("cluster") or {}
                 alerts = cl.get("alertsFiring")
