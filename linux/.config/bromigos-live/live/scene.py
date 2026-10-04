@@ -243,16 +243,16 @@ class Background:
         sw = cfg["sweep"]
         sweep_x, sweep_on = 0.0, 0.0
         dur = float(sw.get("duration", 5.5))
-        glow_hold, glow_fade = float(sw.get("afterglow_hold", 1.2)), float(sw.get("afterglow_fade", 2.8))
+        glow_hold, glow_fade = 0.0, 0.6
         if sw.get("enabled", True) or self.scan_req or self.scan_held:
-            due = self.sweep_t0 is None or t - self.sweep_t0 > float(sw.get("period", 24))
+            due = self.sweep_t0 is None or t - self.sweep_t0 > float(sw.get("interval", sw.get("period", 60)))
             if self.scan_req or (due and sw.get("enabled", True)):
                 self.scan_req = False
                 self.sweep_t0 = t
                 self._draw_schematic(d)
             if self.sweep_t0 is not None:
                 st = t - self.sweep_t0
-                if st < dur + glow_hold + glow_fade + 0.5:
+                if st < dur + 2.0:
                     sweep_on = 1.0
                     sweep_x = -200 + (self.w + 400) * (st / dur)
         if self.scan_held and mono - getattr(self, "hold_t", mono) > 15.0:
@@ -264,7 +264,7 @@ class Background:
         dt = max(0.0, min(t - getattr(self, "_ease_t", t), 1.0))
         self._ease_t = t
         k_in = 1.0 - math.exp(-dt / 0.18)
-        k_out = 1.0 - math.exp(-dt / glow_fade * 3.0)      # released/unpinned: fades like the afterglow
+        k_out = 1.0 - math.exp(-dt / 0.2)                   # released/unpinned: the original quick fade
         self.pin_amt += ((1.0 if self.scan_pin else 0.0) - self.pin_amt) * (k_in if self.scan_pin else k_out)
         self.hold_amt += ((1.0 if self.scan_held else 0.0) - self.hold_amt) * (k_in if self.scan_held else k_out)
         self.beam_speed = (self.w + 400) / dur

@@ -21,7 +21,7 @@ uniform vec4 u_floor;           // horizon y, vanish x, lane slope, lane offset
 uniform vec4 u_floor2;          // max x, draw grid, on, -
 uniform vec4 u_net;             // rx level, tx level (0..1), rx speed, tx speed
 uniform vec4 u_sweep;           // beam x px, active, direction, schematic on
-uniform vec4 u_scan;            // afterglow hold s, afterglow fade s, held amount, pinned amount
+uniform vec4 u_scan;            // -, -, held amount, pinned amount
 uniform vec4 u_scan2;           // beam speed px/s, -, -, -
 uniform vec4 u_schem_rect;      // where the schematic texture sits (px)
 uniform float u_wipe;           // workspace wipe progress (<0 off)
@@ -202,15 +202,14 @@ void main() {
             vec4 s = texture(u_schem, sp);
             float vis = 0.0;
             if (u_sweep.y > 0.5) {
-                float since = dxs / u_scan2.x;               // seconds since the beam crossed here
-                float glow = dxs > 0.0 ? 1.0 - smoothstep(u_scan.x, u_scan.x + u_scan.y, since) : 0.0;
-                vis = max(glow, exp(-dxs * dxs / 3000.0));
+                float trail = dxs > 0.0 ? exp(-dxs / 520.0) : 0.0;   // the original short reveal (~0.5 s)
+                vis = clamp(trail * 1.15 + exp(-dxs * dxs / 3000.0), 0.0, 1.0);
                 vis = max(vis, u_scan.z * step(0.0, dxs));   // held: stays up behind the beam
             } else {
                 vis = u_scan.z;                              // held after the beam left the screen
             }
             vis = clamp(max(vis, u_scan.w), 0.0, 1.0);
-            c = mix(c, c * 0.1, smoothstep(0.0, 0.8, s.a) * vis * 0.93);   // x-ray: darken under the drawing; labels read on near-black
+            c = mix(c, c * 0.35, s.a * vis * 0.65);         // x-ray: darken what's under the drawing (original, subtle)
             c += s.rgb * vis;
         }
     }

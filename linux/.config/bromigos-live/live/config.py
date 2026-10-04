@@ -18,7 +18,7 @@ DEFAULTS = {
     "rain": {"enabled": True, "region": [0, 30, 2390, 600], "brightness": 0.55, "bursts": True},
     "floor": {"enabled": True, "horizon_y": 926, "vanish_x": 690, "lane_slope": 0.98, "lane_offset": 0.71,
               "max_x": 1000, "draw_grid": False},
-    "sweep": {"enabled": True, "period": 24, "duration": 5.5},
+    "sweep": {"enabled": True, "interval": 60, "duration": 5.5},
     "holodeck": {"enabled": True},
     "space": {"stars": True, "traffic": True, "relay_beam": True, "health_tint": True, "planet": True,
               "station": True},

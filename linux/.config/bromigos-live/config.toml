@@ -71,10 +71,8 @@ draw_grid = false        # true when there is no underlay grid to ride on
 
 [sweep]                  # the X-ray scanner pass that reveals this machine's schematic
 enabled = true
-period = 24              # seconds between passes (SUPER+X pins it, hold SUPER+Z to scan)
-duration = 5.5           # the beam's crossing time
-afterglow_hold = 1.2     # what it revealed stays fully lit this long...
-afterglow_fade = 2.8     # ...then fades over this long, so the values can be read
+interval = 60            # seconds between periodic passes (on demand: 'bromigos-live scan', SUPER+X pins, hold SUPER+Z)
+duration = 5.5           # the beam's crossing time; what it reveals fades in about half a second
 
 [space]                  # the Drift: behind the art in the background, full vista in the screensaver
 stars = true             # parallax star layers

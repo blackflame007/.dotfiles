@@ -130,7 +130,7 @@ def draw(d, st):
     lx = 560
     for i, ((ax, ay), tag, l1, l2) in enumerate(rows[:5]):
         ty = 70 + i * 90
-        cr.set_source_rgba(0.0, 0.03, 0.0, 0.97)
+        cr.set_source_rgba(0.0, 0.05, 0.0, 0.82)
         cr.rectangle(lx - 8, ty - 6, 300, 58)
         cr.fill()
         _rect(cr, lx - 8, ty - 6, 300, 58, DIM, 0.9)
@@ -143,12 +143,6 @@ def draw(d, st):
         _text(cr, l2[:36], lx, ty + 24, 12, AMBER if tag in ("CPU", "GPU") and (d.get(tag.lower()) or 0) > 85 else SOFT,
               spacing=0.6, a=0.95)
     (ax, ay), tag, l1, l2 = rows[5]
-    cr.set_source_rgba(0.0, 0.03, 0.0, 0.97)
-    cr.rectangle(552, 622, 300, 36)
-    cr.fill()
-    cr.set_source_rgba(0.0, 0.03, 0.0, 0.97)
-    cr.rectangle(32, 12, 800, 30)
-    cr.fill()
     _text(cr, f"{tag}  {l1}", 560, 628, 12, SOFT, spacing=0.6)
     _text(cr, l2, 560, 644, 11, DIM, spacing=0.6)
     _text(cr, "SCAN // WORKSTATION INTERNALS", 40, 22, 14, SOFT, Pango.Weight.SEMIBOLD, spacing=3)
