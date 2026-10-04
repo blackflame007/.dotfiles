@@ -5,7 +5,7 @@ One GTK3 process, one layer-shell surface per panel on the BOTTOM layer of the
 monitor named in layout.json (above any background/live layer, below windows).
 
   bromigos-widgets                 run (Hyprland exec-once)
-  bromigos-widgets toggle NAME     show/hide one panel (system|network|storage|lab|switchboard|notes)
+  bromigos-widgets toggle NAME     show/hide one panel (system|network|storage|lab|switchboard|shortcuts|notes)
   bromigos-widgets toggle all      show/hide every panel
   bromigos-widgets notes           focus FIELD NOTES for typing (Esc hands focus back)
   bromigos-widgets reload          re-read layout.json
@@ -175,7 +175,9 @@ class PanelWindow:
         self.area = Gtk.DrawingArea()
         self.area.set_size_request(panel.width, panel.height)
         self.area.set_has_tooltip(True)
-        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.POINTER_MOTION_MASK)
+        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.POINTER_MOTION_MASK
+                             | Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+        self.area.connect("scroll-event", self.on_scroll)
         self.area.connect("draw", self.on_draw)
         self.area.connect("query-tooltip", self.on_tip)
         self.area.connect("button-press-event", self.on_click)
@@ -200,6 +202,17 @@ class PanelWindow:
         r = self.panel.hit(ev.x, ev.y)
         if r and r[5]:
             r[5]()
+        return True
+
+    def on_scroll(self, _w, ev):
+        if not hasattr(self.panel, "scroll"):
+            return False
+        ok, dx, dy = ev.get_scroll_deltas()
+        if not ok:
+            dy = {Gdk.ScrollDirection.UP: -1, Gdk.ScrollDirection.DOWN: 1}.get(ev.direction, 0)
+        if dy:
+            self.panel.scroll(dy)
+            self.redraw()
         return True
 
     def on_motion(self, _w, ev):
@@ -372,7 +385,8 @@ class App:
                 win = NotesWindow(self, mon, spec["x"], spec["y"], spec.get("width", 470), spec.get("height", 420))
             else:
                 cls = {"system": P.SystemPanel, "network": P.NetworkPanel, "storage": P.StoragePanel,
-                       "lab": P.LabPanel, "switchboard": P.SwitchboardPanel}[name]
+                       "lab": P.LabPanel, "switchboard": P.SwitchboardPanel,
+                       "shortcuts": P.ShortcutsPanel}[name]
                 if cls is P.LabPanel:
                     panel = cls(spec, wake=self.wake)
                     lab = panel

@@ -675,3 +675,101 @@ class SwitchboardPanel(Panel):
             self.region(bx, by, cw, ch, f"{name}: {role}. Opens {url}"
                         + ("" if ok is None else (" (answering)" if ok else " (not answering)")),
                         lambda u=url: open_url(u))
+
+
+# =================================================================== SHORTCUTS
+class ShortcutsPanel(Panel):
+    """Live Hyprland keybinds as keycaps. Scroll to move; click a LAUNCH or BROMIGOS
+    line to run it (window, workspace and system binds stay keyboard-only)."""
+    name, title = "shortcuts", "SHORTCUTS"
+    height = 384
+    interval = 5.0
+    ROW, HEAD = 24, 26
+    RUNNABLE = ("LAUNCH", "BROMIGOS")
+
+    def __init__(self, cfg=None):
+        super().__init__(cfg)
+        import keybinds
+        self.kb = keybinds
+        self.items, self.mtime, self.offset = [], -1, 0
+        self.tick()
+
+    def tick(self):
+        m = self.kb.config_mtime()
+        if m != self.mtime:
+            self.mtime = m
+            self.items = self.kb.shortcuts()
+
+    def content_height(self):
+        secs = len({s for s, *_ in self.items})
+        return secs * self.HEAD + len(self.items) * self.ROW
+
+    def scroll(self, dy):
+        view = self.height - 44 - 10
+        self.offset = max(0, min(max(0, self.content_height() - view), self.offset + dy * self.ROW * 3))
+
+    def keycap(self, cr, x, y, label):
+        lay = D.layout(cr, label, 11, "semibold", 0.04)
+        w = lay.get_pixel_size()[0] + 12
+        D.src(cr, "guard", 0.9)
+        cr.rectangle(x, y, w, 18)
+        cr.fill()
+        cr.set_line_width(1)
+        D.src(cr, "dim", 0.9)
+        cr.rectangle(x + 0.5, y + 0.5, w - 1, 17)
+        cr.stroke()
+        D.src(cr, "phosphor", 0.55)
+        cr.move_to(x + 1, y + 17.5)
+        cr.line_to(x + w - 1, y + 17.5)
+        cr.stroke()
+        D.text(cr, x + 6, y + 1, label, 11, "soft", "semibold", spacing=0.04)
+        return w
+
+    def draw(self, cr, w, h):
+        top = D.frame(cr, w, h, self.title, f"{len(self.items)} BINDS · SUPER+SHIFT+K SEARCH")
+        self.region(0, 0, w, 34, "Every Hyprland keybind, read live from Hyprland (it refreshes when "
+                    "a hypr .conf changes). Scroll to move; click a launch or Bromigos line to run it. "
+                    "SUPER+SHIFT+K opens a searchable version.")
+        x0, x1 = 16, w - 16
+        view_top, view_bot = top, h - 10
+        cr.save()
+        cr.rectangle(0, view_top, w, view_bot - view_top)
+        cr.clip()
+        y = view_top - self.offset
+        sec = None
+        for s, keys, desc, action in self.items:
+            if s != sec:
+                sec = s
+                if view_top - self.HEAD <= y <= view_bot:
+                    D.label(cr, x0, y + 6, s, "phosphor", size=10)
+                    D.rule(cr, x0 + 110, y + 13, x1, "dim", 0.35)
+                y += self.HEAD
+            if view_top - self.ROW <= y <= view_bot:
+                kx = x0
+                for i, k in enumerate(keys):
+                    if i:
+                        D.text(cr, kx + 2, y + 2, "+", 10, "static", "regular")
+                        kx += 12
+                    kx += self.keycap(cr, kx, y + 1, k)
+                D.text(cr, max(kx + 12, x0 + 200), y + 2, desc, 12, "soft", "regular",
+                       width=x1 - max(kx + 12, x0 + 200))
+                runnable = action and s in self.RUNNABLE
+                if runnable and view_top <= y and y + self.ROW <= view_bot:
+                    import subprocess as _sp
+                    self.region(x0, y, x1 - x0, self.ROW - 2, f"{' + '.join(keys)}: {desc}. Click to run it now.",
+                                lambda a=action: _sp.Popen(["/usr/bin/hyprctl", "dispatch", a[0], a[1]],
+                                                           stdout=_sp.DEVNULL, stderr=_sp.DEVNULL))
+            y += self.ROW
+        cr.restore()
+        # scroll position rail
+        total = self.content_height()
+        view = view_bot - view_top
+        if total > view:
+            th = max(24, view * view / total)
+            ty = view_top + (view - th) * self.offset / (total - view)
+            D.src(cr, "guard", 1)
+            cr.rectangle(w - 6, view_top, 2, view)
+            cr.fill()
+            D.src(cr, "phosphor", 0.8)
+            cr.rectangle(w - 6, ty, 2, th)
+            cr.fill()
