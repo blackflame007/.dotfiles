@@ -13,7 +13,7 @@ for m in mounts:
     if m["mounted"] and m["mount"] in ("/", "/mnt/Data"):
         name = "/" if m["mount"] == "/" else "DATA"
         col = "#ff766f" if m["pct"] >= 92 else "#d4af37" if m["pct"] >= 80 else "#9cff8a"
-        bar.append(f"<span color='#159b09'>{name}</span> <span color='{col}'>{m['pct']:.0f}%</span>")
+        bar.append(f"<span color='#7e927e'>{name}</span> <span color='{col}'>{m['pct']:.0f}%</span>")
 rows = [f"{'MOUNT':<12} {'SIZE':>9} {'USED':>9} {'FREE':>9}  USE"]
 for m in mounts:
     if m["mounted"]:

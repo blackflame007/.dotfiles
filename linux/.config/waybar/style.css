@@ -137,3 +137,37 @@ window#waybar.empty #window {
   -gtk-icon-effect: highlight;
   background-color: alpha(@amber, 0.25);
 }
+
+/* ---- icons: 16px, 1px-stroke set from ~/.config/bromigos/brand/icons ----------
+   Each module draws its icon as a background at the left of the cell; the warning
+   and critical classes swap to the amber/danger variant so icon and value match. */
+#cpu, #memory, #custom-gpu, #temperature, #custom-storage, #network,
+#pulseaudio, #mpris, #clock {
+  padding-left: 34px;
+  background-size: 16px 16px;
+  background-position: 12px center;
+  background-repeat: no-repeat;
+}
+#cpu                  { background-image: url("../bromigos/brand/icons/cpu.svg"); }
+#cpu.warning          { background-image: url("../bromigos/brand/icons/cpu-amber.svg"); }
+#cpu.critical         { background-image: url("../bromigos/brand/icons/cpu-danger.svg"); }
+#memory               { background-image: url("../bromigos/brand/icons/ram.svg"); }
+#memory.warning       { background-image: url("../bromigos/brand/icons/ram-amber.svg"); }
+#memory.critical      { background-image: url("../bromigos/brand/icons/ram-danger.svg"); }
+#custom-gpu           { background-image: url("../bromigos/brand/icons/gpu.svg"); }
+#custom-gpu.warning   { background-image: url("../bromigos/brand/icons/gpu-amber.svg"); }
+#custom-gpu.critical  { background-image: url("../bromigos/brand/icons/gpu-danger.svg"); }
+#temperature          { background-image: url("../bromigos/brand/icons/temp.svg"); }
+#temperature.warning  { background-image: url("../bromigos/brand/icons/temp-amber.svg"); color: @amber; }
+#temperature.critical { background-image: url("../bromigos/brand/icons/temp-danger.svg"); }
+#custom-storage          { background-image: url("../bromigos/brand/icons/disk.svg"); }
+#custom-storage.warning  { background-image: url("../bromigos/brand/icons/disk-amber.svg"); }
+#custom-storage.critical { background-image: url("../bromigos/brand/icons/disk-danger.svg"); }
+#network              { background-image: url("../bromigos/brand/icons/net.svg"); }
+#network.disconnected,
+#network.linked       { background-image: url("../bromigos/brand/icons/net-amber.svg"); }
+#pulseaudio           { background-image: url("../bromigos/brand/icons/vol.svg"); }
+#pulseaudio.muted     { background-image: url("../bromigos/brand/icons/vol-muted-amber.svg"); }
+#mpris                { background-image: url("../bromigos/brand/icons/tape.svg"); }
+#mpris.paused         { background-image: url("../bromigos/brand/icons/tape-dim.svg"); }
+#clock                { background-image: url("../bromigos/brand/icons/clock.svg"); }
