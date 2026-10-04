@@ -1,0 +1,114 @@
+# Bromigos shell theme: prompt colours and the startup banner.
+# Sourced from .zshrc after zsh-mehshell (zsh_add_file "zsh-bromigos").
+#
+#   bromigos            print the banner (emblem + live system lines)
+#   BROMIGOS_BANNER     login (default: interactive login shells only)
+#                       always (every interactive shell) | off
+#   BROMIGOS_PROMPT=off keep mehshell's own colours
+
+# ---------------------------------------------------------------- prompt
+# mehshell emits fixed 256-colour indexes (render.go: cCyan 75, cBlue 39,
+# cMagenta 170, cGreen 76, cRed 196, cYellow 220, cOrange 208, cGray 242,
+# separators 246/238). A precmd hook that runs after mehshell's swaps them for
+# the Bromigos palette in 24-bit colour. String substitution only, no forks.
+typeset -gA _bromigos_prompt_map=(
+  75  '#159b09'   # frame ╭─ ╰─        -> phosphor-dim
+  39  '#39ff14'   # os icon, directory -> phosphor
+  170 '#3fe0c5'   # git branch         -> cyan (terminal palette)
+  76  '#39ff14'   # prompt char, ok    -> phosphor
+  196 '#ff766f'   # dirty, errors      -> danger
+  220 '#d4af37'   # untracked, warn    -> amber
+  208 '#f0d36a'   # orange             -> bright amber
+  242 '#7e927e'   # time, muted        -> static
+  246 '#4e6b4e'   # thin separators
+  238 '#003b00'   # segment fill       -> guard
+)
+
+_bromigos_prompt_colors() {
+  [[ $BROMIGOS_PROMPT == off ]] && return
+  local k p=$PROMPT
+  for k in ${(k)_bromigos_prompt_map}; do
+    p=${p//\%F\{$k\}/%F\{${_bromigos_prompt_map[$k]}\}}
+    p=${p//\%K\{$k\}/%K\{${_bromigos_prompt_map[$k]}\}}
+  done
+  PROMPT=$p
+}
+
+# Only where 24-bit colour works (kitty, alacritty); a Linux VT keeps mehshell's.
+if [[ $COLORTERM == (truecolor|24bit) || $TERM == (xterm-kitty|alacritty) ]]; then
+  precmd_functions+=(_bromigos_prompt_colors)
+fi
+
+# ---------------------------------------------------------------- banner
+# The emblem (pre-rendered braille, ~/.config/bromigos/shell/emblem.braille)
+# beside real readings from /proc. Pure zsh except one `df`; well under 50 ms.
+bromigos() {
+  setopt localoptions extendedglob
+  [[ -r /proc/uptime ]] || { print -u2 "bromigos: needs /proc (Linux)"; return 1; }
+  local -a art info
+  local f=$HOME/.config/bromigos/shell/emblem.braille
+  [[ -r $f ]] && art=("${(@f)$(<$f)}")
+
+  local L=$'\e[38;2;126;146;126m' V=$'\e[38;2;156;255;138m' H=$'\e[38;2;57;255;20m'
+  local A=$'\e[38;2;212;175;55m' D=$'\e[38;2;255;118;111m' R=$'\e[0m'
+
+  # uptime
+  local ut=$(</proc/uptime) upt
+  local up=${ut%%[. ]*}
+  (( up >= 86400 )) && upt="$(( up / 86400 ))d "
+  upt+="$(( up % 86400 / 3600 ))h $(( up % 3600 / 60 ))m"
+  # load against core count
+  local -a la=(${=$(</proc/loadavg)})
+  local cores=${#${(M)${(f)"$(</proc/cpuinfo)"}:#processor*}}
+  # memory
+  local mt ma line
+  for line in "${(@f)$(</proc/meminfo)}"; do
+    case $line in
+      MemTotal:*) mt=${${line##*: #}%% *} ;;
+      MemAvailable:*) ma=${${line##*: #}%% *}; break ;;
+    esac
+  done
+  local mp=$(( (mt - ma) * 100 / mt ))
+  # disks: / and /home when it is its own filesystem
+  local -a disks
+  local fs size used avail pct mnt col
+  local -A seen
+  while read -r fs size used avail pct mnt; do
+    [[ $fs == Filesystem || -n ${seen[$fs]} ]] && continue
+    seen[$fs]=1
+    pct=${pct%\%}
+    col=$V; (( pct >= 80 )) && col=$A; (( pct >= 90 )) && col=$D
+    disks+=("${L}DISK ${mnt}${R}  ${col}${pct}%${R} ${L}of ${size}${R}")
+  done < <(df -hP / /home 2>/dev/null)
+
+  local lcol=$V; (( ${la[1]%.*} >= cores )) && lcol=$A
+  info=(
+    ""
+    "${H}${HOST:-$(</proc/sys/kernel/hostname)}${R}"
+    ""
+    "${L}KERNEL${R}  ${V}$(</proc/sys/kernel/osrelease)${R}"
+    "${L}UPTIME${R}  ${V}${upt}${R}"
+    "${L}LOAD  ${R}  ${lcol}${la[1]} ${la[2]} ${la[3]}${R} ${L}on ${cores} cores${R}"
+    "${L}MEMORY${R}  ${V}${mp}%${R} ${L}of $(( mt / 1048576 )) GiB${R}"
+    $disks
+  )
+  local i n=$(( ${#art} > ${#info} ? ${#art} : ${#info} ))
+  local pad=${(l:22:: :)}
+  print
+  for (( i = 1; i <= n; i++ )); do
+    if [[ -n ${art[i]} ]]; then
+      # pad the art line to a fixed width (escape codes do not take columns)
+      local plain=${art[i]//$'\e'\[[0-9;]#m/}
+      print -r -- "  ${art[i]}${(l:$(( 22 - ${#plain} )):: :)}   ${info[i]}"
+    else
+      print -r -- "  ${pad}   ${info[i]}"
+    fi
+  done
+  print
+}
+
+if [[ -o interactive && -t 1 && -z $NVIM && $BROMIGOS_BANNER != off ]]; then
+  if [[ $BROMIGOS_BANNER == always || -o login ]]; then
+    bromigos
+  fi
+fi
