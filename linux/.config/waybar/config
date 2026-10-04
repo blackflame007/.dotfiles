@@ -1,138 +1,134 @@
 {
-  // NOTE: Icons: https://github.com/Alexays/Waybar/issues/350
-    "height": 30, // Waybar height (to be removed for auto height)
-    "spacing": 4, // Gaps between modules (4px)
-    // "modules-left": ["custom/launcher", "wlr/workspaces", "hyprland/window"],
-    // "modules-left": ["custom/launcher", "wlr/workspaces"],
-    "modules-left": ["custom/launcher", "wlr/workspaces"],
-    "modules-center": ["custom/spotify"],
-    "modules-right": ["tray", "cpu", "memory", "temperature", "pulseaudio", "network", "clock"],
-    "wlr/workspaces": {
-      "format": "{icon}",
-      "on-click": "activate",
-      "format-icons": {
-        "1": "",
-        "2": "",
-        "3": "ﱘ",
-        "4": "戮",
-        "7": "",
-        "8": "",
-        "9": "󰑋",
-        "urgent": "",
-        // "active": "",
-        "default": ""
+  // Bromigos HUD. Every module is a real reading or an action; hover any of
+  // them for what it is. Scripts live in ~/.config/waybar/scripts.
+  "layer": "bottom",
+  "position": "top",
+  "output": ["DP-1", "DP-2"],
+  "height": 34,
+  "spacing": 0,
+  "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
+  "modules-center": ["mpris"],
+  "modules-right": ["cpu", "memory", "custom/gpu", "temperature", "custom/storage", "network",
+                    "pulseaudio", "tray", "clock"],
+
+  "custom/launcher": {
+    "format": " ",
+    "tooltip-format": "Launcher: apps (click) · run a command (right-click) · power menu (middle-click)",
+    "on-click": "rofi -show drun",
+    "on-click-right": "rofi -show run",
+    "on-click-middle": "~/.config/rofi/scripts/power-menu"
+  },
+
+  "hyprland/workspaces": {
+    "format": "{id}",
+    "on-click": "activate",
+    "sort-by-number": true,
+    "tooltip": true,
+    "persistent-workspaces": { "DP-1": [1, 2, 3, 4, 5, 6] }
+  },
+
+  "hyprland/window": {
+    "format": "{title}",
+    "max-length": 48,
+    "separate-outputs": true,
+    "rewrite": { "": "" },
+    "tooltip": true
+  },
+
+  "mpris": {
+    "format": "<span color='#159b09'>RX</span>  {artist} · {title}  <span color='#7e927e'>{position}/{length}</span>",
+    "format-paused": "<span color='#7e927e'>RX ‖</span>  {artist} · {title}",
+    "format-stopped": "",
+    "max-length": 70,
+    "interval": 1,
+    "tooltip-format": "{player}: {status}\n{artist} — {album}\n{title}\nclick: play/pause · right-click: next · scroll: seek",
+    "on-click-right": "playerctl next",
+    "on-scroll-up": "playerctl position 5+",
+    "on-scroll-down": "playerctl position 5-"
+  },
+
+  "cpu": {
+    "interval": 2,
+    "format": "<span color='#159b09'>CPU</span> {usage:>2}%",
+    "tooltip": true,
+    "states": { "warning": 70, "critical": 90 },
+    "on-click": "kitty -e btop"
+  },
+
+  "memory": {
+    "interval": 4,
+    "format": "<span color='#159b09'>RAM</span> {percentage:>2}%",
+    "tooltip-format": "RAM {used:0.1f} / {total:0.1f} GiB used, {avail:0.1f} GiB available\nswap {swapUsed:0.1f} / {swapTotal:0.1f} GiB\namber 75% · red 90% · click: btop",
+    "states": { "warning": 75, "critical": 90 },
+    "on-click": "kitty -e btop"
+  },
+
+  "custom/gpu": {
+    "exec": "~/.config/waybar/scripts/gpu.py",
+    "return-type": "json",
+    "restart-interval": 10,
+    "on-click": "kitty -e btop"
+  },
+
+  "temperature": {
+    "hwmon-path-abs": "/sys/devices/pci0000:00/0000:00:18.3/hwmon",
+    "input-filename": "temp1_input",
+    "interval": 4,
+    "warning-threshold": 80,
+    "critical-threshold": 90,
+    "format": "<span color='#159b09'>TEMP</span> {temperatureC}°",
+    "tooltip-format": "CPU package (k10temp Tctl) {temperatureC} °C\namber 80 °C · red 90 °C"
+  },
+
+  "custom/storage": {
+    "exec": "~/.config/waybar/scripts/storage.py",
+    "return-type": "json",
+    "interval": 60,
+    "on-click": "xdg-open ~"
+  },
+
+  "network": {
+    "interval": 2,
+    "format-wifi": "<span color='#159b09'>NET</span> {ifname} <span color='#7e927e'>⇣</span>{bandwidthDownBytes:>8} <span color='#7e927e'>⇡</span>{bandwidthUpBytes:>8}",
+    "format-ethernet": "<span color='#159b09'>NET</span> {ifname} <span color='#7e927e'>⇣</span>{bandwidthDownBytes:>8} <span color='#7e927e'>⇡</span>{bandwidthUpBytes:>8}",
+    "format-linked": "<span color='#d4af37'>NET</span> {ifname} NO ADDRESS",
+    "format-disconnected": "NET DISCONNECTED",
+    "tooltip-format-wifi": "{ifname} · {essid} · {signalStrength}% ({signaldBm} dBm)\naddress {ipaddr}/{cidr} via {gwaddr}\nclick: copy the address",
+    "tooltip-format-ethernet": "{ifname}\naddress {ipaddr}/{cidr} via {gwaddr}\nclick: copy the address",
+    "tooltip-format-disconnected": "No network link",
+    "on-click": "~/.config/waybar/scripts/copy-ip",
+    "on-click-right": "kitty -e nmtui"
+  },
+
+  "pulseaudio": {
+    "scroll-step": 5,
+    "format": "<span color='#159b09'>VOL</span> {volume:>2}%",
+    "format-muted": "<span color='#d4af37'>VOL MUTED</span>",
+    "format-bluetooth": "<span color='#159b09'>VOL</span> {volume:>2}% BT",
+    "tooltip-format": "{desc}: {volume}%\nclick: mixer · right-click: mute · scroll: ±5%",
+    "on-click": "pavucontrol",
+    "on-click-right": "pactl set-sink-mute @DEFAULT_SINK@ toggle"
+  },
+
+  "tray": { "icon-size": 16, "spacing": 8 },
+
+  "clock": {
+    "interval": 1,
+    "format": "{:%H:%M:%S}",
+    "format-alt": "{:%a %d %b %H:%M}",
+    "tooltip-format": "<tt>{calendar}</tt>",
+    "calendar": {
+      "mode": "month",
+      "weeks-pos": "left",
+      "on-scroll": 1,
+      "format": {
+        "months": "<span color='#39ff14'><b>{}</b></span>",
+        "weeks": "<span color='#159b09'>{}</span>",
+        "weekdays": "<span color='#7e927e'>{}</span>",
+        "days": "<span color='#9cff8a'>{}</span>",
+        "today": "<span background='#39ff14' color='#000500'><b>{}</b></span>"
       }
     },
-    "hyprland/window": {
-        "format": "{}"
-    },
-    "tray": {
-        // "icon-size": 21,
-        "spacing": 10
-    },
-    "clock": {
-        "format": "<span color='#ffffff'></span> {:%I:%M %p}",
-        "format-alt": "<span color='#ffffff'></span> {:%a %b %d}",
-        // "format": "{:%a %b %d}",
-        // "format-alt": "{:%I:%M %p}"
-    },
-    // "clock": {
-    //     // "timezone": "America/New_York",
-    //     "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
-    //     "format-alt": "{:%Y-%m-%d}"
-    // },
-    "cpu": {
-        "format": "  Cpu: {usage}%" ,
-        "tooltip": false
-    },
-    "memory": {
-        "interval": 5,
-        "format": "  Mem: {}%",
-        "max-length": 15
-    },
-    "temperature": {
-        "format": " {temperatureC}°C",
-        "tooltip": false
-    },
-    "backlight": {
-        // "device": "acpi_video1",
-        "format": "{icon} {percent}%",
-        "format-icons": ["", "", "", "", "", "", "", "", ""]
-    },
-    "network": {
-        // "interface": "wlp2*", // (Optional) To force the use of this interface
-
-        "format-wifi": "直 {signalStrength}%",
-        //"format-ethernet": " {ifname}: {ipaddr}/{cidr}",
-        // "format-ethernet": " {ifname}",
-        "format-ethernet": " wired",
-        // "format-ethernet": "",
-        "format-disconnected": "睊",
-        "format-alt":" {ifname}", 
-        // "on-click": "nmtui"
-        // "format-wifi": "{essid} ({signalStrength}%) ",
-        // "format-ethernet": "{ipaddr}/{cidr} ",
-        // "tooltip-format": "{ifname} via {gwaddr} ",
-        // "format-linked": "{ifname} (No IP) ",
-        // "format-disconnected": "Disconnected ⚠",
-        //"format-alt": "{ifname}: {ipaddr}/{cidr}"
-    },
-    "pulseaudio": {
-        // "scroll-step": 1, // %, can be a float
-        // "format": "{volume}% {icon} {format_source}",
-        // "format": "{volume}% {icon}",
-        "format": "{icon} {volume}%",
-        "format-bluetooth": "{icon} {volume}% {format_source}",
-        "format-bluetooth-muted": "󰂲 {icon} {format_source}",
-        "format-muted": "婢",
-        // "format-source": "{volume}% ",
-        // "format-source-muted": "",
-        "format-icons": {
-            "headphone": "",
-            "hands-free": "",
-            "headset": "",
-            "phone": "",
-            "portable": "",
-            "car": "",
-            "default": ["", "", ""]
-        },
-        "on-click": "pavucontrol"
-    },
-    "custom/launcher": {
-        // "exec": "$HOME/.config/waybar/scripts/spotify.sh",
-        // "return-type": "json",
-        // "max-length": 40,
-        "format": " <span color='#1793d0'> </span>",
-        // "format": "",
-        // "format": " <span color='#bf616a'> 異</span>",
-        // "format": " <span color='#bf616a'> </span>",
-        "on-click": "rofi -show drun"
-    },
-    // "custom/spotify": {
-    // "format": "{icon} {} SPOTIFY!!!",
-    // "escape": true,
-    // "return-type": "json",
-    // "max-length": 40,
-    // "interval": 30, // Remove this if your script is endless and write in loop
-    // "on-click": "playerctl -p spotify play-pause",
-    // "on-click-right": "killall spotify",
-    // "smooth-scrolling-threshold": 10, // This value was tested using a trackpad, it should be lowered if using a mouse.
-    // "on-scroll-up" : "playerctl -p spotify next",
-    // "on-scroll-down" : "playerctl -p spotify previous",
-    // "exec": "$HOME/.config/waybar/scripts/mediaplayer.py 2> /dev/null", // Script in resources/custom_modules folder
-    // "exec-if": "pgrep spotify"
-    // },
-    "custom/spotify": {
-        "exec": "$HOME/.config/waybar/scripts/spotify.sh",
-        "return-type": "text",
-        "max-length": 40,
-        "format": " {}",
-        "on-click": "playerctl play-pause",
-        "on-double-click": "playerctl next",
-        "on-right-click": "on-click-right"
-    },
-    "custom/test": {
-        "format": "TEST!!!"
-    }
+    "actions": { "on-click-right": "mode", "on-scroll-up": "shift_up", "on-scroll-down": "shift_down" }
+  }
 }
-
