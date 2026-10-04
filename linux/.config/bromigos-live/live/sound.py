@@ -28,6 +28,24 @@ class Sound:
         self.cfg = cfg
         self.player = shutil.which("pw-play") or shutil.which("paplay")
 
+    def play_file(self, path, delete=False, gain=None):
+        """Play an arbitrary wav (codec voice); honours mute and the volume."""
+        s = self.cfg.get("sounds", {})
+        if not s.get("enabled", True) or muted() or not self.player:
+            return
+        g = float(self.cfg.get("codec", {}).get("voice_gain", 1.6)) if gain is None else gain
+        vol = max(0.0, min(1.0, float(s.get("volume", 0.3)) * g))
+        if os.path.basename(self.player) == "pw-play":
+            cmd = [self.player, f"--volume={vol:.3f}", "--media-role=Communication", path]
+        else:
+            cmd = [self.player, f"--volume={int(vol * 65536)}", path]
+        if delete:
+            cmd = ["sh", "-c", 'f="$1"; shift; "$@"; rm -f "$f"', "sh", path] + cmd
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            pass
+
     def play(self, cue):
         s = self.cfg.get("sounds", {})
         if not s.get("enabled", True) or muted() or not self.player:

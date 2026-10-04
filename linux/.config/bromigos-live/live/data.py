@@ -246,18 +246,44 @@ class Data:
             self.stop.wait(max(20, int(c.get("poll_seconds", 25))) * (3 if self.paused else 1))
 
     def _arbiter_loop(self):
+        """New paper fills -> rain burst; notable ones (|realized| or notional over
+        the codec thresholds) also become a FLOOR codec call, batched."""
         prev = None
         while not self.stop.is_set():
             a = self.cfg.get("arbiter", {})
             url = a.get("url", "")
             if url:
                 try:
-                    with urllib.request.urlopen(url, timeout=8, context=self._ctx()) as r:
-                        total = json.load(r).get("total")
+                    with urllib.request.urlopen(url.replace("limit=1", "limit=10"), timeout=8, context=self._ctx()) as r:
+                        d = json.load(r)
+                    total = d.get("total")
                     if prev is not None and total is not None and total > prev:
-                        self.on_event("arbiter_fill", n=total - prev)
+                        new = (d.get("trades") or [])[:min(total - prev, 10)]
+                        self.on_event("arbiter_fill", n=total - prev, notable=self._notable(new))
                     prev = total
                     self._set(arbiter_total=total)
                 except Exception:
                     pass
             self.stop.wait(max(20, int(a.get("poll_seconds", 30))) * (3 if self.paused else 1))
+
+    def _notable(self, trades):
+        c = self.cfg.get("codec", {})
+        min_real = float(c.get("fill_min_realized", 5.0))
+        min_notional = float(c.get("fill_min_notional", 250.0))
+        hits = [t for t in trades if abs(t.get("realized_usd") or 0) >= min_real
+                or abs(t.get("notional_usd") or 0) >= min_notional]
+        if not hits:
+            return None
+        t = max(hits, key=lambda x: abs(x.get("realized_usd") or 0) + abs(x.get("notional_usd") or 0) / 100)
+        inst = (t.get("instrument") or "").split(" ")[0].replace("/", " ")
+        act = f"{t.get('action', '')} {t.get('effect', '')}".strip()
+        r = t.get("realized_usd")
+        msg = f"Floor here. Paper fill: {act} {inst}, {abs(t.get('notional_usd') or 0):.0f} dollars"
+        if r:
+            msg += f", realized {'plus' if r > 0 else 'minus'} {abs(r):.2f}"
+        cause = ((t.get("causes") or [{}])[0].get("kind") or t.get("reason") or "").replace("_", " ")
+        if cause:
+            msg += f". Cause: {cause}"
+        if len(hits) > 1:
+            msg += f". {len(hits) - 1} more notable"
+        return msg + "."

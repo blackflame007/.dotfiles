@@ -36,6 +36,7 @@ EXEC = [
     (r"bromigos-live\b.*driftmap", "Drift map (lore star chart)", "BROMIGOS"),
     (r"bromigos-live\b.*radial", "Radial menu", "BROMIGOS"),
     (r"bromigos-live\b.*toggle", "Live background on/off", "BROMIGOS"),
+    (r"bromigos-live\b.*codec-quiet", "Codec calls: voice on/off", "BROMIGOS"),
     (r"bromigos-live\b.*mute", "Live layer sound on/off", "BROMIGOS"),
     (r"bromigos-live\b.*wallpaper", "Wallpaper", "BROMIGOS"),
     (r"bromigos-widgets toggle all", "All desktop panels", "BROMIGOS"),

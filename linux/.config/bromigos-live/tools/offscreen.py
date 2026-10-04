@@ -63,6 +63,22 @@ def main():
     data = Data(cfg, lambda *a, **k: None)
     data.start()
     time.sleep(float(os.environ.get("OFF_WARM", 3.5)))
+    if kind == "codec":                         # a real call, voiced by the lab's TTS
+        from live import overlays
+        from live.codec import Call, Desk
+
+        class _App:
+            locked = fullscreen = False
+            pass
+        shim = _App()
+        shim.cfg = cfg
+        desk = Desk(shim)
+        call = Call(os.environ.get("OFF_CH", "FLOOR"), os.environ.get("OFF_TEXT", "Floor here. Paper fill: buy open DBC, 352 dollars. Cause: rebalance."))
+        desk._prepare(call)
+        overlays.OFF_CALL["call"] = call
+        if call.wav:
+            import shutil
+            shutil.copy(call.wav, out.rsplit(".", 1)[0] + ".wav")
     if kind == "bg":
         from live.scene import Background
         r = Background(cfg, data, W, H)

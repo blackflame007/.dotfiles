@@ -46,7 +46,7 @@ def find_monitor(name):
     return m, ((g.width, g.height) if g else (2560, 1440))
 
 
-def layer_window(monitor, layer, namespace, anchors="tblr", keyboard=None, exclusive=-1):
+def layer_window(monitor, layer, namespace, anchors="tblr", keyboard=None, exclusive=-1, size=None, margins=None):
     win = Gtk.Window()
     GtkLayerShell.init_for_window(win)
     GtkLayerShell.set_layer(win, layer)
@@ -57,6 +57,12 @@ def layer_window(monitor, layer, namespace, anchors="tblr", keyboard=None, exclu
                      ("l", GtkLayerShell.Edge.LEFT), ("r", GtkLayerShell.Edge.RIGHT)):
         GtkLayerShell.set_anchor(win, edge, ch in anchors)
     GtkLayerShell.set_exclusive_zone(win, exclusive)
+    if size:
+        win.set_size_request(int(size[0]), int(size[1]))
+    for ch, edge in (("t", GtkLayerShell.Edge.TOP), ("b", GtkLayerShell.Edge.BOTTOM),
+                     ("l", GtkLayerShell.Edge.LEFT), ("r", GtkLayerShell.Edge.RIGHT)):
+        if margins and ch in margins:
+            GtkLayerShell.set_margin(win, edge, int(margins[ch]))
     GtkLayerShell.set_keyboard_mode(win, keyboard or GtkLayerShell.KeyboardMode.NONE)
     vis = win.get_screen().get_rgba_visual()
     if vis:
@@ -68,10 +74,14 @@ def layer_window(monitor, layer, namespace, anchors="tblr", keyboard=None, exclu
 class GLWindow:
     """A layer-shell window with one GLArea driven by a timer at a set fps."""
 
-    def __init__(self, app, layer, namespace, make_renderer, keyboard=None, alpha=False, input_ok=True):
+    def __init__(self, app, layer, namespace, make_renderer, keyboard=None, alpha=False, input_ok=True,
+                 anchors="tblr", size=None, margins=None):
         self.app = app
         self.mon, self.size = find_monitor(app.cfg["general"]["monitor"])
-        self.win = layer_window(self.mon, layer, namespace, keyboard=keyboard)
+        if size:
+            self.size = size
+        self.win = layer_window(self.mon, layer, namespace, anchors=anchors, keyboard=keyboard, size=size,
+                                margins=margins)
         self.area = Gtk.GLArea()
         self.area.set_required_version(3, 3)
         self.area.set_has_alpha(alpha)
@@ -171,6 +181,8 @@ class App:
         self.overlays = {}
         self.cfg_mtime = self._mtime()
         self.data.start()
+        from .codec import Desk
+        self.codec = Desk(self)
         if self.bg_enabled:
             self.show_background()
         hypr.Events(lambda ev, arg: GLib.idle_add(self.on_hypr, ev, arg)).start()
@@ -206,6 +218,8 @@ class App:
     def overlay(self, kind, **kw):
         from . import overlays
         cur = self.overlays.get(kind)
+        if cur and kind == "codec":
+            return
         if cur and kind in ("holodeck", "arbiter", "driftmap", "radial", "screensaver"):
             cur.close()
             return
@@ -305,6 +319,9 @@ class App:
                 if not quiet:
                     self.sound.play("critical")
                 self.overlay("transmission", summary=summary)
+                if self.cfg.get("codec", {}).get("on_critical", True):
+                    who = app_name if app_name and app_name.lower() not in ("notify-send", "") else "the desk"
+                    self.codec.offer("PRIORITY", f"Priority traffic from {who}: {summary}")
             elif not quiet:
                 self.sound.play("notify")
         elif what == "closed":
@@ -317,6 +334,14 @@ class App:
         def go():
             if self.bg and self.bg.renderer:
                 self.bg.renderer.burst(1 if kind == "arbiter_fill" else 2)
+            cc = self.cfg.get("codec", {})
+            if kind == "cluster_alert" and cc.get("on_lab_alert", True):
+                if info.get("node_down"):
+                    self.codec.offer("LAB", "Lab here. A node dropped out of Ready. Check the cluster.")
+                else:
+                    self.codec.offer("LAB", f"Lab here. Alerts firing went up, now {int(info.get('count') or 0)}.")
+            if kind == "arbiter_fill" and cc.get("on_fill", True) and info.get("notable"):
+                self.codec.offer("FLOOR", info["notable"])
             return False
         GLib.idle_add(go)
 
@@ -370,6 +395,14 @@ class App:
             if "screensaver" in self.overlays:
                 self.overlays["screensaver"].close()
             return "ok"
+        if c == "codec":
+            ch, _, text = arg.partition("|")
+            if not text:
+                ch, text = "DECK", ch
+            return self.codec.offer(ch.strip().upper() or "DECK", text.strip(), force=False)
+        if c == "codec-quiet":
+            from .codec import toggle_quiet
+            return "codec quiet (no voice)" if toggle_quiet() else "codec voice on"
         if c == "transmission":
             self.overlay("transmission", summary=arg or "TEST TRANSMISSION")
             return "ok"

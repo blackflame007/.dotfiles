@@ -9,6 +9,9 @@
 #   bromigos-live scan             run a scanner pass now (hardware schematic)
 #   bromigos-live scan-pin         pin / unpin the schematic (stays up, live values)
 #   bromigos-live scan-hold on|off hold-to-scan (bound to press / release)
+#   bromigos-live codec "text" [FLOOR|LAB|DECK|PRIORITY]   a codec call (rate-limited)
+#   bromigos-live codec-quiet      codec calls without voice (toggle)
+#   bromigos-live job -- cmd ...   run cmd; a long run ends with a codec call
 #   bromigos-live ctl <cmd>        raw control command (burst, transmission, reload, state)
 #   bromigos-live status
 set -u
@@ -96,6 +99,24 @@ case "${1:-start}" in
     toggle|holodeck|arbiter|driftmap|radial|intercept|screensaver|screensaver-off)
         ctl "$1" || { [ "$1" = screensaver-off ] || echo "not running (bromigos-live start)"; exit 1; } ;;
     scan|scan-pin) ctl "$1" ;;
+    codec) shift; text="${1:-}"; ch="${2:-DECK}"; ctl "codec $ch|$text" ;;
+    codec-quiet)
+        out=$(ctl codec-quiet 2>/dev/null) || out="not running"
+        notify-send -a bromigos-live -u low -t 1400 "CODEC" "$out" 2>/dev/null; echo "$out" ;;
+    job)
+        # run a command; if it took long enough, the deck calls in when it ends
+        shift; [ "${1:-}" = "--" ] && shift
+        [ $# -gt 0 ] || { echo "usage: bromigos-live job -- cmd [args]"; exit 2; }
+        min=$("$PY" -c 'import tomllib,os,sys
+try: print(int(tomllib.load(open(os.path.expanduser("~/.config/bromigos-live/config.toml"),"rb")).get("codec",{}).get("job_min_seconds",60)))
+except Exception: print(60)')
+        t0=$(date +%s); "$@"; rc=$?; dur=$(( $(date +%s) - t0 ))
+        if [ "$dur" -ge "$min" ]; then
+            name=$(basename -- "$1"); m=$((dur / 60)); sec=$((dur % 60))
+            if [ $rc -eq 0 ]; then how="clean"; else how="with exit code $rc"; fi
+            ctl "codec DECK|Deck here. $name finished $how after $m minutes $sec seconds." >/dev/null 2>&1 || true
+        fi
+        exit $rc ;;
     scan-hold) ctl "scan-hold ${2:-on}" ;;
     ctl) shift; ctl "$*" ;;
     status)

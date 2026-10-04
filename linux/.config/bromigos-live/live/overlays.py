@@ -734,6 +734,9 @@ def kind_class(kind):
     if kind == "arbiter" and "arbiter" not in KINDS:
         from .arbiter_deck import ArbiterDeck
         KINDS["arbiter"] = ArbiterDeck
+    if kind == "codec" and "codec" not in KINDS:
+        from .codec_panel import CodecPanel
+        KINDS["codec"] = CodecPanel
     if kind == "driftmap" and "driftmap" not in KINDS:
         from .drift_map import DriftMap
         KINDS["driftmap"] = DriftMap
@@ -752,7 +755,12 @@ def offscreen(kind, cfg, data, w, h):
     if kind == "transmission":
         kw["rect"] = (w - 440, 60, 400, 96)
         kw["summary"] = "TEST"
+    if kind == "codec":
+        kw["call"] = OFF_CALL["call"]
     return kind_class(kind)(cfg, data, w, h, **kw)
+
+
+OFF_CALL = {"call": None}
 
 
 # ======================================================================== windows
@@ -797,6 +805,15 @@ def make(app, kind, **kw):
     elif kind == "transmission":
         keyboard, input_ok = GtkLayerShell.KeyboardMode.NONE, False
         extra["summary"] = kw.get("summary", "")
+    win_kw = {}
+    if kind == "codec":
+        from .codec_panel import PANEL
+        keyboard, input_ok = GtkLayerShell.KeyboardMode.NONE, False
+        extra["call"] = kw.get("call")
+        extra["desk"] = getattr(app, "codec", None)
+        sc = float(cfg.get("codec", {}).get("scale", 1.0))
+        win_kw = {"anchors": "br", "size": (int(PANEL[0] * sc), int(PANEL[1] * sc)),
+                  "margins": {"r": 28, "b": 28}}
     holder = {}
 
     def make_renderer(w, h):
@@ -810,7 +827,7 @@ def make(app, kind, **kw):
     if kind == "transmission":
         holder["rect"] = notification_rect(mon)
     win = GLWindow(app, GtkLayerShell.Layer.OVERLAY, f"bromigos-live-{kind}", make_renderer,
-                   keyboard=keyboard, alpha=True, input_ok=input_ok)
+                   keyboard=keyboard, alpha=True, input_ok=input_ok, **win_kw)
 
     class Handle:
         def __init__(self):

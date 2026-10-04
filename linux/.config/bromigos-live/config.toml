@@ -105,6 +105,22 @@ intercept_on_unlock = true
 critical_flash = true
 workspace_wipe = true
 
+[codec]                  # important real events as a short voiced transmission (bottom right)
+enabled = true
+tts_url = "https://tts.redacted/v1/audio/speech"   # the lab's Breeze TTS, default voice (nothing cloned)
+tts_instruction = "A calm, low radio operator voice; short, clear, unhurried."
+voice_gain = 1.6         # x sounds.volume; SUPER+SHIFT+M mutes all, SUPER+SHIFT+C = quiet (no voice)
+min_gap = 120            # seconds between calls
+max_per_hour = 8
+dedupe = 1800            # the same message at most once per this many seconds
+on_critical = true       # critical notifications
+on_lab_alert = true      # EchoCraft: alerts firing went up / a node left Ready
+on_fill = true           # ARBITER paper fills, only notable ones:
+fill_min_realized = 5.0  #   |realized| >= this (USD) ...
+fill_min_notional = 250.0 #  ... or notional >= this
+job_min_seconds = 60     # 'bromigos-live job -- cmd' calls in when cmd ran at least this long
+scale = 1.0
+
 [screensaver]
 enabled = true           # hypridle listener in bromigos-live/hypridle.conf runs it
 
