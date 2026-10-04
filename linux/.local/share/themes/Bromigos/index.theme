@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=Bromigos
+Comment=Phosphor on void, from the Bromigos palette
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=Bromigos
+IconTheme=Bromigos
+CursorTheme=Bromigos-cursor
