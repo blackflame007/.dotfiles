@@ -137,6 +137,13 @@ def main():
         if hasattr(r, "tick"):
             r.tick(t)
         r.render(tgt.fbo, 30)
+        hv = getattr(r, "hv", None)
+        if hv is not None and hv.live is not None and not getattr(r, "_hv_waited", False):
+            r._hv_waited = True                    # the shared renderer polls on its own threads
+            t_end = time.time() + 8
+            while time.time() < t_end and hv.live.version() == 0:
+                time.sleep(0.2)
+            time.sleep(0.5)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, tgt.fbo)
         px = GL.glReadPixels(0, 0, W, H, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
         return np.frombuffer(px, dtype=np.uint8).reshape(H, W, 4)[::-1]

@@ -286,12 +286,12 @@ class Batch:
         self.lines, self.arcs, self.glyphs = [], [], []
 
     # line: p0 xyz space | p1 xyz width | rgba | part reveal dash glow | space1
-    def line(self, p0, p1, c, width=1.0, space=0, part=-1, reveal=0.0, dash=0.0, glow=1.0, space1=None, move1=True):
+    def line(self, p0, p1, c, width=1.0, space=0, part=-1, reveal=0.0, dash=0.0, glow=1.0, space1=None):
         z0 = p0[2] if len(p0) > 2 else 0.0
         z1 = p1[2] if len(p1) > 2 else 0.0
         self.lines.append((p0[0], p0[1], z0, space, p1[0], p1[1], z1, width,
                            c[0], c[1], c[2], c[3], part, reveal, dash, glow,
-                           space if space1 is None else space1, 1.0 if move1 else 0.0, 0, 0))
+                           space if space1 is None else space1, 0, 0, 0))
 
     def polyline(self, pts, c, closed=False, **kw):
         for a, b in zip(pts, pts[1:] + (pts[:1] if closed else [])):
@@ -358,7 +358,6 @@ class Painter:
         self.ctr[0] = (0, 0, 1, 0)
         self.parts = np.zeros((32, 4), dtype=np.float32)
         self.parts[:, 0] = 1.0
-        self.partoff = np.zeros((32, 4), dtype=np.float32)
 
     def upload(self, batch):
         l, a, g = batch.arrays()
@@ -373,7 +372,6 @@ class Painter:
         p.mat3v("u_rot", self.rot)
         p.fv("u_ctr", self.ctr, 4)
         p.fv("u_part", self.parts, 4)
-        p.fv("u_partoff", self.partoff, 4)
         p.f("u_fade", extra.get("fade", 1.0))
 
     def draw(self, res, t, extra=None, which=("arcs", "lines", "glyphs")):

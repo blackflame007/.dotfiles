@@ -28,6 +28,11 @@ class Sound:
         self.cfg = cfg
         self.player = shutil.which("pw-play") or shutil.which("paplay")
 
+    def _target(self):
+        """Optional output node (sounds.sink or $BROMIGOS_LIVE_SINK), e.g. a headset or a test null sink."""
+        t = os.environ.get("BROMIGOS_LIVE_SINK") or self.cfg.get("sounds", {}).get("sink", "")
+        return [f"--target={t}"] if t else []
+
     def play_file(self, path, delete=False, gain=None):
         """Play an arbitrary wav (codec voice); honours mute and the volume."""
         s = self.cfg.get("sounds", {})
@@ -36,7 +41,7 @@ class Sound:
         g = float(self.cfg.get("codec", {}).get("voice_gain", 1.6)) if gain is None else gain
         vol = max(0.0, min(1.0, float(s.get("volume", 0.3)) * g))
         if os.path.basename(self.player) == "pw-play":
-            cmd = [self.player, f"--volume={vol:.3f}", "--media-role=Communication", path]
+            cmd = [self.player, f"--volume={vol:.3f}", "--media-role=Communication"] + self._target() + [path]
         else:
             cmd = [self.player, f"--volume={int(vol * 65536)}", path]
         if delete:
@@ -56,7 +61,7 @@ class Sound:
             return
         vol = max(0.0, min(1.0, float(s.get("volume", 0.3))))
         if os.path.basename(self.player) == "pw-play":
-            cmd = [self.player, f"--volume={vol:.3f}", "--media-role=Notification", path]
+            cmd = [self.player, f"--volume={vol:.3f}", "--media-role=Notification"] + self._target() + [path]
         else:
             cmd = [self.player, f"--volume={int(vol * 65536)}", path]
         try:

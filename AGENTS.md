@@ -97,7 +97,7 @@ The Hyprland desktop is themed as the operator's control center in the Bromigos 
 | Palette, emblem, logos, portraits, icons | `linux/.config/bromigos/brand/` | `emblem.svg` is the single source; `icons/` (16 px HUD set, `build-icons.py`); palette as CSS, JSON and kitty; `README.md` lists every portrait, logo, video and overlay asset with its prompt and model, `contact-sheet.jpg` shows them all |
 | Identity text | `linux/.config/bromigos/identity.json` | Ring motto, caption, sign-off. Rebuild with `bromigos-emblem build` |
 | Desktop widgets | `linux/.config/bromigos/widgets/` | One GTK3 layer-shell app (SYSTEM, NETWORK, STORAGE, LAB, SWITCHBOARD, FIELD NOTES, SHORTCUTS); layout in `layout.json` |
-| Live layer | `linux/.config/bromigos-live/` | GPU shader background behind every window: the den with its screens made live, glyph rain (CPU), floor pulses (network), the Drift space layer, the hardware scanner (every 60 s; pin/hold/on demand), and seamless decorative loops over a clean plate (mug steam, left glitch streaks, floor-row scroll). Summoned decks: local holo deck, ARBITER deck (the Floor, read-only GETs), Drift map (lore star chart; relays = live lab services), radial launcher. Events: intercept on login/unlock, critical-notification transmission, codec calls (notable ARBITER fills, lab alerts, long jobs via `bromigos-live job -- cmd`, critical notifications, `bromigos-live codec "text"`: a corner panel with the voice's real waveform, read by the lab's Breeze TTS; rate-limited, quiet mode), idle screensaver, sounds. `config.toml` holds every toggle (reloads on save) and marks which layers are data and which decoration. `tools/offscreen.py` renders any of it headless (NVIDIA EGL) to PNG/MP4 |
+| Live layer | `linux/.config/bromigos-live/` | GPU shader background behind every window: the den with its screens made live, glyph rain (CPU), floor pulses (network), the Drift space layer, the hardware scanner (every 60 s; pin/hold/on demand), and seamless decorative loops over a clean plate (mug steam, left glitch streaks, floor-row scroll). Summoned decks: local holo deck, ARBITER deck (the Floor, read-only GETs), Drift map (lore star chart; relays = live lab services), radial launcher. Events: intercept on login/unlock, critical-notification transmission, codec calls (notable ARBITER fills, lab alerts, long jobs via `bromigos-live job -- cmd`, critical notifications, `bromigos-live codec "text"`: a corner panel with the voice's real waveform, spoken in PILOT's voice (Breeze TTS as the fallback); rate-limited, quiet mode), idle screensaver, sounds. `config.toml` holds every toggle (reloads on save) and marks which layers are data and which decoration. `tools/offscreen.py` renders any of it headless (NVIDIA EGL) to PNG/MP4 |
 | Bar, launcher, notifications | `linux/.config/waybar/`, `rofi/`, `dunst/` | Themed; rofi power menu and quick note |
 | Lock and idle | `linux/.config/hypr/hyprlock.conf`, `hypridle.conf` | Lock at 10 min, display off at 15, never suspends; screensaver at 8 min |
 | Wallpapers | `wallpaper/.config/wallpaper/bromigos-*` | `bromigos-wallpaper den|empty|masked|v1` switches the den and lock images. The choice is local state (`~/.local/state/bromigos/wallpaper/{den,lock}.jpg`, `variant`), never a tracked file; swaybg (`bromigos-wallpaper apply` at login), hyprlock and the live layer read it. The committed canonical symlinks stay on the default. All variants share the v1 plate; the live layer approves them by a sha1 allowlist in its `config.toml` |
@@ -124,7 +124,7 @@ Key binds (ALT is `$mainMod`):
 |-----|--------|
 | SUPER W | All panels |
 | SUPER S / N / D / C / B / F | One panel each |
-| SUPER H | Holo deck (local: arc rings, cluster constellation, and the brand-kit 3D holograms from `bromigos/brand/3d/holo/*.holo.npz`: `[` `]` cycle workstation / rack / Wick / ARBITER monolith / emblem, E explodes into parts, hover a part for its hint, click for its live readings); N opens FIELD NOTES inside it (type to search, links to what a note mentions); Tab cycles local → ARBITER → timeline |
+| SUPER H | Holo deck: arc rings, cluster constellation and a compact view of the current 3D model (drawn by the shared bromigos-holo renderer from `bromigos/brand/3d/holo/*.holo.npz`; `[` `]` change model, hover a part for its live reading, click it or press O to open that model in the gallery); N opens FIELD NOTES inside it; Tab cycles local → ARBITER → timeline |
 | SUPER G | ARBITER deck: the Floor as a hologram (road to live, paper core, tape, lineup, ribbons; click a star for its card) |
 | SUPER M | Drift map: the lore as a star chart; the lab's live services are the lit relays |
 | SUPER T | Timeline: minute history (72 h, `~/.local/state/bromigos-live/history.npz` + `events.jsonl`) as a 3D ribbon to scrub; lab lanes backfilled from EchoCraft |
@@ -132,12 +132,12 @@ Key binds (ALT is `$mainMod`):
 | SUPER Z (hold) | Scanner: hold to scan |
 | SUPER A | Radial launcher |
 | SUPER E | PILOT (type, Enter to send, Esc to dismiss) |
-| SUPER O | Hologram gallery (drag rotate, scroll explode, click a part to isolate, ←/→ model, Esc) |
+| SUPER O | Hologram gallery, the full model viewer (drag rotate, scroll or Space explode, click a part to isolate, ←/→ or 1–5 model, S scan, Esc) |
 | SUPER V (hold) | Talk to PILOT: the mic is open only while held; release to send |
 | SUPER SHIFT V | Mute or unmute PILOT's voice |
 | SUPER SHIFT B | Live layer on or off |
 | SUPER SHIFT M | Mute |
-| SUPER SHIFT C | Codec calls: voice on/off (quiet mode) |
+| SUPER SHIFT C | Codec calls: voice on/off (quiet mode). Calls speak in PILOT's voice (`bromigos/holo/voice.json`); the lab's Breeze TTS only if PILOT's speech server is down |
 | SUPER L | Lock |
 | ALT SHIFT E | Power menu |
 | ALT N | Focus notes |

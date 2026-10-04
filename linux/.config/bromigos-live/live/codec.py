@@ -4,9 +4,11 @@ Sources (all real): notable ARBITER paper fills, lab alerts from EchoCraft,
 long jobs finishing ('bromigos-live job -- cmd'), critical notifications, or
 'bromigos-live codec "text" [CHANNEL]'.
 
-Voice: the homelab's Breeze TTS (https://tts.redacted/v1/audio/speech,
-LAN only, its default voice — nothing is cloned), band-passed like an old
-handset, behind the codec chirp. Without the voice (quiet mode, mute, TTS
+Voice: PILOT's (one voice on the desktop): its speech server and
+bromigos/holo/voice.json, Kokoro's 55/45 blend of two stock British male
+styles, nobody cloned. If that server is down, the lab's Breeze TTS
+(LAN only, default voice). Lightly band-passed like a handset, behind the
+codec chirp. Without the voice (quiet mode, mute, TTS
 down) the call still shows, silently.
 
 Sanity: one call at a time, at least `min_gap` seconds apart, at most
@@ -146,25 +148,49 @@ class Desk:
         os.replace(tmp, raw)
         return raw
 
+    def _pilot_voice(self, text):
+        """PILOT's voice: its own speech server and voice.json (Kokoro blend), so the
+        desktop has one voice. Returns a wav path (cached by the server) or raises."""
+        import sys
+        holo = os.path.expanduser(self.cfg.get("pilot_holo", "~/.config/bromigos/holo"))
+        if holo not in sys.path:
+            sys.path.insert(0, holo)
+        from holo.pilot.voice import Voice      # the client: spawns the venv server if it is down
+        if getattr(self, "_pv", None) is None:
+            self._pv = Voice(None)
+        out = self._pv._req({"op": "tts", "text": text}, float(self.cfg.get("tts_timeout", 45)))
+        if not out.get("wav") or not os.path.exists(out["wav"]):
+            raise RuntimeError("pilot voice: no audio")
+        return out["wav"]
+
+    def voice(self, text):
+        """(path, ffmpeg input args): PILOT's voice first, the lab's Breeze TTS if it is down."""
+        if self.cfg.get("voice", "pilot") == "pilot":
+            try:
+                return self._pilot_voice(text), []
+            except Exception as e:
+                print("bromigos-live: pilot voice unavailable, using breeze:", str(e)[:100], flush=True)
+        return self._tts(text), ["-f", "s16le", "-ar", "24000", "-ac", "1"]
+
     def _prepare(self, call):
         try:
             if quiet() or muted() or not self.app.cfg.get("sounds", {}).get("enabled", True):
                 raise RuntimeError("silent")
-            raw = self._tts(call.text)
+            raw, fmt_args = self.voice(call.text)
             chirp = os.path.join(SOUNDS, self.app.cfg["sounds"].get("notify", "chirp.wav"))
             hiss = os.path.join(SOUNDS, self.app.cfg["sounds"].get("hiss", "hiss.wav"))
             out = tempfile.NamedTemporaryFile(prefix="bromigos-codec-", suffix=".wav", delete=False).name
             # chirp, then the voice through a handset band, then a breath of carrier
             trim = ("silenceremove=start_periods=1:start_silence=0.05:start_threshold=-40dB,areverse,"
                     "silenceremove=start_periods=1:start_silence=0.05:start_threshold=-40dB,areverse,")
-            fc = ("[1:a]aformat=sample_rates=48000:channel_layouts=mono," + trim + "highpass=f=300,lowpass=f=3300,"
+            fc = ("[1:a]aformat=sample_rates=48000:channel_layouts=mono," + trim + "highpass=f=180,lowpass=f=5200,"
                   "acompressor=threshold=-20dB:ratio=3:attack=5:release=80,volume=1.6,"
                   "adelay=120|120[v];"
                   "[0:a]aformat=sample_rates=48000:channel_layouts=mono,volume=0.8[c];"
                   "[2:a]aformat=sample_rates=48000:channel_layouts=mono,atrim=0:0.45,volume=0.35[h];"
                   "[c][v][h]concat=n=3:v=0:a=1,loudnorm=I=-22:TP=-4[o]")
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", chirp, "-f", "s16le", "-ar", "24000", "-ac", "1",
-                            "-i", raw, "-i", hiss, "-filter_complex", fc, "-map", "[o]", "-ar", "48000", out],
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", chirp] + fmt_args +
+                           ["-i", raw, "-i", hiss, "-filter_complex", fc, "-map", "[o]", "-ar", "48000", out],
                            check=True, timeout=30)
             pcm = subprocess.run(["ffmpeg", "-v", "error", "-i", out, "-f", "s16le", "-ac", "1", "-ar", "6000", "-"],
                                  capture_output=True, timeout=20).stdout
