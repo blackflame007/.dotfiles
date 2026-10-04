@@ -1,11 +1,11 @@
-"""PILOT's brain: qwen3.8-flash-next on the homelab LiteLLM, streaming, with tool calls.
+"""VECTOR's brain: qwen3.8-flash-next on the homelab LiteLLM, streaming, with tool calls.
 
 The key comes from ~/.local/share/bromigos/litellm-key (mode 600, from Vault
 secret/<vault-path> litellm_api_key); it is never logged. Thinking is turned off
 (about 0.5 s to first token instead of about 6 s). The conversation is kept in memory
-for the session and appended to ~/.local/state/bromigos/pilot-chat.log (local only).
+for the session and appended to ~/.local/state/bromigos/vector-chat.log (local only).
 
-PILOT never depends on one model. CHAIN is tried in order: `hive` (LiteLLM's default
+VECTOR never depends on one model. CHAIN is tried in order: `hive` (LiteLLM's default
 alias: Qwen3.8-Flash-Next on crackle+pop, Nemotron-Lightning on snap behind it), then
 Nemotron-Lightning on the DGX Spark by name, then Qwen by name. LiteLLM fails over by
 itself when a backend errors, but a wedged backend hangs instead of erroring, so the
@@ -34,7 +34,7 @@ IDLE_GAP = 45.0
 COOLDOWN = 120.0
 KEY = os.path.expanduser("~/.local/share/bromigos/litellm-key")
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
-CHATLOG = os.path.expanduser("~/.local/state/bromigos/pilot-chat.log")
+CHATLOG = os.path.expanduser("~/.local/state/bromigos/vector-chat.log")
 MAX_ROUNDS = 6
 
 
@@ -78,7 +78,7 @@ class Brain:
             self.cancel.set()
             time.sleep(0.05)
         self.cancel.clear()
-        threading.Thread(target=self._run, args=(text,), daemon=True, name="pilot-brain").start()
+        threading.Thread(target=self._run, args=(text,), daemon=True, name="vector-brain").start()
 
     def _log(self, rec):
         os.makedirs(os.path.dirname(CHATLOG), exist_ok=True)
@@ -135,7 +135,7 @@ class Brain:
                     if m.get("role") == "tool" and len(m.get("content") or "") > 1500:
                         m["content"] = m["content"][:1500] + "…"
                 stats["total_s"] = round(time.monotonic() - t0, 2)
-                self._log({"role": "pilot", "text": final, "stats": stats})
+                self._log({"role": "vector", "text": final, "stats": stats})
                 self.cb.done(final, stats)
             except AllDown as e:
                 self._log({"role": "error", "text": str(e)[:300]})

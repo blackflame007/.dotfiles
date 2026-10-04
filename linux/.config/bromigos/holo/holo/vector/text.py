@@ -1,5 +1,5 @@
 """Plain text for the hologram and the voice: models sometimes answer in markdown
-(Nemotron likes bold and bullets); PILOT's words are shown as holographic text and
+(Nemotron likes bold and bullets); VECTOR's words are shown as holographic text and
 read aloud, so the markup goes."""
 import re
 
@@ -10,12 +10,12 @@ _HEAD = re.compile(r"^\s{0,3}#{1,6}\s*", re.M)
 _BULLET = re.compile(r"^\s*(?:[-*+•]|\d+[.)])\s+", re.M)
 _LINK = re.compile(r"\[([^\]]+)\]\((?:[^)]+)\)")
 # Roleplay the fallback model adds despite the persona:
-#  * stage directions: "*PILOT blinks, then smiles.*", "*waves*", "*a bit of static*"
-#  * speaker labels: "**pilot**: Oh!", "PILOT: Right."
+#  * stage directions: "*VECTOR blinks, then smiles.*", "*waves*", "*a bit of static*"
+#  * speaker labels: "**vector**: Oh!", "VECTOR: Right."
 # A single-asterisk span of two or more words, or one action verb, is a direction and
 # goes; a single other word ("*me*") is emphasis and keeps the word.
 _STAR = re.compile(r"(?<![\w*])\*(?!\s|\*)([^*\n]+?)(?<!\s)\*(?![\w*])")
-_SPEAKER = re.compile(r"^\s*(?:\*\*|__)?\s*pilot\s*(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*", re.I | re.M)
+_SPEAKER = re.compile(r"^\s*(?:\*\*|__)?\s*vector\s*(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*", re.I | re.M)
 _VERBS = re.compile(r"^(?:blinks?|nods?|waves?|smiles?|grins?|laughs?|chuckles?|giggles?|sighs?|shrugs?|"
                     r"winks?|beams?|gestures?|pauses?|coughs?|gulps?|fidgets?|flickers?|crackles?|hums?|"
                     r"beeps?|whirs?|buzz(?:es)?|static|silence|ahem|ahem\.?)$", re.I)

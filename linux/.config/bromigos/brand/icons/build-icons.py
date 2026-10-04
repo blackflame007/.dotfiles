@@ -55,8 +55,8 @@ ICONS = {
     "vol-muted": """
       <path d="M1.5 5.5h3l4-3v11l-4-3h-3z"/>
       <path d="M10.5 5.5l5 5M15.5 5.5l-5 5"/>""",
-    # PILOT: the construct's iris: a twelve-sided bezel, a six-blade aperture, the core
-    "pilot": """
+    # VECTOR: the construct's iris: a twelve-sided bezel, a six-blade aperture, the core
+    "vector": """
       <path d="M8 0.5l3.75 1 2.75 2.75 1 3.75-1 3.75-2.75 2.75-3.75 1-3.75-1-2.75-2.75-1-3.75 1-3.75 2.75-2.75z"/>
       <path d="M8 3.5l3.9 2.25v4.5l-3.9 2.25-3.9-2.25v-4.5z"/>
       <rect x="7" y="7" width="2" height="2" fill="currentColor" stroke="none"/>""",

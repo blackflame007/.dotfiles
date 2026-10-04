@@ -1,15 +1,15 @@
-"""bromigos-holo daemon: one GTK process hosting PILOT's console and the hologram gallery,
+"""bromigos-holo daemon: one GTK process hosting VECTOR's console and the hologram gallery,
 both on the shared renderer. Controlled over a unix socket by bin/bromigos-holo.
 
 Windows are layer-shell surfaces on the overlay layer, shown only when summoned.
 Hidden windows render nothing; the idle daemon is a sleeping GTK main loop.
 
-PILOT never blocks the desktop: its window takes input only on the chat entry and its
+VECTOR never blocks the desktop: its window takes input only on the chat entry and its
 minimize button (an input region; clicks anywhere else go to the window behind it),
 and it holds keyboard focus on demand (when SUPER+E opens it or the entry is clicked;
-Esc or a click elsewhere hands it back). Minimized, PILOT keeps working: a running
+Esc or a click elsewhere hands it back). Minimized, VECTOR keeps working: a running
 turn finishes, the reply is spoken (voice on) and queued for the next open, and the
-bar module (waybar custom/pilot, fed by $XDG_RUNTIME_DIR/bromigos-pilot.json) shows its
+bar module (waybar custom/vector, fed by $XDG_RUNTIME_DIR/bromigos-vector.json) shows its
 state and unread count."""
 import json
 import os
@@ -33,11 +33,11 @@ from .live import Live  # noqa: E402
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCK = os.path.join(RUNTIME, "bromigos-holo.sock")
-PILOT_STATE = os.path.join(RUNTIME, "bromigos-pilot.json")
-WAYBAR_SIGNAL = 9           # waybar custom/pilot "signal": 9 -> refresh on SIGRTMIN+9
+VECTOR_STATE = os.path.join(RUNTIME, "bromigos-vector.json")
+WAYBAR_SIGNAL = 9           # waybar custom/vector "signal": 9 -> refresh on SIGRTMIN+9
 MONITOR = os.environ.get("BROMIGOS_HOLO_MONITOR", "DP-1")
 CSS = b"""
-#pilot-entry {
+#vector-entry {
   background-color: rgba(0, 19, 0, 0.82);
   color: #c4f5bb;
   caret-color: #39ff14;
@@ -48,9 +48,9 @@ CSS = b"""
   font-size: 14px;
   padding: 8px 12px;
 }
-#pilot-entry:focus { border-color: #39ff14; }
-#pilot-entry selection { background-color: #159b09; color: #000500; }
-#pilot-min {
+#vector-entry:focus { border-color: #39ff14; }
+#vector-entry selection { background-color: #159b09; color: #000500; }
+#vector-min {
   background-image: none;
   background-color: rgba(0, 19, 0, 0.82);
   color: #9cff8a;
@@ -63,7 +63,7 @@ CSS = b"""
   padding: 2px 10px;
   min-height: 0;
 }
-#pilot-min:hover { color: #000500; background-color: #39ff14; border-color: #39ff14; }
+#vector-min:hover { color: #000500; background-color: #39ff14; border-color: #39ff14; }
 """
 
 
@@ -289,7 +289,7 @@ class App:
         disp = Gdk.Display.get_default()           # hotplug: reopen windows that were shown
         disp.connect("monitor-removed", lambda *_: HoloWindow.output_lost())
         disp.connect("monitor-added", lambda *_: [GLib.timeout_add(d, HoloWindow.reattach) for d in (1500, 4000)])
-        self.pilot = None
+        self.vector = None
         self.gallery = None
         self.brain = None
         self.voice = None
@@ -302,36 +302,36 @@ class App:
         GLib.timeout_add_seconds(5, self._idle_check)
         GLib.timeout_add(400, self._publish_state)
 
-    # ------------------------------------------------------------------ PILOT
-    def ensure_pilot(self):
-        if self.pilot:
+    # ------------------------------------------------------------------ VECTOR
+    def ensure_vector(self):
+        if self.vector:
             return
-        from .pilot.brain import Brain
-        from .pilot.scene import PilotScene
-        self.pscene = PilotScene(self.live)
-        self.entry = Gtk.Entry(name="pilot-entry")
-        self.entry.set_placeholder_text("ask PILOT…")
+        from .vector.brain import Brain
+        from .vector.scene import VectorScene
+        self.pscene = VectorScene(self.live)
+        self.entry = Gtk.Entry(name="vector-entry")
+        self.entry.set_placeholder_text("ask VECTOR…")
         self.entry.set_halign(Gtk.Align.END)
         self.entry.set_valign(Gtk.Align.END)
         self.entry.set_margin_end(30)
         self.entry.set_margin_bottom(34)
         self.entry.set_size_request(1180 - self.pscene.left_w - 14 - 30, -1)
         self.entry.connect("activate", self._on_entry)
-        self.entry.set_tooltip_text("Type to PILOT; Enter sends. Esc hands the keyboard back; click here to type again.")
-        self.minbtn = Gtk.Button(label="— MINIMIZE", name="pilot-min")
+        self.entry.set_tooltip_text("Type to VECTOR; Enter sends. Esc hands the keyboard back; click here to type again.")
+        self.minbtn = Gtk.Button(label="— MINIMIZE", name="vector-min")
         self.minbtn.set_halign(Gtk.Align.END)
         self.minbtn.set_valign(Gtk.Align.START)
         self.minbtn.set_margin_end(30)
         self.minbtn.set_margin_top(64)
         self.minbtn.set_can_focus(False)
-        self.minbtn.set_tooltip_text("Minimize PILOT. It keeps working: replies are spoken and wait here for you. "
-                                     "SUPER+E brings it back; the bar's PILOT pip shows what it is doing.")
-        self.minbtn.connect("clicked", lambda b: self.hide_pilot())
-        self.pilot = HoloWindow("bromigos-pilot", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
+        self.minbtn.set_tooltip_text("Minimize VECTOR. It keeps working: replies are spoken and wait here for you. "
+                                     "SUPER+E brings it back; the bar's VECTOR pip shows what it is doing.")
+        self.minbtn.connect("clicked", lambda b: self.hide_vector())
+        self.vector = HoloWindow("bromigos-vector", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
                                 keyboard_exclusive=False, overlay_children=[self.entry, self.minbtn],
                                 input_widgets=[self.entry, self.minbtn])
-        self.pilot.win.connect("key-press-event", self._pilot_key)
-        self.pilot.win.connect("notify::has-toplevel-focus", self._pilot_focus)
+        self.vector.win.connect("key-press-event", self._vector_key)
+        self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
         self.ensure_voice()
 
@@ -340,51 +340,51 @@ class App:
             self.app = app
 
         def state(self, s):
-            GLib.idle_add(self.app._pilot_state, s)
+            GLib.idle_add(self.app._vector_state, s)
 
         def delta(self, text):
-            GLib.idle_add(self.app._pilot_delta, text)
+            GLib.idle_add(self.app._vector_delta, text)
 
         def tool(self, name, args, label, ex):
-            GLib.idle_add(self.app._pilot_tool, name, label, ex)
+            GLib.idle_add(self.app._vector_tool, name, label, ex)
 
         def done(self, text, stats):
-            GLib.idle_add(self.app._pilot_done, text, stats)
+            GLib.idle_add(self.app._vector_done, text, stats)
 
         def error(self, msg):
-            GLib.idle_add(self.app._pilot_error, msg)
+            GLib.idle_add(self.app._vector_error, msg)
 
         def reroute(self, model, why):
-            GLib.idle_add(self.app._pilot_reroute, model, why)
+            GLib.idle_add(self.app._vector_reroute, model, why)
 
-    def _pilot_state(self, s):
+    def _vector_state(self, s):
         self.pscene.set_state(s)
         self.pscene.subtitle = ""
 
-    def _pilot_delta(self, text):
+    def _vector_delta(self, text):
         self.pscene.feed(text)
         if self.voice:
             self.voice.feed(text)
         self.last_activity = time.monotonic()
 
-    def _pilot_tool(self, name, label, ex):
+    def _vector_tool(self, name, label, ex):
         self.pscene.add_tool(label)
         self.pscene.subtitle = label.split(" · ")[0].upper()
         if ex:
             self.pscene.exhibit(*ex)
 
-    def _pilot_done(self, text, stats):
+    def _vector_done(self, text, stats):
         self.pscene.end_reply()
         self.pscene.route = f"{stats.get('model', self.brain.model)} · homelab LiteLLM"
         self.last_activity = time.monotonic()
         if self.voice:
             self.voice.flush()
         log("reply", json.dumps(stats))
-        if not self._pilot_shown():
+        if not self._vector_shown():
             self.unread += 1
-            self._notify("PILOT", text)
+            self._notify("VECTOR", text)
 
-    def _pilot_error(self, msg):
+    def _vector_error(self, msg):
         self.pscene.end_reply()
         self.pscene.set_state("error")
         line = "Oh no. Sorry, sorry: " + msg
@@ -392,27 +392,27 @@ class App:
         if self.voice:
             self.voice.say("Oh no. Sorry. Every model I can reach has gone quiet." if "went quiet" in msg
                            else "Oh no. That didn't work, sorry.")
-        if not self._pilot_shown():
+        if not self._vector_shown():
             self.unread += 1
-            self._notify("PILOT: trouble", line)
+            self._notify("VECTOR: trouble", line)
         GLib.timeout_add(2500, lambda: (self.pscene.avatar.state == "error" and self.pscene.set_state("idle"), False)[1])
 
-    def _pilot_reroute(self, model, why):
+    def _vector_reroute(self, model, why):
         self.pscene.reroute(model, why)
         self.pscene.route = f"{model} · homelab LiteLLM (rerouted)"
 
-    def _pilot_shown(self):
-        return bool(self.pilot and self.pilot.visible and self.pscene.fade_to > 0)
+    def _vector_shown(self):
+        return bool(self.vector and self.vector.visible and self.pscene.fade_to > 0)
 
     def _notify(self, title, body):
-        """A quiet notification while PILOT is minimized (no live-layer chirp; voice speaks it)."""
-        from .pilot.text import plain
+        """A quiet notification while VECTOR is minimized (no live-layer chirp; voice speaks it)."""
+        from .vector.text import plain
         body = plain(body)
         body = body if len(body) <= 220 else body[:217] + "…"
         try:
             import subprocess
-            subprocess.Popen(["notify-send", "-a", "PILOT", "-u", "low", "-t", "9000",
-                              "-h", "string:x-bromigos-sound:none", "-h", "string:x-dunst-stack-tag:pilot",
+            subprocess.Popen(["notify-send", "-a", "VECTOR", "-u", "low", "-t", "9000",
+                              "-h", "string:x-bromigos-sound:none", "-h", "string:x-dunst-stack-tag:vector",
                               title, body + "\nSUPER+E to open"],
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError:
@@ -438,63 +438,65 @@ class App:
         self.ask(text)
 
     def ask(self, text):
-        self.ensure_pilot()
+        self.ensure_vector()
         self.last_word = time.monotonic()
-        if not self.pilot.visible:
-            self.show_pilot(focus=False, greet=False)
+        if not self.vector.visible:
+            self.show_vector(focus=False, greet=False)
         self.pscene.add_user(text)
         self.last_activity = time.monotonic()
         self.brain.ask(text)
 
-    def _pilot_key(self, w, ev):
+    def _vector_key(self, w, ev):
         name = Gdk.keyval_name(ev.keyval)
         self.last_activity = time.monotonic()
         if name == "Escape":
             if ev.state & Gdk.ModifierType.SHIFT_MASK:
-                self.hide_pilot()               # Shift+Esc minimizes
+                self.hide_vector()               # Shift+Esc minimizes
             else:
-                self.release_keyboard()         # Esc hands the keyboard back; PILOT stays up
+                self.release_keyboard()         # Esc hands the keyboard back; VECTOR stays up
             return True
         if not self.entry.has_focus():
             self.entry.grab_focus_without_selecting()
         return False
 
-    def _pilot_focus(self, win, *a):
+    def _vector_focus(self, win, *a):
         self.focused = win.props.has_toplevel_focus
         self.pscene.typing = self.focused
 
     def release_keyboard(self):
         """Give keyboard focus back to the window behind; clicking the entry takes it again."""
-        if not self.pilot:
+        if not self.vector:
             return
-        self.pilot.keyboard("none")
-        GLib.timeout_add(120, lambda: (self.pilot.visible and self.pilot.keyboard("on_demand"), False)[1])
+        self.vector.keyboard("none")
+        GLib.timeout_add(120, lambda: (self.vector.visible and self.vector.keyboard("on_demand"), False)[1])
 
-    def focus_pilot(self):
+    def focus_vector(self):
         """SUPER+E: the window was just mapped on-demand, so the compositor gave it the
         keyboard; put the caret in the entry. A click on any other window takes it back."""
         self.entry.grab_focus()
 
     GREET_AFTER_IDLE = 4 * 3600      # greet again only after this long without a word
 
-    def show_pilot(self, focus=True, greet=True):
+    def show_vector(self, focus=True, greet=True):
         """greet: the hello is for SUPER+E only, once per session (or after a long quiet
-        spell); never when PILOT is opened by push-to-talk or an ask, so it can't talk
+        spell); never when VECTOR is opened by push-to-talk or an ask, so it can't talk
         over the operator or into the mic."""
-        self.ensure_pilot()
+        self.ensure_vector()
         quiet_for = time.monotonic() - getattr(self, "last_word", -1e9)
         first = greet and (not getattr(self, "greeted", False) or quiet_for > self.GREET_AFTER_IDLE)
         self.pscene.fade_to = 1.0
-        was_hidden = not self.pilot.visible
-        self.pilot.show(focus=focus)
+        was_hidden = not self.vector.visible
+        self.vector.show(focus=focus)
         if was_hidden:
             self.pscene.catch_up()              # replies that came in while minimized: show them whole
         self.unread = 0
         self.hidden_since = None
+        if self.voice and not self.voice.muted:
+            self.voice.warm_tts()               # load the voice while the host types
         if focus:
-            self.focus_pilot()
+            self.focus_vector()
         if first:
-            from .pilot.persona import GREETING
+            from .vector.persona import GREETING
             self.greeted = True
             self.last_word = time.monotonic()
             self.pscene.set_state("speaking")
@@ -507,18 +509,18 @@ class App:
             GLib.timeout_add(900, lambda: (self.pscene.avatar.state == "listening" and self.pscene.set_state("idle"), False)[1])
         self.last_activity = time.monotonic()
 
-    def hide_pilot(self):
-        """Minimize: the window goes, PILOT keeps working (turn, tools, voice)."""
-        if self.pilot and self.pilot.visible:
+    def hide_vector(self):
+        """Minimize: the window goes, VECTOR keeps working (turn, tools, voice)."""
+        if self.vector and self.vector.visible:
             self.pscene.fade_to = 0.0
             self.hidden_since = time.monotonic()
-            GLib.timeout_add(260, lambda: (self.pilot.hide() if self.pscene.fade_to == 0 else None, False)[1])
+            GLib.timeout_add(260, lambda: (self.vector.hide() if self.pscene.fade_to == 0 else None, False)[1])
 
-    def toggle_pilot(self):
-        if self._pilot_shown():
-            self.hide_pilot()
+    def toggle_vector(self):
+        if self._vector_shown():
+            self.hide_vector()
         else:
-            self.show_pilot()
+            self.show_vector()
 
     def _voice_label(self):
         if not self.voice:
@@ -566,10 +568,10 @@ class App:
 
     # ------------------------------------------------------------------ voice (phase 3)
     def ensure_voice(self):
-        self.ensure_pilot()
+        self.ensure_vector()
         if self.voice is None:
             try:
-                from .pilot.voice import Voice
+                from .vector.voice import Voice
                 self.voice = Voice(self)
             except Exception as e:
                 log("voice unavailable:", e)
@@ -579,18 +581,18 @@ class App:
 
     # ------------------------------------------------------------------ housekeeping
     def _idle_check(self):
-        # PILOT steps back after a quiet two minutes once it has finished talking (unless you're typing)
-        if self._pilot_shown() and not self.busy() and not self.pscene.revealing() and not self.focused:
+        # VECTOR steps back after a quiet two minutes once it has finished talking (unless you're typing)
+        if self._vector_shown() and not self.busy() and not self.pscene.revealing() and not self.focused:
             if time.monotonic() - self.last_activity > 120:
-                self.hide_pilot()
+                self.hide_vector()
         return True
 
     def busy(self):
         """A turn is running or speech is queued/playing: never exit or drop it."""
         return bool((self.brain and self.brain.busy) or (self.voice and self.voice.active()))
 
-    def pilot_state(self):
-        if not self.pilot:
+    def vector_state(self):
+        if not self.vector:
             return "off"
         if self.voice and self.voice.rec:
             return "listening"
@@ -604,16 +606,16 @@ class App:
 
     def _publish_state(self):
         """The bar module's feed: state, unread count, whether it is minimized."""
-        st = {"state": self.pilot_state(), "unread": self.unread, "shown": self._pilot_shown(),
+        st = {"state": self.vector_state(), "unread": self.unread, "shown": self._vector_shown(),
               "model": self.brain.model if self.brain else None,
               "muted": bool(self.voice and self.voice.muted)}
         sig = json.dumps(st, sort_keys=True)
         if sig != self._state_sig:
             self._state_sig = sig
-            tmp = PILOT_STATE + ".part"
+            tmp = VECTOR_STATE + ".part"
             with open(tmp, "w") as f:
                 f.write(sig)
-            os.replace(tmp, PILOT_STATE)
+            os.replace(tmp, VECTOR_STATE)
             try:
                 import subprocess
                 subprocess.Popen(["pkill", f"-RTMIN+{WAYBAR_SIGNAL}", "-x", "waybar"],
@@ -624,12 +626,12 @@ class App:
 
     def status(self):
         out = {"pid": os.getpid()}
-        for k, w in (("pilot", self.pilot), ("gallery", self.gallery)):
+        for k, w in (("vector", self.vector), ("gallery", self.gallery)):
             if w:
                 out[k] = {"visible": w.visible, "fps": w.fps, "frames": w.frames, "frame_ms": round(w.frame_ms, 2)}
-        if self.pilot:
-            out["pilot"].update(state=self.pilot_state(), unread=self.unread, focused=self.focused,
-                                model=self.brain.model, input_rects=list(self.pilot.input_rects),
+        if self.vector:
+            out["vector"].update(state=self.vector_state(), unread=self.unread, focused=self.focused,
+                                model=self.brain.model, input_rects=list(self.vector.input_rects),
                                 entry_text=self.entry.get_text())
         if self.voice:
             out["voice"] = self.voice.status()
@@ -638,12 +640,12 @@ class App:
     def command(self, cmd):
         parts = cmd.strip().split(" ", 1)
         verb, arg = parts[0], (parts[1] if len(parts) > 1 else "")
-        if verb == "pilot":
-            self.toggle_pilot()
-        elif verb == "pilot-show":
-            self.show_pilot()
-        elif verb == "pilot-hide":
-            self.hide_pilot()
+        if verb == "vector":
+            self.toggle_vector()
+        elif verb == "vector-show":
+            self.show_vector()
+        elif verb == "vector-hide":
+            self.hide_vector()
         elif verb == "ask":
             self.ask(arg)
         elif verb == "gallery":
@@ -660,13 +662,13 @@ class App:
             v = self.ensure_voice()
             if v:
                 v.toggle_mute()
-                if self.pilot:
+                if self.vector:
                     self.pscene.voice = self._voice_label()
                 return "muted" if v.muted else "unmuted"
             return "voice unavailable"
         elif verb == "snap":
             name, _, path = arg.partition(" ")
-            w = {"pilot": self.pilot, "gallery": self.gallery}.get(name)
+            w = {"vector": self.vector, "gallery": self.gallery}.get(name)
             if not w or not w.visible:
                 return "not visible"
             w.snap_path = os.path.expanduser(path)
@@ -729,7 +731,31 @@ class App:
         threading.Thread(target=loop, daemon=True, name="holo-sock").start()
 
 
+def migrate_from_pilot():
+    """VECTOR was PILOT: carry its logs, mute choice and line cache over, once."""
+    import shutil
+    st = os.path.expanduser("~/.local/state/bromigos")
+    for old, new in (("pilot-chat.log", "vector-chat.log"), ("pilot-audit.log", "vector-audit.log"),
+                     ("pilot-voice-muted", "vector-voice-muted")):
+        o, n = os.path.join(st, old), os.path.join(st, new)
+        if os.path.exists(o):
+            if os.path.exists(n) and old.endswith(".log"):
+                with open(o) as fo, open(n) as fn:
+                    merged = fo.read() + fn.read()
+                with open(n, "w") as f:
+                    f.write(merged)
+                os.unlink(o)
+            elif not os.path.exists(n):
+                shutil.move(o, n)
+            else:
+                os.unlink(o)
+    oc, nc = os.path.expanduser("~/.cache/bromigos/pilot-tts"), os.path.expanduser("~/.cache/bromigos/vector-tts")
+    if os.path.isdir(oc):          # PILOT's voice lines: a different voice, no use to VECTOR
+        shutil.rmtree(oc, ignore_errors=True)
+
+
 def main():
+    migrate_from_pilot()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     signal.signal(signal.SIGTERM, lambda *a: Gtk.main_quit())
     app = App()
@@ -737,7 +763,7 @@ def main():
     Gtk.main()
     if app.voice:
         app.voice.drop_aec()
-    for p in (SOCK, PILOT_STATE):
+    for p in (SOCK, VECTOR_STATE):
         try:
             os.unlink(p)
         except OSError:

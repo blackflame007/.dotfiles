@@ -3,7 +3,7 @@
 without touching the desktop. For screenshots and tuning.
 
   offscreen.py gallery OUT.png [model] [explode 0..1] [iso part id] [t seconds]
-  offscreen.py pilot OUT.png [state] [exhibit] [t seconds]
+  offscreen.py vector OUT.png [state] [exhibit] [t seconds]
 """
 import ctypes
 import os
@@ -98,9 +98,9 @@ def main():
         s.read_at = 0
         g.render(fbo, W, H)
         save(fbo, out)
-    elif kind == "pilot":
-        from holo.pilot.scene import PilotScene
-        p = PilotScene(live)
+    elif kind == "vector":
+        from holo.vector.scene import VectorScene
+        p = VectorScene(live)
         state = args[0] if args else "idle"
         p.set_state(state)
         if len(args) > 1 and args[1] != "-":

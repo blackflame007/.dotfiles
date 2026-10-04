@@ -8,7 +8,7 @@
   "spacing": 0,
   "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
   "modules-center": ["mpris"],
-  "modules-right": ["custom/pilot", "cpu", "memory", "custom/gpu", "temperature", "custom/storage", "network",
+  "modules-right": ["custom/vector", "cpu", "memory", "custom/gpu", "temperature", "custom/storage", "network",
                     "pulseaudio", "tray", "clock"],
 
   "custom/launcher": {
@@ -63,12 +63,12 @@
     "on-click": "kitty -e btop"
   },
 
-  "custom/pilot": {
-    "exec": "~/.config/waybar/scripts/pilot.py",
+  "custom/vector": {
+    "exec": "~/.config/waybar/scripts/vector.py",
     "return-type": "json",
     "interval": 30,
     "signal": 9,
-    "on-click": "~/.config/bromigos/holo/bin/bromigos-holo pilot",
+    "on-click": "~/.config/bromigos/holo/bin/bromigos-holo vector",
     "on-click-right": "~/.config/bromigos/holo/bin/bromigos-holo mute"
   },
 

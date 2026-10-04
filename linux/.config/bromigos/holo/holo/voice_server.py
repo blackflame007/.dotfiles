@@ -1,20 +1,35 @@
-"""PILOT's ears and voice: a small server in the bromigos venv (faster-whisper, kokoro-onnx),
-spawned on demand by the desktop daemon and talked to over a unix socket, one JSON
-request per connection:
+"""VECTOR's ears and voice: a small server in the voice venv (faster-whisper, Qwen3-TTS via
+faster-qwen3-tts, kokoro-onnx), spawned on demand by the desktop daemon and talked to
+over a unix socket, one JSON request per connection:
 
     {"op": "warm"}                      load speech-to-text now (on push-to-talk press)
+    {"op": "warm_tts"}                  load the voice now (when VECTOR's window opens)
     {"op": "stt", "pcm": path}          16 kHz mono s16 raw -> {"text", "ms"}
-    {"op": "tts", "text": "..."}        -> {"wav": path, "ms", "cached"}
+    {"op": "tts", "text": "..."}        -> {"wav": path, "ms", "cached", "engine"}
+    {"op": "tts_stream", "text": "..."} -> one JSON header line {"sr", "engine", "cached"},
+                                           then raw mono s16le PCM until the socket closes
     {"op": "ping"}
 
-Whisper sits on the GPU (small.en, fp16, about 0.12 s per utterance) and is unloaded
-after `unload_after_seconds` idle; the process exits after `exit_after_seconds` idle.
-TTS runs on the CPU (about 3x realtime) and every rendered line is cached by hash.
-Nothing here listens to the microphone; the client records only while the key is held.
+Voice (voice.json "engine"):
+  qwen     Qwen3-TTS 1.7B (Apache-2.0) speaking in VECTOR's own designed voice: the voice
+           was designed once from a text description with the VoiceDesign model (no one's
+           recording), saved as voices/vector-ref.wav, and every line is spoken by the Base
+           model from that reference. Streams: ~0.2 s to first audio, ~2.3x realtime on
+           the RTX 5070, ~4.7 GiB VRAM while loaded.
+  kokoro   Kokoro-82M on the CPU, a blend of stock British male voices; the fallback.
+  breeze   the homelab's Breeze TTS 2 (voice designed by instruction); too slow to talk live.
+  fish     Fish Audio, only with a reference_id the operator owns (his own recording).
+Every engine goes through the projector shimmer (holo/shimmer.py, voice.json "shimmer").
+If the main engine fails or is still loading, the `fallback` engine answers.
 
-Run: ~/.local/share/bromigos/venv/bin/python -m holo.voice_server
+Every finished line is cached as a wav by a hash of the engine settings and the text, so
+repeats cost nothing. Models are unloaded after `unload_after_seconds` idle; the process
+exits after `exit_after_seconds` idle. Nothing here listens to the microphone.
+
+Run: ~/.local/share/bromigos/venv-tts/bin/python -m holo.voice_server
 """
 import hashlib
+import io
 import json
 import os
 import socket
@@ -23,14 +38,17 @@ import threading
 import time
 import urllib.request
 import uuid
+import wave
 
 import numpy as np
+
+from .shimmer import Shimmer
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONF = os.path.join(HERE, "voice.json")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCK = os.path.join(RUNTIME, "bromigos-holo-voice.sock")
-CACHE = os.path.expanduser("~/.cache/bromigos/pilot-tts")
+CACHE = os.path.expanduser("~/.cache/bromigos/vector-tts")
 VOICE_DIR = os.path.expanduser("~/.local/share/bromigos/voice")
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
 FISH_KEY = os.path.expanduser("~/.local/share/bromigos/fish-audio-key")
@@ -40,86 +58,137 @@ def log(*a):
     print(time.strftime("%H:%M:%S"), "holo-voice:", *a, flush=True)
 
 
+def _wav_bytes(a, sr):
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(int(sr))
+        w.writeframes(_s16(a))
+    return buf.getvalue()
+
+
+def _s16(a):
+    return (np.clip(np.asarray(a, np.float32), -1, 1) * 32767).astype(np.int16).tobytes()
+
+
 class Server:
     def __init__(self):
         with open(CONF) as f:
             self.cfg = json.load(f)
         self.whisper = None
         self.kokoro = None
-        self.style = None
+        self.kstyle = None
+        self.qwen = None
+        self.qwen_loading = threading.Event()
         self.last = time.monotonic()
-        self.lock = threading.Lock()
+        self.stt_lock = threading.Lock()
+        self.tts_lock = threading.Lock()
         os.makedirs(CACHE, exist_ok=True)
 
     # ------------------------------------------------------------------ STT
     def warm(self):
-        if self.whisper is None:
-            from faster_whisper import WhisperModel
-            c = self.cfg["stt"]
-            t0 = time.monotonic()
-            try:
-                self.whisper = WhisperModel(c["model"], device=c.get("device", "cuda"), compute_type=c.get("compute_type", "float16"))
-            except Exception as e:
-                log("whisper on GPU failed, using CPU:", e)
-                self.whisper = WhisperModel(c["model"], device="cpu", compute_type="int8")
-            # first pass loads the VAD and the CUDA kernels; do it now, not on the operator's first sentence
-            list(self.whisper.transcribe(np.zeros(16000, np.float32), beam_size=1, language="en", vad_filter=True)[0])
-            log(f"whisper loaded in {time.monotonic() - t0:.2f}s")
+        with self.stt_lock:
+            if self.whisper is None:
+                from faster_whisper import WhisperModel
+                c = self.cfg["stt"]
+                t0 = time.monotonic()
+                try:
+                    self.whisper = WhisperModel(c["model"], device=c.get("device", "cuda"), compute_type=c.get("compute_type", "float16"))
+                except Exception as e:
+                    log("whisper on GPU failed, using CPU:", e)
+                    self.whisper = WhisperModel(c["model"], device="cpu", compute_type="int8")
+                # the first pass loads the VAD and the CUDA kernels: do it now, not on the first sentence
+                list(self.whisper.transcribe(np.zeros(16000, np.float32), beam_size=1, language="en", vad_filter=True)[0])
+                log(f"whisper {c['model']} loaded in {time.monotonic() - t0:.2f}s")
         return {"ok": True}
 
     def stt(self, pcm):
         self.warm()
         a = np.fromfile(pcm, dtype=np.int16).astype(np.float32) / 32768.0
         t0 = time.monotonic()
-        segs, _ = self.whisper.transcribe(a, beam_size=1, language="en", vad_filter=True,
-                                          initial_prompt="PILOT, the Wick, ARBITER, the rack room, Argo CD, Prometheus, EchoCraft Lab.")
-        text = " ".join(s.text for s in segs).strip()
+        with self.stt_lock:
+            segs, _ = self.whisper.transcribe(a, beam_size=1, language="en", vad_filter=True,
+                                              initial_prompt=self.cfg["stt"].get("prompt", ""))
+            text = " ".join(s.text for s in segs).strip()
         return {"text": text, "ms": int((time.monotonic() - t0) * 1000), "seconds": round(len(a) / 16000, 2)}
 
-    # ------------------------------------------------------------------ TTS
-    def _key(self, text):
-        e = self.cfg["engine"]
-        return hashlib.sha1(json.dumps([e, self.cfg.get(e), text], sort_keys=True).encode()).hexdigest()[:24]
+    # ------------------------------------------------------------------ TTS engines (each yields float chunks)
+    def _load_qwen(self):
+        if self.qwen is not None:
+            return self.qwen
+        if self.qwen_loading.is_set():
+            return None
+        self.qwen_loading.set()
+        try:
+            from faster_qwen3_tts import FasterQwen3TTS
+            c = self.cfg["qwen"]
+            t0 = time.monotonic()
+            m = FasterQwen3TTS.from_pretrained(c["model"])
+            m.warmup(prefill_len=100)
+            ref = os.path.join(HERE, c["ref_audio"])
+            for _ in range(2):           # capture the graphs for this reference now
+                list(m.generate_voice_clone_streaming(text="One moment.", language="English", ref_audio=ref,
+                                                      ref_text=c["ref_text"], chunk_size=c.get("chunk_size", 4)))
+            self.qwen = m
+            log(f"qwen voice {c['model']} ready in {time.monotonic() - t0:.1f}s")
+            return m
+        finally:
+            self.qwen_loading.clear()
 
-    def tts(self, text):
-        text = text.strip()
-        path = os.path.join(CACHE, self._key(text) + ".wav")
-        if os.path.exists(path):
-            return {"wav": path, "ms": 0, "cached": True}
-        t0 = time.monotonic()
-        engine = self.cfg["engine"]
-        audio, sr = getattr(self, "_tts_" + engine)(text)
-        self._write_wav(path, audio, sr)
-        return {"wav": path, "ms": int((time.monotonic() - t0) * 1000), "cached": False}
+    def warm_tts(self):
+        if self.cfg["engine"] == "qwen" and self.qwen is None and not self.qwen_loading.is_set():
+            threading.Thread(target=self._safe_load, daemon=True).start()
+        return {"ok": True, "ready": self.cfg["engine"] != "qwen" or self.qwen is not None}
 
-    def _tts_kokoro(self, text):
+    def _safe_load(self):
+        try:
+            with self.tts_lock:
+                self._load_qwen()
+        except Exception as e:
+            log("qwen voice failed to load:", e)
+
+    def _gen_qwen(self, text):
+        m = self.qwen
+        if m is None:
+            raise RuntimeError("qwen voice not loaded yet")
+        c = self.cfg["qwen"]
+        for chunk, sr, _ in m.generate_voice_clone_streaming(
+                text=text, language="English", ref_audio=os.path.join(HERE, c["ref_audio"]), ref_text=c["ref_text"],
+                chunk_size=c.get("chunk_size", 4), temperature=c.get("temperature", 0.7)):
+            yield np.asarray(chunk, np.float32).squeeze(), sr
+
+    def _gen_kokoro(self, text):
+        c = self.cfg["kokoro"]
         if self.kokoro is None:
             import onnxruntime as ort
             from kokoro_onnx import Kokoro
             sess = ort.InferenceSession(os.path.join(VOICE_DIR, "kokoro-v1.0.onnx"), providers=["CPUExecutionProvider"])
             self.kokoro = Kokoro.from_session(sess, os.path.join(VOICE_DIR, "voices-v1.0.bin"))
-            c = self.cfg["kokoro"]
-            self.style = sum(w * self.kokoro.get_voice_style(v) for v, w in c["blend"].items())
-        c = self.cfg["kokoro"]
-        a, sr = self.kokoro.create(text, voice=self.style, speed=c.get("speed", 1.1), lang=c.get("lang", "en-gb"))
-        return a, sr
+            self.kstyle = sum(w * self.kokoro.get_voice_style(v) for v, w in c["blend"].items())
+        a, sr = self.kokoro.create(text, voice=self.kstyle, speed=c.get("speed", 1.05), lang=c.get("lang", "en-gb"))
+        yield np.asarray(a, np.float32), sr
 
-    def _tts_breeze(self, text):
+    def _gen_breeze(self, text):
         c = self.cfg["breeze"]
         b = uuid.uuid4().hex
         parts = [f"--{b}\r\nContent-Disposition: form-data; name=\"{n}\"\r\n\r\n{v}\r\n"
-                 for n, v in (("text", text), ("instruction", c["instruction"]), ("seed", str(c.get("seed", 7))))]
+                 for n, v in (("text", text), ("instruction", c["instruction"]), ("seed", str(c.get("seed", 7))),
+                              ("cfg_scale", str(c.get("cfg_scale", 4))))]
         body = ("".join(parts) + f"--{b}--\r\n").encode()
         ctx = ssl.create_default_context(cafile=CA) if os.path.exists(CA) else ssl.create_default_context()
         req = urllib.request.Request(c["url"], data=body, method="POST", headers={"Content-Type": f"multipart/form-data; boundary={b}"})
-        with urllib.request.urlopen(req, timeout=90, context=ctx) as r:
-            pcm = r.read()
-        return np.frombuffer(pcm, np.int16).astype(np.float32) / 32768.0, 24000
+        with urllib.request.urlopen(req, timeout=120, context=ctx) as r:
+            while True:
+                pcm = r.read1(9600)
+                if not pcm:
+                    break
+                yield np.frombuffer(pcm[: len(pcm) // 2 * 2], np.int16).astype(np.float32) / 32768.0, 24000
 
-    def _tts_fish(self, text):
+    def _gen_fish(self, text):
         c = self.cfg["fish"]
         if not c.get("reference_id"):
-            raise RuntimeError("fish engine needs a reference_id (a voice model you own)")
+            raise RuntimeError("fish engine needs a reference_id of a voice model the operator owns")
         with open(FISH_KEY) as f:
             key = f.read().strip()
         body = {"reference_id": c["reference_id"], "text": text, "format": "wav", "normalize": True}
@@ -127,49 +196,124 @@ class Server:
                                      headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=60) as r:
             data = r.read()
-        import io
-        import wave
         with wave.open(io.BytesIO(data)) as w:
             sr = w.getframerate()
-            a = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768.0
-        return a, sr
+            yield np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768.0, sr
 
-    @staticmethod
-    def _write_wav(path, a, sr):
-        import wave
-        a = np.clip(np.asarray(a, np.float32), -1, 1)
-        tmp = path + ".part"
-        with wave.open(tmp, "wb") as w:
-            w.setnchannels(1)
-            w.setsampwidth(2)
-            w.setframerate(int(sr))
-            w.writeframes((a * 32767).astype(np.int16).tobytes())
-        os.replace(tmp, path)
+    # ------------------------------------------------------------------ TTS front
+    def _key(self, engine, text):
+        conf = [engine, self.cfg.get(engine), self.cfg.get("shimmer", 0)]
+        return hashlib.sha1(json.dumps([conf, text], sort_keys=True).encode()).hexdigest()[:24]
+
+    def _engines(self):
+        main, fb = self.cfg["engine"], self.cfg.get("fallback", "kokoro")
+        if main == "qwen" and self.qwen is None:
+            self.warm_tts()
+            # give a load in progress a moment (the window usually warmed it already)
+            t0 = time.monotonic()
+            while self.qwen is None and self.qwen_loading.is_set() and time.monotonic() - t0 < self.cfg["qwen"].get("wait_for_load_s", 4):
+                time.sleep(0.05)
+        out = [main] if (main != "qwen" or self.qwen is not None) else []
+        return out + ([fb] if fb and fb != main else [])
+
+    def speak(self, text):
+        """Yields (header, chunks...): header {"sr", "engine", "cached"} then float32 chunks."""
+        text = text.strip()
+        for engine in self._engines():
+            path = os.path.join(CACHE, self._key(engine, text) + ".wav")
+            if os.path.exists(path):
+                with wave.open(path) as w:
+                    sr = w.getframerate()
+                    a = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768.0
+                yield {"sr": sr, "engine": engine, "cached": True}
+                for i in range(0, len(a), sr // 5):
+                    yield a[i:i + sr // 5]
+                return
+            try:
+                gen = getattr(self, "_gen_" + engine)(text)
+                first = next(gen)
+            except Exception as e:
+                log(f"tts engine {engine} failed: {e}")
+                continue
+            chunk, sr = first
+            dsp = Shimmer(sr, self.cfg.get("shimmer", 0.35))
+            yield {"sr": sr, "engine": engine, "cached": False}
+            done = []
+            y = dsp.process(chunk)
+            done.append(y)
+            yield y
+            for chunk, _ in gen:
+                y = dsp.process(chunk)
+                done.append(y)
+                yield y
+            tmp = path + ".part"
+            with open(tmp, "wb") as f:
+                f.write(_wav_bytes(np.concatenate(done), sr))
+            os.replace(tmp, path)
+            return
+        raise RuntimeError("no TTS engine answered")
+
+    def tts(self, text):
+        t0 = time.monotonic()
+        with self.tts_lock:
+            it = self.speak(text)
+            head = next(it)
+            a = np.concatenate([c for c in it] or [np.zeros(1, np.float32)])
+        path = os.path.join(CACHE, self._key(head["engine"], text.strip()) + ".wav")
+        return {"wav": path, "ms": int((time.monotonic() - t0) * 1000), "cached": head["cached"], "engine": head["engine"]}
 
     # ------------------------------------------------------------------ loop
-    def handle(self, req):
+    def handle(self, req, conn):
         op = req.get("op")
-        with self.lock:
-            self.last = time.monotonic()
-            if op == "ping":
-                return {"ok": True, "whisper": self.whisper is not None, "tts": self.kokoro is not None}
-            if op == "warm":
-                return self.warm()
-            if op == "stt":
-                return self.stt(req["pcm"])
-            if op == "tts":
-                return self.tts(req["text"])
+        self.last = time.monotonic()
+        if op == "ping":
+            return {"ok": True, "whisper": self.whisper is not None, "qwen": self.qwen is not None,
+                    "engine": self.cfg["engine"]}
+        if op == "warm":
+            return self.warm()
+        if op == "warm_tts":
+            return self.warm_tts()
+        if op == "stt":
+            return self.stt(req["pcm"])
+        if op == "tts":
+            return self.tts(req["text"])
+        if op == "tts_stream":
+            with self.tts_lock:
+                it = self.speak(req["text"])
+                head = next(it)
+                conn.sendall((json.dumps(head) + "\n").encode())
+                for chunk in it:
+                    try:
+                        conn.sendall(_s16(chunk))
+                    except (BrokenPipeError, ConnectionResetError):
+                        # barge-in: the client hung up; finish quietly so the cache is still written
+                        for _ in it:
+                            pass
+                        break
+            return None
         return {"error": "unknown op"}
 
     def janitor(self):
         while True:
             time.sleep(20)
             idle = time.monotonic() - self.last
-            if self.whisper is not None and idle > self.cfg.get("unload_after_seconds", 600):
-                with self.lock:
-                    self.whisper = None
-                log("whisper unloaded (idle)")
-            if idle > self.cfg.get("exit_after_seconds", 1800):
+            if idle > self.cfg.get("unload_after_seconds", 1800):
+                if self.whisper is not None:
+                    with self.stt_lock:
+                        self.whisper = None
+                    log("whisper unloaded (idle)")
+                if self.qwen is not None:
+                    with self.tts_lock:
+                        self.qwen = None
+                        import gc
+                        gc.collect()
+                        try:
+                            import torch
+                            torch.cuda.empty_cache()
+                        except Exception:
+                            pass
+                    log("qwen voice unloaded (idle)")
+            if idle > self.cfg.get("exit_after_seconds", 3600):
                 log("exiting (idle)")
                 os._exit(0)
 
@@ -183,7 +327,9 @@ class Server:
         os.chmod(SOCK, 0o600)
         srv.listen(8)
         threading.Thread(target=self.janitor, daemon=True).start()
-        log("ready", SOCK)
+        log("ready", SOCK, "engine", self.cfg["engine"])
+        if self.cfg.get("preload_tts", True):
+            self.warm_tts()
         while True:
             c, _ = srv.accept()
             threading.Thread(target=self._client, args=(c,), daemon=True).start()
@@ -199,10 +345,13 @@ class Server:
             if not buf.strip():
                 return                       # a liveness probe
             try:
-                out = self.handle(json.loads(buf.decode()))
+                out = self.handle(json.loads(buf.decode()), c)
             except Exception as e:
                 out = {"error": f"{type(e).__name__}: {str(e)[:200]}"}
-            c.sendall((json.dumps(out) + "\n").encode())
+            if out is not None:
+                c.sendall((json.dumps(out) + "\n").encode())
+        except (BrokenPipeError, ConnectionResetError):
+            pass
         finally:
             c.close()
 

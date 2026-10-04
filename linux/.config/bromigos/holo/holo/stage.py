@@ -1,7 +1,7 @@
 """A model on the projection table: suit-diagnostic explode/assemble, isolation, the
 scan sweep, live-lit parts, callouts with leader lines, and picking.
 
-Used full size by the gallery and small by PILOT (its "exhibits")."""
+Used full size by the gallery and small by VECTOR (its "exhibits")."""
 import math
 import time
 

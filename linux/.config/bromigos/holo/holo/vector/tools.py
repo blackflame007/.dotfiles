@@ -1,4 +1,4 @@
-"""PILOT's tools. Read-only by construction, a few safe desktop actions, nothing else.
+"""VECTOR's tools. Read-only by construction, a few safe desktop actions, nothing else.
 
 Hard limits (enforced here, not by the prompt):
   * no shell: every subprocess is a fixed argv from an allowlist, never a shell string;
@@ -12,7 +12,7 @@ Hard limits (enforced here, not by the prompt):
     names; the one write is appending to FIELD NOTES;
   * actions: launch an allowlisted app or an http(s) URL, toggle a widget panel, switch
     the den wallpaper, run a scanner pass, show a hologram.
-Every call is appended to ~/.local/state/bromigos/pilot-audit.log (tool, args, ok, ms).
+Every call is appended to ~/.local/state/bromigos/vector-audit.log (tool, args, ok, ms).
 """
 import calendar
 import datetime as dt
@@ -29,7 +29,7 @@ from ..live import get_json, ssl_ctx
 
 HOME = os.path.expanduser("~")
 STATE = os.path.join(HOME, ".local/state/bromigos")
-AUDIT = os.path.join(STATE, "pilot-audit.log")
+AUDIT = os.path.join(STATE, "vector-audit.log")
 KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/pilot-kubeconfig")
 GNOSIS_TOKEN = os.path.join(HOME, ".local/share/bromigos/gnosis-read-token")
 NOTES = os.path.join(HOME, ".local/share/bromigos/notes.md")

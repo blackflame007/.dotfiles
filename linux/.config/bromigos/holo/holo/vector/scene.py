@@ -1,4 +1,4 @@
-"""PILOT's console: the construct on its emitter, an exhibit table beside it (a live
+"""VECTOR's console: the construct on its emitter, an exhibit table beside it (a live
 model hologram of whatever it is talking about), and the conversation as holographic
 text. Scene logic only; the window and the brain live elsewhere."""
 import math
@@ -12,8 +12,8 @@ from ..stage import Stage
 from .avatar import Avatar
 from .text import plain
 
-STATE_WORD = {"idle": "STANDING BY", "listening": "LISTENING", "thinking": "THINKING", "speaking": "SPEAKING",
-              "error": "TROUBLE", "sleep": "DOZING"}
+STATE_WORD = {"idle": "AT HIS POST", "listening": "LISTENING", "thinking": "CONSULTING", "speaking": "SPEAKING",
+              "error": "ANOMALY LOGGED", "sleep": "HUMMING"}
 
 
 class Msg:
@@ -21,10 +21,10 @@ class Msg:
 
     def __init__(self, role, text="", done=True):
         self.role, self.text, self.t, self.done = role, text, time.monotonic(), done
-        self.shown = float(len(text)) if role != "pilot" else 0.0
+        self.shown = float(len(text)) if role != "vector" else 0.0
 
 
-class PilotScene:
+class VectorScene:
     def __init__(self, live, scale=1.0):
         self.live = live
         self.scale = scale
@@ -61,16 +61,16 @@ class PilotScene:
         self._trim()
 
     def begin_reply(self):
-        self.msgs.append(Msg("pilot", "", done=False))
+        self.msgs.append(Msg("vector", "", done=False))
 
     def feed(self, delta):
-        if not self.msgs or self.msgs[-1].role != "pilot" or self.msgs[-1].done:
+        if not self.msgs or self.msgs[-1].role != "vector" or self.msgs[-1].done:
             self.begin_reply()
         self.msgs[-1].text += delta
 
     def end_reply(self):
         for m in self.msgs:
-            if m.role == "pilot":
+            if m.role == "vector":
                 m.done = True
 
     def reroute(self, model, why):
@@ -83,11 +83,11 @@ class PilotScene:
     def catch_up(self):
         """Opening after a minimize: replies that arrived while hidden show whole."""
         for m in self.msgs:
-            if m.role == "pilot" and m.done:
+            if m.role == "vector" and m.done:
                 m.shown = float(len(m.text))
 
     def streaming(self):
-        return any(m.role == "pilot" and not m.done and m.text for m in self.msgs[-1:])
+        return any(m.role == "vector" and not m.done and m.text for m in self.msgs[-1:])
 
     def note(self, text):
         self.msgs.append(Msg("sys", text))
@@ -97,7 +97,7 @@ class PilotScene:
         self.msgs = self.msgs[-40:]
 
     def revealing(self):
-        return any(m.role == "pilot" and m.shown < len(m.text) for m in self.msgs)
+        return any(m.role == "vector" and m.shown < len(m.text) for m in self.msgs)
 
     def exhibit(self, name, parts=None, hold=45.0):
         """Put a live model hologram on the side table, calling out `parts` (ids)."""
@@ -123,10 +123,10 @@ class PilotScene:
     # ------------------------------------------------------------------ animation
     def advance(self, dt):
         a = self.avatar
-        # typewriter: PILOT's words appear at a speaking pace; the iris pulses with them
+        # typewriter: VECTOR's words appear at a speaking pace; the iris pulses with them
         lvl = 0.0
         for m in self.msgs:
-            if m.role == "pilot" and m.shown < len(m.text):
+            if m.role == "vector" and m.shown < len(m.text):
                 backlog = len(m.text) - m.shown
                 m.shown = min(len(m.text), m.shown + dt * (62 + backlog * 1.5))
                 ch = m.text[int(m.shown) - 1:int(m.shown)].lower() if m.shown >= 1 else ""
@@ -192,11 +192,23 @@ class PilotScene:
         ph = col("phosphor", 1, f)
         H.brackets(8 * sc, 8 * sc, w - 16 * sc, h - 16 * sc, (ph[0], ph[1], ph[2], 0.75 * f), arm=18 * sc, width=1.5)
         x0 = lw + 14 * sc
-        tw, th = H.label("PILOT", 26 * sc, 22 * sc, ph, int(24 * sc), "bold", spacing=7)
+        tw, th = H.label("VECTOR", 26 * sc, 22 * sc, ph, int(24 * sc), "bold", spacing=7)
         st = self.avatar.state
         sc_col = {"thinking": "amber", "error": "danger", "listening": "white", "sleep": "dim"}.get(st, "soft")
         word = STATE_WORD.get(st, st.upper()) + (f" · {self.subtitle}" if self.subtitle else "")
         H.label(word, 26 * sc + tw + 16 * sc, 22 * sc + th - 18 * sc, col(sc_col, 1, f), int(13 * sc), "bold", spacing=2.5)
+        # the line: VECTOR answers from his post at the SpacePort arrivals pad, over the relays
+        pulse = 0.55 + 0.25 * math.sin(time.monotonic() * 1.3)
+        H.label("ARRIVALS · LINE OPEN", 26 * sc, 22 * sc + th + 4 * sc, col("dim", 1.5, pulse * f), int(10 * sc), "bold", spacing=3)
+        if st == "idle" and self.avatar.state_t > 6:
+            # he hums between arrivals: a few drifting notes beside the construct (visual only)
+            t = time.monotonic()
+            for k in range(3):
+                ph_ = ((t * 0.35 + k / 3) % 1.0)
+                if ph_ < 0.75:
+                    a = math.sin(ph_ / 0.75 * math.pi) * 0.55 * f
+                    H.label("♪", lw * 0.62 + 24 * sc * k + 10 * sc * math.sin(t + k), h * 0.42 - ph_ * 90 * sc,
+                            col("soft", 1, a), int((13 + 3 * k) * sc))
         H.label(self.route, w - 28 * sc, 26 * sc, col("static", 1, 0.9 * f), int(12 * sc), anchor="rt")
         if self.mic_live:   # the microphone is open only while SUPER+V is held, and it says so
             blink = 0.65 + 0.35 * math.sin(time.monotonic() * 6)
@@ -211,7 +223,7 @@ class PilotScene:
         top = 72 * sc
         rows = []
         for m in reversed(self.msgs):
-            if m.role == "pilot":
+            if m.role == "vector":
                 text = plain(m.text[:int(m.shown)]).strip()
                 if not text:
                     continue

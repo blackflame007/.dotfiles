@@ -7,7 +7,7 @@ on the table."""
 import time
 
 SOURCES = {"workstation": ("local",), "wick": ("lab",), "rack": ("lab",), "emblem": ("lab",),
-           "monolith": ("arbiter",), "pilot": ()}
+           "monolith": ("arbiter",), "vector": ()}
 
 
 def gib(b):

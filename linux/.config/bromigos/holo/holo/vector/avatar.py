@@ -1,10 +1,10 @@
-"""PILOT's hologram: an original construct of relay light, drawn by the same renderer
+"""VECTOR's hologram: an original construct of relay light, drawn by the same renderer
 as the models (a part-indexed mesh; every moving piece is a part with its own matrix).
 
     bezel     a twelve-sided dial bezel with notches, a little depth to it
     blades    six aperture blades, each pivoting on the bezel: the iris opens wide to
               listen, narrows to think, pulses when it talks, and blinks
-    core      a small faceted diamond behind the aperture: the pilot light itself
+    core      a small faceted diamond behind the aperture: the lamp at the heart of the line
     gimbals   two tilted tuning-dial rings that spin up when it is busy
     whips     three thin whip antennae out of the back, on springs: they perk up,
               droop, twitch and shiver; most of the personality lives here

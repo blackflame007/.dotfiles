@@ -1,7 +1,7 @@
 """The shared hologram renderer. One `Holo` per GL context draws:
 
   * the projection table: emitter bed with rotating rings, a light cone rising to the model;
-  * part-indexed models (baked .holo or PILOT's procedural construct): a depth-only
+  * part-indexed models (baked .holo or VECTOR's procedural construct): a depth-only
     prepass, a faint fresnel shell with topographic slices and the scan band, then fat
     anti-aliased feature edges (bright in front, ghosted behind);
   * free 3D lines (rings, leader stubs) and a 2D overlay (leader lines, label boxes, text);
@@ -116,7 +116,7 @@ class Holo:
 
     def camera(self, eye, target, fov, near=0.05, far=20.0, viewport=None):
         """Set the camera. viewport (x, y, w, h) in pixels, top-left origin, restricts
-        drawing to a sub-rectangle of the window (PILOT's table pane)."""
+        drawing to a sub-rectangle of the window (VECTOR's table pane)."""
         W, H = self.size
         vx, vy, vw, vh = viewport or (0, 0, W, H)
         self.view_rect = (vx, vy, vw, vh)

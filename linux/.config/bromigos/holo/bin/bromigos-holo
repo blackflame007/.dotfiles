@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# bromigos-holo — the Stark-lab hologram system: PILOT (the Wick's console tech) and the
-# model gallery, on one shared renderer. Starts its daemon on first use.
+# bromigos-holo — the Stark-lab hologram system: VECTOR (the SpacePort's caretaker, on a
+# line to the Wick's console) and the model gallery, on one shared renderer. Starts its
+# daemon on first use. The old `pilot` verbs still work (VECTOR was PILOT).
 #
-#   bromigos-holo pilot              summon / dismiss PILOT (typed)
-#   bromigos-holo ask "question"     ask PILOT without typing in the window
+#   bromigos-holo vector             show / minimize VECTOR (typed)
+#   bromigos-holo ask "question"     ask VECTOR without typing in the window
 #   bromigos-holo gallery [model]    open / close the hologram gallery
 #   bromigos-holo ptt on|off         push-to-talk (bound to SUPER+V press / release)
-#   bromigos-holo mute               PILOT's voice on/off
+#   bromigos-holo mute               VECTOR's voice on/off
 #   bromigos-holo status | stop | restart | log
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
@@ -47,8 +48,15 @@ start() {
     return 1
 }
 
+# PILOT -> VECTOR: old verbs from older binds
+case "${1:-}" in
+    pilot) set -- vector "${@:2}" ;;
+    pilot-show) set -- vector-show "${@:2}" ;;
+    pilot-hide) set -- vector-hide "${@:2}" ;;
+esac
+
 case "${1:-status}" in
-    pilot|gallery|ask|ptt|mute|pilot-show|pilot-hide|gallery-hide|gallery-do|snap)
+    vector|gallery|ask|ptt|mute|vector-show|vector-hide|gallery-hide|gallery-do|snap)
         start && send "$@" ;;
     status) send status || echo "not running" ;;
     stop) send stop >/dev/null 2>&1; sleep 0.3; echo stopped ;;

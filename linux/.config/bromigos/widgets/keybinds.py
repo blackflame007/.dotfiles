@@ -19,7 +19,7 @@ MOD = "ALT"                     # $mainMod in hyprland.conf
 # Display order. The Bromigos pieces come first, grouped by what they're for; the
 # stock window-manager binds follow. Within a section, rows follow the order of the
 # EXEC / DISPATCH tables below (not the order in hyprland.conf).
-SECTIONS = ["PILOT", "HOLOGRAMS", "PANELS + NOTES", "LIVE LAYER",
+SECTIONS = ["VECTOR", "HOLOGRAMS", "PANELS + NOTES", "LIVE LAYER",
             "LAUNCH", "CAPTURE", "WINDOWS", "WORKSPACES", "MEDIA", "SYSTEM"]
 BROMIGOS = SECTIONS[:4]
 # Sections whose rows can be clicked to run (the panel) — hold-to-use binds never are.
@@ -40,10 +40,10 @@ KEYNAMES = {
 # (regex on the exec command, description, section). First match wins; the list
 # order is also the row order inside each section.
 EXEC = [
-    # PILOT: the console tech and its voice
-    (r"bromigos-holo\b.*\bpilot\b", "PILOT: show / minimize", "PILOT"),
-    (r"bromigos-holo\b.*\bptt\b", "PILOT: hold to talk", "PILOT"),
-    (r"bromigos-holo\b.*\bmute\b", "PILOT: voice on/off", "PILOT"),
+    # VECTOR: the caretaker on the line, and his voice
+    (r"bromigos-holo\b.*\b(vector|pilot)\b", "VECTOR: show / minimize", "VECTOR"),
+    (r"bromigos-holo\b.*\bptt\b", "VECTOR: hold to talk", "VECTOR"),
+    (r"bromigos-holo\b.*\bmute\b", "VECTOR: voice on/off", "VECTOR"),
     # HOLOGRAMS: the full-screen decks and 3D views
     (r"bromigos-live\b.*holodeck", "Holo deck (this machine)", "HOLOGRAMS"),
     (r"bromigos-holo\b.*\bgallery\b", "3D model gallery", "HOLOGRAMS"),
