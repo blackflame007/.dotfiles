@@ -39,6 +39,6 @@
   "echo_cancel": true,
   "drain_ms": 350,
   "max_record_seconds": 30,
-  "unload_after_seconds": 1800,
-  "exit_after_seconds": 3600
+  "unload_after_seconds": 600,
+  "exit_after_seconds": 1800
 }
