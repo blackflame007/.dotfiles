@@ -88,6 +88,48 @@ Each top-level directory mirrors `$HOME`. Running `stow common` creates symlinks
 
 Update all: `git submodule update --remote --recursive`
 
+## BROMIGOS DESKTOP (Linux, since 2026-10-04)
+
+The Hyprland desktop is themed as the operator's control center in the Bromigos style: phosphor green on void, retro sci-fi HUD. The look comes from bromigos.org, BRODEC and the ARBITER console; the identity comes from the lore (the BLACKFLAME entry and "the burn-in" emblem in `bromigos-org/platform/agents/LORE.md`).
+
+| Piece | Where | Notes |
+|-------|-------|-------|
+| Palette, emblem, logos, portraits, icons | `linux/.config/bromigos/brand/` | `emblem.svg` is the single source; `icons/` (16 px HUD set, `build-icons.py`); palette as CSS, JSON and kitty |
+| Identity text | `linux/.config/bromigos/identity.json` | Ring motto, caption, sign-off. Rebuild with `bromigos-emblem build` |
+| Desktop widgets | `linux/.config/bromigos/widgets/` | One GTK3 layer-shell app (SYSTEM, NETWORK, STORAGE, LAB, SWITCHBOARD, FIELD NOTES, SHORTCUTS); layout in `layout.json` |
+| Live layer | `linux/.config/bromigos-live/` | GPU shader background, holo deck, radial menu, intercept, screensaver, sounds; toggles in `config.toml` (reloads on save) |
+| Bar, launcher, notifications | `linux/.config/waybar/`, `rofi/`, `dunst/` | Themed; rofi power menu and quick note |
+| Lock and idle | `linux/.config/hypr/hyprlock.conf`, `hypridle.conf` | Lock at 10 min, display off at 15, never suspends; screensaver at 8 min |
+| Wallpapers | `wallpaper/.config/wallpaper/bromigos-*` | `bromigos-wallpaper den|empty|v1` switches the den and lock images (canonical names are symlinks) |
+
+Rules the operator set:
+
+- Every element shows real data or does something. No decorative status text.
+- No CRT overlay (scanlines, vignette) over the screen or app windows. The live layer stays strictly behind windows.
+- No callsign, frequency or dossier on the desktop. Identity lives only in the emblem.
+- Original IP only. Personal art in the operator's likeness is fine for his own desktop; the lore canon keeps BLACKFLAME's face unseen.
+- Custom image, video and audio assets are made with the operator's `nolgia` CLI.
+- The LAB panel reads EchoCraft Lab's `/api/status` with a read-only token (`~/.local/share/bromigos/lab-token`, from Vault `secret/<vault-path>`).
+
+Key binds (ALT is `$mainMod`):
+
+| Key | Action |
+|-----|--------|
+| SUPER W | All panels |
+| SUPER S / N / D / C / B / F | One panel each |
+| SUPER H | Holo deck |
+| SUPER A | Radial launcher |
+| SUPER SHIFT B | Live layer on or off |
+| SUPER SHIFT M | Mute |
+| SUPER L | Lock |
+| ALT SHIFT E | Power menu |
+| ALT N | Focus notes |
+| ALT SHIFT N | Quick note |
+
+The SHORTCUTS panel lists every bind live from `hyprland.conf`.
+
+Theme edits in `hyprland.conf` sit in fenced `BROMIGOS THEME` and `BROMIGOS LIVE` blocks. `bromigos-live status` reports whether it is running, idle or paused, with fps; its log is at `~/.local/state/bromigos-live/live.log`.
+
 ## COMMANDS
 
 ```bash
