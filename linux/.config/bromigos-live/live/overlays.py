@@ -74,6 +74,16 @@ class Base:
         st = self.stage
         st.begin_emit()
         st.painter.draw((float(self.w), float(self.h)), t, {"fade": u.get("gadget_fade", 1.0)})
+        p2 = getattr(self, "p2", None)
+        if p2 is not None and getattr(self, "p2_on", False):
+            # a second layer that occludes: its plates first darken what is already drawn,
+            # then its lines and text draw on top
+            p2.rot[:] = st.painter.rot
+            p2.ctr[:] = st.painter.ctr
+            GL.glBlendFuncSeparate(GL.GL_ZERO, GL.GL_ONE_MINUS_SRC_ALPHA, GL.GL_ONE, GL.GL_ONE)
+            p2.draw((float(self.w), float(self.h)), t, {"fade": u.get("fade", 1.0)}, which=("arcs",))
+            GL.glBlendFuncSeparate(GL.GL_ONE, GL.GL_ONE, GL.GL_ONE, GL.GL_ONE)
+            p2.draw((float(self.w), float(self.h)), t, {"fade": 1.0})
         for e in u.get("emblems", []):
             if e.get("bloom", True):
                 st.draw_emblem(self.emblem, e["rect"], e.get("angle", 0.0), e.get("ring_t", 1.0), e.get("flame_t", 1.0),
@@ -358,10 +368,17 @@ class HoloDeck(Base):
         self.selected = None
         self.hover = None
         self.lerp = {}
+        from .notes_panel import NotesPanel
+        self.notes = NotesPanel(self)
+        self.typed = ""
+        self.p2 = None
+        self.p2_on = False
 
     def rebuild_due(self, t):
         if self.built_at is None:
             return True
+        if self.notes.on:                          # the caret blinks; typing shows at once
+            return t - self.built_at >= 0.25
         if t < 2.2:                                # counters tick up: rebuild at ~15 Hz
             return t - self.built_at >= 1 / 15
         return t - self.built_at >= self.rebuild_every
@@ -419,8 +436,15 @@ class HoloDeck(Base):
             anchor = gadgets.PART_ANCHOR[self.hover]
             b.text(f"{self.hover} · CLICK FOR READINGS", anchor[0], anchor[1], col("white"), font="xs", track=1.5,
                    space=3, z=anchor[2], dx=12, dy=12)
-        b.text("ESC CLOSES · SUPER+H TOGGLES · TAB: ARBITER DECK", self.w / 2, self.h - 40 * s, col("dim", 0.8), font="xs", track=3,
-               align="c", reveal=T + 1.2)
+        b.text("ESC CLOSES · SUPER+H TOGGLES · N: FIELD NOTES · TAB: ARBITER DECK", self.w / 2, self.h - 40 * s,
+               col("dim", 0.8), font="xs", track=3, align="c", reveal=T + 1.2)
+        if self.p2 is None:
+            self.p2 = glkit.Painter(self.stage.atlas)
+        b2 = glkit.Batch(self.stage.atlas)
+        if self.notes.on:
+            self.notes.draw(b2, d)
+        self.p2.upload(b2)
+        self.p2_on = self.notes.on
 
     sel_t = 0.0
 
@@ -465,6 +489,11 @@ class HoloDeck(Base):
 
     def click(self, x, y, button):
         self.last_input = self.now()
+        if self.notes.on:
+            if not self.notes.click(x, y):
+                self.notes.on = False
+            self.built_at = None
+            return True
         if self._in_holo(x, y):
             self.drag = (x, y, self.yaw, self.pitch, False)
             return True
@@ -498,6 +527,16 @@ class HoloDeck(Base):
         self.drag = None
 
     def key(self, name):
+        if self.notes.on and name != "Tab":
+            self.notes.key(name, self.typed)
+            self.built_at = None
+            return True
+        if name in ("n", "N", "slash"):
+            self.notes.toggle()
+            if name == "slash":
+                self.notes.query = ""
+            self.built_at = None
+            return True
         if name in ("Escape", "q"):
             self.close()
         elif name == "Tab" and self.app:
@@ -860,6 +899,8 @@ def make(app, kind, **kw):
     def on_key(_w, ev):
         r = holder.get("r")
         if r:
+            u = Gdk.keyval_to_unicode(ev.keyval)
+            r.typed = chr(u) if u >= 32 else ""
             r.key(Gdk.keyval_name(ev.keyval) or "")
         return True
 

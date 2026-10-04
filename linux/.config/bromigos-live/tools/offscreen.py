@@ -115,6 +115,12 @@ def main():
                     r.selected = ev[2][0]
                     r.sel_t = t + 0.01
                     r.built_at = None
+                elif ev[1] == "notes":
+                    r.notes.toggle()
+                    if ev[2]:
+                        r.notes.query = " ".join(ev[2])
+                        r.notes._filter()
+                    r.built_at = None
                 elif ev[1] == "scan":
                     r.scan()
                 elif ev[1] == "pin":
