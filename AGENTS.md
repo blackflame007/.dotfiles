@@ -101,6 +101,10 @@ The Hyprland desktop is themed as the operator's control center in the Bromigos 
 | Bar, launcher, notifications | `linux/.config/waybar/`, `rofi/`, `dunst/` | Themed; rofi power menu and quick note |
 | Lock and idle | `linux/.config/hypr/hyprlock.conf`, `hypridle.conf` | Lock at 10 min, display off at 15, never suspends; screensaver at 8 min |
 | Wallpapers | `wallpaper/.config/wallpaper/bromigos-*` | `bromigos-wallpaper den|empty|masked|v1` switches the den and lock images (canonical names are symlinks; all variants share the v1 plate so the live layer's den rects stay fitted) |
+| Browser start page | `linux/.config/bromigos/startpage/` | Search, SWITCHBOARD links with up/down, Lab status, latest FIELD NOTES, clock. `snapshot.py` writes `data.js` (gitignored) every minute from `bromigos-startpage.timer` (`linux/.config/systemd/user/`); the page never sees the Lab token |
+| GTK, icons, cursor | `linux/.config/bromigos/gtk/` builds `linux/.local/share/themes/Bromigos`, `icons/Bromigos`, `icons/Bromigos-cursor` | GTK3/GTK4 theme generated from the toolkit's own dark theme with the palette mapped in (edit `overrides.css`, rerun `build-gtk-theme.py`); folder icons recoloured from Breeze Dark; cursors drawn in `build-icons-cursor.py` (Xcursor written directly, no xcursorgen). Applied with gsettings; libadwaita colours come from `libadwaita.css`, imported by `~/.config/gtk-4.0/gtk.css` |
+| Shell | `zsh/.config/zsh/zsh-bromigos`, `linux/.config/bromigos/shell/` | mehshell prompt recoloured to the palette (precmd hook, 24-bit terminals only); `bromigos` prints the emblem in braille with live host, kernel, uptime, load, memory and disk (about 3 ms). Shown on login shells; `BROMIGOS_BANNER=always` for every shell, `off` to hide |
+| Screenshots, recording | `linux/.config/bromigos/bin/bromigos-shot`, `bromigos-rec` | Save, copy, a quiet cue from the live layer's sounds (honours its mute), and a themed notification (dunst rules `capture.*`). Click a shot's notification to annotate it in swappy |
 
 Rules the operator set:
 
@@ -125,8 +129,17 @@ Key binds (ALT is `$mainMod`):
 | ALT SHIFT E | Power menu |
 | ALT N | Focus notes |
 | ALT SHIFT N | Quick note |
+| ALT Y / ALT SHIFT Y | Screenshot region / focused screen |
+| ALT SHIFT R | Record a region; press again to stop |
 
 The SHORTCUTS panel lists every bind live from `hyprland.conf`.
+
+### Start page in the browsers
+
+The page is `file:///home/blackflame/.config/bromigos/startpage/index.html`. It needs `systemctl --user enable --now bromigos-startpage.timer` (already on). The default search engine follows the browser (DuckDuckGo in LibreWolf, Google in Chrome); the menu beside the box changes it and is remembered.
+
+- **LibreWolf:** `librewolf-user.js` is linked as `user.js` into the profile, so Home and new windows open the page. Firefox-based browsers cannot set the new-tab page from prefs. For new tabs too: `about:debugging` → This LibreWolf → Load Temporary Add-on → pick `startpage/manifest.json` (lasts until restart), or install any "new tab override" add-on and point it at the URL above.
+- **Chrome:** new tab: `chrome://extensions` → turn on Developer mode → Load unpacked → choose `~/.config/bromigos/startpage`; keep the change when Chrome asks. Home and startup: Settings → Appearance → Show home button → enter the URL above; Settings → On startup → Open a specific page → add the URL.
 
 Theme edits in `hyprland.conf` sit in fenced `BROMIGOS THEME` and `BROMIGOS LIVE` blocks. `bromigos-live status` reports whether it is running, idle or paused, with fps; its log is at `~/.local/state/bromigos-live/live.log`.
 

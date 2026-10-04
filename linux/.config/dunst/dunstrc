@@ -92,3 +92,20 @@
     highlight = "#ff766f"
     format = "<span text_transform='uppercase' letter_spacing='1800' size='small' weight='700' foreground='#ff766f'>%a · critical</span>\n<b>%s</b>\n%b"
     timeout = 0
+
+# ---- BROMIGOS: capture notifications (~/.config/bromigos/bin/bromigos-shot, bromigos-rec)
+# A finished screenshot shows its own thumbnail; a recording in progress is amber
+# and stays until it stops (then it is replaced by the "saved" notification).
+[bromigos_capture_done]
+    category = "capture.done"
+    min_icon_size = 96
+    max_icon_size = 128
+    frame_color = "#39ff14"
+    timeout = 7
+[bromigos_capture_live]
+    category = "capture.live"
+    frame_color = "#d4af37"
+    highlight = "#d4af37"
+    format = "<span text_transform='uppercase' letter_spacing='1800' size='small' weight='600' foreground='#d4af37'>%a · live</span>\n<b>%s</b>\n%b"
+    timeout = 0
+# ---- END BROMIGOS: capture notifications
