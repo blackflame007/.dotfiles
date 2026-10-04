@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Render the live layer headless (EGL pbuffer) to PNG frames or a video, with
+real readings, without touching the desktop. For screenshots and tuning.
+
+  offscreen.py bg OUT.png [t]             one background frame at time t
+  offscreen.py bg OUT.mp4 SECONDS [fps]   a background clip (ffmpeg)
+  offscreen.py <overlay> OUT ...          same for holodeck|intercept|screensaver|radial|transmission
+"""
+import ctypes
+import os
+import subprocess
+import sys
+import time
+
+os.environ["PYOPENGL_PLATFORM"] = "egl"
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+from OpenGL import EGL, GL  # noqa: E402
+import numpy as np  # noqa: E402
+
+W, H = int(os.environ.get("OFF_W", 2560)), int(os.environ.get("OFF_H", 1440))
+
+
+def egl():
+    """A surfaceless GL 3.3 core context on the NVIDIA EGL device (falls back to
+    the default display, i.e. Mesa software, when there is no device platform)."""
+    attrs = [EGL.EGL_CONTEXT_MAJOR_VERSION, 3, EGL.EGL_CONTEXT_MINOR_VERSION, 3,
+             EGL.EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT, EGL.EGL_NONE]
+    dpy = None
+    try:
+        from OpenGL.EGL.EXT.device_base import eglQueryDevicesEXT
+        from OpenGL.EGL.EXT.platform_base import eglGetPlatformDisplayEXT
+        from OpenGL.EGL.EXT.platform_device import EGL_PLATFORM_DEVICE_EXT
+        devs = (EGL.EGLDeviceEXT * 8)()
+        n = EGL.EGLint()
+        eglQueryDevicesEXT(8, devs, ctypes.byref(n))
+        for i in range(n.value):
+            d = eglGetPlatformDisplayEXT(EGL_PLATFORM_DEVICE_EXT, devs[i], None)
+            if EGL.eglInitialize(d, None, None) and b"NVIDIA" in (EGL.eglQueryString(d, EGL.EGL_VENDOR) or b""):
+                dpy = d
+                break
+    except Exception:
+        dpy = None
+    if dpy is None:
+        dpy = EGL.eglGetDisplay(EGL.EGL_DEFAULT_DISPLAY)
+        EGL.eglInitialize(dpy, None, None)
+    EGL.eglBindAPI(EGL.EGL_OPENGL_API)
+    cfg = EGL.EGLConfig()
+    n = EGL.EGLint()
+    EGL.eglChooseConfig(dpy, [EGL.EGL_SURFACE_TYPE, EGL.EGL_PBUFFER_BIT, EGL.EGL_RENDERABLE_TYPE, EGL.EGL_OPENGL_BIT,
+                              EGL.EGL_NONE], ctypes.byref(cfg), 1, ctypes.byref(n))
+    ctx = EGL.eglCreateContext(dpy, cfg, EGL.EGL_NO_CONTEXT, attrs)
+    EGL.eglMakeCurrent(dpy, EGL.EGL_NO_SURFACE, EGL.EGL_NO_SURFACE, ctx)
+    print("offscreen GL:", GL.glGetString(GL.GL_RENDERER).decode(), file=sys.stderr)
+
+
+def main():
+    kind, out = sys.argv[1], sys.argv[2]
+    egl()
+    from live import config, glkit
+    from live.data import Data
+    cfg = config.load()
+    data = Data(cfg, lambda *a, **k: None)
+    data.start()
+    time.sleep(float(os.environ.get("OFF_WARM", 3.5)))
+    if kind == "bg":
+        from live.scene import Background
+        r = Background(cfg, data, W, H)
+    else:
+        from live import overlays
+        r = overlays.offscreen(kind, cfg, data, W, H)
+    tgt = glkit.Target(W, H)
+    clock = {"t": 0.0}
+    r.now = lambda: clock["t"]
+
+    def frame(t):
+        clock["t"] = t
+        if hasattr(r, "tick"):
+            r.tick(t)
+        r.render(tgt.fbo, 30)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, tgt.fbo)
+        px = GL.glReadPixels(0, 0, W, H, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
+        return np.frombuffer(px, dtype=np.uint8).reshape(H, W, 4)[::-1]
+    if out.endswith(".png"):
+        import cairo
+        times = [float(x) for x in sys.argv[3:]] or [2.0]
+        last = -1.0
+        for t in times:
+            k = max(last, t - 0.5)
+            while k < t - 0.05:                  # step up to t so timelines run naturally
+                frame(k)
+                k += 1 / 15
+            img = frame(t)
+            last = t
+            rgba = np.ascontiguousarray(img[..., [2, 1, 0, 3]])
+            if os.environ.get("OFF_OPAQUE", "1") == "1":
+                rgba[..., 3] = 255
+            surf = cairo.ImageSurface.create_for_data(memoryview(rgba), cairo.FORMAT_ARGB32, W, H)
+            surf.write_to_png(out.replace("%", f"{t:05.2f}") if "%" in out else out)
+    else:
+        secs = float(sys.argv[3])
+        fps = int(sys.argv[4]) if len(sys.argv) > 4 else 30
+        t0 = float(os.environ.get("OFF_T0", 0.0))
+        ff = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{W}x{H}",
+                               "-r", str(fps), "-i", "-", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "16",
+                               "-preset", "medium", out], stdin=subprocess.PIPE)
+        for i in range(int(secs * fps)):
+            ff.stdin.write(frame(t0 + i / fps).tobytes())
+            if i % fps == 0:
+                time.sleep(0.0)
+        ff.stdin.close()
+        ff.wait()
+    data.stop.set()
+
+
+if __name__ == "__main__":
+    main()

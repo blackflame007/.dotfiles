@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# bromigos-live — the animated, data-reactive live layer.
+#
+#   bromigos-live start [--login]  start the daemon (supervised; no-op if running)
+#   bromigos-live stop | restart
+#   bromigos-live toggle           background layer on/off
+#   bromigos-live mute             sounds on/off (works without the daemon)
+#   bromigos-live holodeck | radial | intercept | screensaver | screensaver-off
+#   bromigos-live ctl <cmd>        raw control command (burst, transmission, reload, ping)
+#   bromigos-live status
+set -u
+HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+RUN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+SOCK="$RUN/bromigos-live.sock"
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos-live"
+LOG="$STATE/live.log"
+PIDF="$RUN/bromigos-live.pid"
+PY=/usr/bin/python3
+mkdir -p "$STATE"
+
+ctl() {
+    "$PY" - "$SOCK" "$*" <<'EOF'
+import socket, sys
+s = socket.socket(socket.AF_UNIX)
+s.settimeout(4)
+try:
+    s.connect(sys.argv[1])
+except OSError:
+    sys.exit(3)
+s.sendall(sys.argv[2].encode())
+print(s.recv(256).decode())
+EOF
+}
+
+running() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
+
+supervise() {
+    # Restart on crash, but give up after 4 crashes inside 2 minutes: no crash loops.
+    local first="--login"; [ "${1:-}" = "--login" ] || first=""
+    local fails=() now
+    while :; do
+        if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ ! -S "$RUN/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock" ]; then
+            HYPRLAND_INSTANCE_SIGNATURE="$(ls -t "$RUN/hypr" 2>/dev/null | head -1)"
+            export HYPRLAND_INSTANCE_SIGNATURE
+        fi
+        cd "$HERE" && "$PY" -m live.app $first >>"$LOG" 2>&1
+        rc=$?
+        first=""
+        [ $rc -eq 0 ] && break                       # clean quit (stop)
+        [ -f "$STATE/stopping" ] && break
+        now=$(date +%s)
+        fails+=("$now")
+        local recent=()
+        for t in "${fails[@]}"; do [ $((now - t)) -lt 120 ] && recent+=("$t"); done
+        fails=("${recent[@]}")
+        echo "$(date -Is) daemon exited rc=$rc (${#fails[@]} recent)" >>"$LOG"
+        if [ ${#fails[@]} -ge 4 ]; then
+            echo "$(date -Is) giving up: crash loop" >>"$LOG"
+            notify-send -a bromigos-live -u low "LIVE LAYER OFFLINE" "Crashed 4x in 2 min. Log: $LOG" 2>/dev/null
+            break
+        fi
+        sleep 2
+    done
+    rm -f "$PIDF"
+}
+
+case "${1:-start}" in
+    start)
+        if running; then echo "already running"; exit 0; fi
+        rm -f "$STATE/stopping"
+        # keep the log small
+        [ -f "$LOG" ] && [ "$(stat -c %s "$LOG")" -gt 1000000 ] && mv "$LOG" "$LOG.1"
+        ( supervise "${2:-}" ) </dev/null >/dev/null 2>&1 &
+        echo $! >"$PIDF"
+        disown
+        ;;
+    stop)
+        touch "$STATE/stopping"
+        ctl quit >/dev/null 2>&1
+        sleep 0.5
+        if running; then pkill -P "$(cat "$PIDF")" 2>/dev/null; kill "$(cat "$PIDF")" 2>/dev/null; fi
+        pkill -f "python3 -m live.app" 2>/dev/null
+        rm -f "$PIDF"
+        ;;
+    restart) "$0" stop; sleep 0.5; "$0" start ;;
+    mute)
+        out=$(ctl mute 2>/dev/null) || {
+            if [ -f "$STATE/muted" ]; then rm -f "$STATE/muted"; out=unmuted; else touch "$STATE/muted"; out=muted; fi
+        }
+        notify-send -a bromigos-live -u low -t 1200 "SOUND ${out^^}" 2>/dev/null
+        echo "$out"
+        ;;
+    toggle|holodeck|radial|intercept|screensaver|screensaver-off)
+        ctl "$1" || { [ "$1" = screensaver-off ] || echo "not running (bromigos-live start)"; exit 1; } ;;
+    ctl) shift; ctl "$*" ;;
+    status)
+        if running; then echo "running (supervisor $(cat "$PIDF"))"; ctl ping; else echo "stopped"; fi
+        [ -f "$STATE/muted" ] && echo "sounds: muted" || echo "sounds: on"
+        ;;
+    *) sed -n '2,12p' "$0"; exit 2 ;;
+esac

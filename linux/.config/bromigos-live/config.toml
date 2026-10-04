@@ -1,0 +1,92 @@
+# bromigos-live: the animated, data-reactive live layer.
+#
+# The single switchboard for every toggle. The daemon watches this file and
+# reloads on save; no restart needed. Rule of the house: everything that moves
+# is driven by a real reading or a real event, except the emblem and ambience.
+#
+#   ~/.config/bromigos-live/bin/bromigos-live {start|stop|restart|toggle|mute|radial|ctl <cmd>}
+
+[general]
+monitor = "DP-1"
+fps = 30                 # desktop visible (empty workspace)
+fps_covered = 10         # windows tiled over it, only the gaps show
+reduced_motion = false   # no tears, no rotation; crossfades only
+
+[background]
+enabled = true           # the live background layer (ALT+SHIFT+B / SUPER+SHIFT+B toggles at runtime)
+# The theme's static wallpaper, drawn as the base plate so the live layer
+# continues it instead of replacing it. Empty = pure void.
+underlay = "~/.config/wallpaper/bromigos-den-2560x1440.jpg"
+underlay_brightness = 1.0
+den = true               # make the den's own screens live: scope, burn-in monitor, meters, relay map
+# The den screens and floor lanes are fitted to one image (rects in live/scene.py
+# DEN, floor values below). The wallpaper is reloaded whenever the file changes;
+# if its sha1 no longer matches, those fitted overlays switch off by themselves.
+den_fit_sha1 = "2c5d34445075bde7f434a022ce6390f9e9a58b22"
+glow = 0.85              # bloom on vector lines (no scanlines, no vignette, no CRT pass)
+
+[rain]                   # "Drift script" glyph rain: density and speed track CPU load
+enabled = true
+region = [0, 30, 2390, 600]   # x, y, w, h in px; falls only on dark pixels (deep space)
+brightness = 0.55
+bursts = true            # columns flare on notifications, cluster alerts, ARBITER fills
+
+[floor]                  # throughput pulses running the den's floor grid
+enabled = true
+horizon_y = 926          # fitted to the wallpaper's own grid
+vanish_x = 690
+lane_slope = 0.98
+lane_offset = 0.71
+max_x = 1000
+draw_grid = false        # true when there is no underlay grid to ride on
+
+[sweep]                  # the X-ray scanner pass that reveals this machine's schematic
+enabled = true
+period = 24              # seconds between passes
+duration = 5.5
+
+[holodeck]               # SUPER+H: arc rings, the cluster constellation, the machine hologram
+enabled = true
+
+[cluster]
+url = "https://lab.redacted/api/status"
+token_file = "~/.local/share/bromigos/lab-token"
+ca_file = "~/.config/homelab/homelab-ca.crt"
+poll_seconds = 25
+
+[arbiter]                # paper fills -> rain burst; set url = "" to disable
+url = "https://arbiter.redacted/api/trades?limit=1"
+poll_seconds = 30
+
+[events]
+intercept_on_login = true
+intercept_on_unlock = true
+critical_flash = true
+workspace_wipe = true
+
+[screensaver]
+enabled = true           # hypridle listener in bromigos-live/hypridle.conf runs it
+
+[sounds]
+enabled = true
+volume = 0.30            # 0..1, keep it low
+terminal = "blip.wav"
+notify = "chirp.wav"
+critical = "alert.wav"
+hiss = "hiss.wav"
+sweep = "sweep.wav"
+signoff = "signoff.wav"
+terminal_classes = ["kitty", "Alacritty", "foot", "org.wezfurlong.wezterm"]
+
+[radial]                 # SUPER+A: holographic quick-launch ring (rofi stays the full launcher)
+browser = "xdg-open"
+items = [
+  { name = "ARBITER",   sub = "THE FLOOR",       url = "https://arbiter.redacted" },
+  { name = "ECHOCRAFT", sub = "LAB",             url = "https://lab.redacted" },
+  { name = "ARGO",      sub = "FLEET SYNC",      url = "https://argocd.redacted" },
+  { name = "GRAFANA",   sub = "TELEMETRY",       url = "https://grafana.redacted" },
+  { name = "LITELLM",   sub = "MODEL GATEWAY",   url = "https://litellm.redacted" },
+  { name = "TERMINAL",  sub = "KITTY",           cmd = "kitty" },
+  { name = "BROWSER",   sub = "WEB",             cmd = "xdg-open about:blank" },
+  { name = "NOTES",     sub = "FIELD NOTES",     cmd = "kitty --class bromigos-notes -e nvim ~/notes" },
+]
