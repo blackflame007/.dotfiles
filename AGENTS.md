@@ -97,10 +97,10 @@ The Hyprland desktop is themed as the operator's control center in the Bromigos 
 | Palette, emblem, logos, portraits, icons | `linux/.config/bromigos/brand/` | `emblem.svg` is the single source; `icons/` (16 px HUD set, `build-icons.py`); palette as CSS, JSON and kitty; `README.md` lists every portrait, logo, video and overlay asset with its prompt and model, `contact-sheet.jpg` shows them all |
 | Identity text | `linux/.config/bromigos/identity.json` | Ring motto, caption, sign-off. Rebuild with `bromigos-emblem build` |
 | Desktop widgets | `linux/.config/bromigos/widgets/` | One GTK3 layer-shell app (SYSTEM, NETWORK, STORAGE, LAB, SWITCHBOARD, FIELD NOTES, SHORTCUTS); layout in `layout.json` |
-| Live layer | `linux/.config/bromigos-live/` | GPU shader background, holo deck, radial menu, intercept, screensaver, sounds; toggles in `config.toml` (reloads on save) |
+| Live layer | `linux/.config/bromigos-live/` | GPU shader background behind every window: the den with its screens made live, glyph rain (CPU), floor pulses (network), the Drift space layer, the hardware scanner (every 60 s; pin/hold/on demand), and seamless decorative loops over a clean plate (mug steam, left glitch streaks, floor-row scroll). Summoned decks: local holo deck, ARBITER deck (the Floor, read-only GETs), Drift map (lore star chart; relays = live lab services), radial launcher. Events: intercept on login/unlock, critical-notification transmission, idle screensaver, sounds. `config.toml` holds every toggle (reloads on save) and marks which layers are data and which decoration. `tools/offscreen.py` renders any of it headless (NVIDIA EGL) to PNG/MP4 |
 | Bar, launcher, notifications | `linux/.config/waybar/`, `rofi/`, `dunst/` | Themed; rofi power menu and quick note |
 | Lock and idle | `linux/.config/hypr/hyprlock.conf`, `hypridle.conf` | Lock at 10 min, display off at 15, never suspends; screensaver at 8 min |
-| Wallpapers | `wallpaper/.config/wallpaper/bromigos-*` | `bromigos-wallpaper den|empty|masked|v1` switches the den and lock images (canonical names are symlinks; all variants share the v1 plate so the live layer's den rects stay fitted) |
+| Wallpapers | `wallpaper/.config/wallpaper/bromigos-*` | `bromigos-wallpaper den|empty|masked|v1` switches the den and lock images. The choice is local state (`~/.local/state/bromigos/wallpaper/{den,lock}.jpg`, `variant`), never a tracked file; swaybg (`bromigos-wallpaper apply` at login), hyprlock and the live layer read it. The committed canonical symlinks stay on the default. All variants share the v1 plate; the live layer approves them by a sha1 allowlist in its `config.toml` |
 | Browser start page | `linux/.config/bromigos/startpage/` | Search, SWITCHBOARD links with up/down, Lab status, latest FIELD NOTES, clock. `snapshot.py` writes `data.js` (gitignored) every minute from `bromigos-startpage.timer` (`linux/.config/systemd/user/`); the page never sees the Lab token |
 | GTK, icons, cursor | `linux/.config/bromigos/gtk/` builds `linux/.local/share/themes/Bromigos`, `icons/Bromigos`, `icons/Bromigos-cursor` | GTK3/GTK4 theme generated from the toolkit's own dark theme with the palette mapped in (edit `overrides.css`, rerun `build-gtk-theme.py`); folder icons recoloured from Breeze Dark; cursors drawn in `build-icons-cursor.py` (Xcursor written directly, no xcursorgen). Applied with gsettings; libadwaita colours come from `libadwaita.css`, imported by `~/.config/gtk-4.0/gtk.css` |
 | Shell | `zsh/.config/zsh/zsh-bromigos`, `linux/.config/bromigos/shell/` | mehshell prompt recoloured to the palette (precmd hook, 24-bit terminals only); `bromigos` prints the emblem in braille with live host, kernel, uptime, load, memory and disk (about 3 ms). Shown on login shells; `BROMIGOS_BANNER=always` for every shell, `off` to hide |
@@ -121,7 +121,11 @@ Key binds (ALT is `$mainMod`):
 |-----|--------|
 | SUPER W | All panels |
 | SUPER S / N / D / C / B / F | One panel each |
-| SUPER H | Holo deck |
+| SUPER H | Holo deck (local: arc rings, cluster constellation, machine hologram); Tab switches to ARBITER |
+| SUPER G | ARBITER deck: the Floor as a hologram (road to live, paper core, tape, lineup, ribbons; click a star for its card) |
+| SUPER M | Drift map: the lore as a star chart; the lab's live services are the lit relays |
+| SUPER X | Scanner: pin the hardware schematic |
+| SUPER Z (hold) | Scanner: hold to scan |
 | SUPER A | Radial launcher |
 | SUPER SHIFT B | Live layer on or off |
 | SUPER SHIFT M | Mute |

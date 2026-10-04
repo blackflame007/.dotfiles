@@ -33,6 +33,7 @@ EXEC = [
     (r"bromigos-live\b.*scan-hold", "Scanner: hold to scan", "BROMIGOS"),
     (r"bromigos-live\b.*holodeck", "Holo deck", "BROMIGOS"),
     (r"bromigos-live\b.*arbiter", "ARBITER deck (the Floor)", "BROMIGOS"),
+    (r"bromigos-live\b.*driftmap", "Drift map (lore star chart)", "BROMIGOS"),
     (r"bromigos-live\b.*radial", "Radial menu", "BROMIGOS"),
     (r"bromigos-live\b.*toggle", "Live background on/off", "BROMIGOS"),
     (r"bromigos-live\b.*mute", "Live layer sound on/off", "BROMIGOS"),

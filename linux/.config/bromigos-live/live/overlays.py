@@ -734,6 +734,9 @@ def kind_class(kind):
     if kind == "arbiter" and "arbiter" not in KINDS:
         from .arbiter_deck import ArbiterDeck
         KINDS["arbiter"] = ArbiterDeck
+    if kind == "driftmap" and "driftmap" not in KINDS:
+        from .drift_map import DriftMap
+        KINDS["driftmap"] = DriftMap
     return KINDS[kind]
 
 

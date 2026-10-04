@@ -85,6 +85,9 @@ station = true           # screensaver Drift relay station; spokes are the lab's
 [holodeck]               # SUPER+H: arc rings, the cluster constellation, the machine hologram
 enabled = true
 
+[driftmap]               # SUPER+M: the lore as a star chart; relays = the lab's live services
+catalog = "~/github.com/bromigos-org/platform/agents/lore/catalog.json"
+
 [cluster]
 url = "https://lab.redacted/api/status"
 token_file = "~/.local/share/bromigos/lab-token"

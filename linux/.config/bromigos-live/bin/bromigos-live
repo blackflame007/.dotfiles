@@ -5,7 +5,7 @@
 #   bromigos-live stop | restart
 #   bromigos-live toggle           background layer on/off
 #   bromigos-live mute             sounds on/off (works without the daemon)
-#   bromigos-live holodeck | arbiter | radial | intercept | screensaver | screensaver-off
+#   bromigos-live holodeck | arbiter | driftmap | radial | intercept | screensaver | screensaver-off
 #   bromigos-live scan             run a scanner pass now (hardware schematic)
 #   bromigos-live scan-pin         pin / unpin the schematic (stays up, live values)
 #   bromigos-live scan-hold on|off hold-to-scan (bound to press / release)
@@ -93,7 +93,7 @@ case "${1:-start}" in
         notify-send -a bromigos-live -u low -t 1200 "SOUND ${out^^}" 2>/dev/null
         echo "$out"
         ;;
-    toggle|holodeck|arbiter|radial|intercept|screensaver|screensaver-off)
+    toggle|holodeck|arbiter|driftmap|radial|intercept|screensaver|screensaver-off)
         ctl "$1" || { [ "$1" = screensaver-off ] || echo "not running (bromigos-live start)"; exit 1; } ;;
     scan|scan-pin) ctl "$1" ;;
     scan-hold) ctl "scan-hold ${2:-on}" ;;
