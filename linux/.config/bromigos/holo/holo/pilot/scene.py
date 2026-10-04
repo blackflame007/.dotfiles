@@ -42,6 +42,7 @@ class PilotScene:
         self.route = "qwen3.8-flash-next · homelab LiteLLM"
         self.audio_level = None    # set by the voice player while it speaks
         self.typing = False
+        self.mic_live = False
         self.left_w = 540
 
     # ------------------------------------------------------------------ conversation
@@ -53,6 +54,7 @@ class PilotScene:
         self._trim()
 
     def add_tool(self, text):
+        self.end_reply()                 # whatever it said before the lookup is finished
         self.msgs.append(Msg("tool", text))
         self.avatar.activity = 1.0
         self._trim()
@@ -177,7 +179,11 @@ class PilotScene:
         word = STATE_WORD.get(st, st.upper()) + (f" · {self.subtitle}" if self.subtitle else "")
         H.label(word, 26 * sc + tw + 16 * sc, 22 * sc + th - 18 * sc, col(sc_col, 1, f), int(13 * sc), "bold", spacing=2.5)
         H.label(self.route, w - 28 * sc, 26 * sc, col("static", 1, 0.9 * f), int(12 * sc), anchor="rt")
-        H.label(self.voice, w - 28 * sc, 44 * sc, col("dim", 1.3, 0.9 * f), int(11 * sc), "bold", anchor="rt", spacing=1.5)
+        if self.mic_live:   # the microphone is open only while SUPER+V is held, and it says so
+            blink = 0.65 + 0.35 * math.sin(time.monotonic() * 6)
+            H.label("● MIC LIVE · RELEASE SUPER+V TO SEND", w - 28 * sc, 44 * sc, col("danger", 1, blink * f), int(12 * sc), "bold", anchor="rt", spacing=1.5)
+        else:
+            H.label(self.voice, w - 28 * sc, 44 * sc, col("dim", 1.3, 0.9 * f), int(11 * sc), "bold", anchor="rt", spacing=1.5)
         # divider between the table and the transcript
         H.line2d(lw, 70 * sc, lw, h - 30 * sc, col("guard", 1.6, 0.9 * f), 1.0)
         # transcript, newest at the bottom, above the input line
@@ -186,7 +192,7 @@ class PilotScene:
         top = 72 * sc
         for m in reversed(self.msgs):
             if m.role == "pilot":
-                text = m.text[:int(m.shown)]
+                text = m.text[:int(m.shown)].strip()
                 if not text:
                     continue
                 if m.shown < len(m.text) or not m.done:

@@ -228,7 +228,7 @@ class App:
                                 overlay_children=[self.entry])
         self.pilot.win.connect("key-press-event", self._pilot_key)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
-        self.pscene.voice = self._voice_label()
+        self.ensure_voice()
 
     class _BrainCB:
         def __init__(self, app):
@@ -255,6 +255,8 @@ class App:
 
     def _pilot_delta(self, text):
         self.pscene.feed(text)
+        if self.voice:
+            self.voice.feed(text)
         self.last_activity = time.monotonic()
 
     def _pilot_tool(self, name, label, ex):
@@ -266,8 +268,8 @@ class App:
     def _pilot_done(self, text, stats):
         self.pscene.end_reply()
         self.last_activity = time.monotonic()
-        if self.voice and text:
-            self.voice.say(text)
+        if self.voice:
+            self.voice.flush()
         log("reply", json.dumps(stats))
         if self.pilot.visible:
             self.pilot.keyboard("on_demand")      # reading time: let the operator click away
@@ -355,7 +357,7 @@ class App:
     def _voice_label(self):
         if not self.voice:
             return "TYPED · VOICE NOT SET UP"
-        return "VOICE MUTED" if self.voice.muted else "VOICE ON · HOLD SUPER+V TO TALK"
+        return "VOICE MUTED · SUPER+SHIFT+V" if self.voice.muted else "HOLD SUPER+V TO TALK · SUPER+SHIFT+V MUTES"
 
     # ------------------------------------------------------------------ gallery
     def ensure_gallery(self):
@@ -398,6 +400,7 @@ class App:
 
     # ------------------------------------------------------------------ voice (phase 3)
     def ensure_voice(self):
+        self.ensure_pilot()
         if self.voice is None:
             try:
                 from .pilot.voice import Voice
@@ -405,8 +408,7 @@ class App:
             except Exception as e:
                 log("voice unavailable:", e)
                 self.voice = None
-        if self.pilot:
-            self.pscene.voice = self._voice_label()
+        self.pscene.voice = self._voice_label()
         return self.voice
 
     # ------------------------------------------------------------------ housekeeping
@@ -448,7 +450,6 @@ class App:
             v = self.ensure_voice()
             if not v:
                 return "voice unavailable"
-            self.ensure_pilot()
             (v.ptt_down if arg != "off" else v.ptt_up)()
         elif verb == "mute":
             v = self.ensure_voice()
