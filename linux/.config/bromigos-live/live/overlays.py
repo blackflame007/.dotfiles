@@ -1017,7 +1017,7 @@ def make(app, kind, **kw):
         r = holder.get("r")
         if handle.closed:
             return False
-        if win.failed or (r and r.done):
+        if win.failed or win.dead or (r and r.done):      # dead: the output went away under it
             handle.finish()
             return False
         return True

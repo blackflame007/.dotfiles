@@ -94,6 +94,9 @@ class GLWindow:
         self.frames = 0
         self.ticks = 0
         self.last_frame = 0.0
+        self.dead = False                  # the compositor closed our surface (output gone)
+        self.created = time.monotonic()
+        self.win.connect("delete-event", self._closed)
         self.area.connect("realize", self._realize)
         self.area.connect("unrealize", self._unrealize)
         self.area.connect("render", self._render)
@@ -102,6 +105,16 @@ class GLWindow:
             self.win.connect("realize", lambda w: w.get_window().input_shape_combine_region(
                 __import__("cairo").Region(), 0, 0))
         self.win.show_all()
+
+    def _closed(self, *_):
+        """gtk-layer-shell turns the compositor's 'closed' (output removed) into a
+        window close. Keep the object, stop drawing, and let the app rebuild."""
+        if not self.dead:
+            self.dead = True
+            self.set_fps(0)
+            log("surface closed by the compositor (output gone?)")
+            GLib.idle_add(lambda: (self.app.heal_soon("surface closed"), False)[1])
+        return True
 
     def _realize(self, area):
         area.make_current()
@@ -165,6 +178,7 @@ class GLWindow:
 
     def destroy(self):
         self.set_fps(0)
+        self.dead = True
         self.win.destroy()
 
 
@@ -195,6 +209,17 @@ class App:
         LockWatch(self.on_lock).start()
         self._serve()
         GLib.timeout_add_seconds(3, self._watch_config)
+        self.output_gone = False
+        self.dpms = True
+        self.measured = None
+        self.stall_n = 0
+        self._sample_at = (time.monotonic(), 0)
+        self._heal_timers = []
+        disp = Gdk.Display.get_default()
+        disp.connect("monitor-added", lambda *_: self.heal_soon("output added"))
+        disp.connect("monitor-removed", lambda *_: self.heal_soon("output removed", (0.3, 2.0)))
+        GLib.timeout_add_seconds(5, self._sample)
+        GLib.timeout_add_seconds(30, lambda: (self.heal("periodic check"), True)[1])
         GLib.idle_add(self.refresh_state)
         if login and self.cfg["events"].get("intercept_on_login", True):
             GLib.timeout_add(1200, lambda: (self.overlay("intercept"), False)[1])
@@ -241,6 +266,119 @@ class App:
             del self.overlays[kind]
         self.refresh_state()
 
+    # ------------------------------------------------------------------ self-healing (hotplug)
+    def heal_soon(self, reason, delays=(1.5, 4.0, 9.0, 20.0)):
+        """Outputs flap while a monitor powers up: check now-ish, then again a few times."""
+        for t in self._heal_timers:
+            if GLib.MainContext.default().find_source_by_id(t):
+                GLib.source_remove(t)
+        self._heal_timers = [GLib.timeout_add(int(d * 1000), self._heal_once, reason) for d in delays]
+        return False
+
+    def _heal_once(self, reason):
+        self.heal(reason)
+        self._notifier()
+        return False
+
+    def _notifier(self):
+        """dunst can die when its output goes away; without it nothing (ours or anyone's)
+        reaches the screen. Relaunch it if no one owns the notification name."""
+        try:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            r = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                              "NameHasOwner", GLib.Variant("(s)", ("org.freedesktop.Notifications",)),
+                              None, Gio.DBusCallFlags.NONE, 2000, None)
+            if r.unpack()[0] or self.output_gone:
+                return
+            import shutil
+            import subprocess
+            if shutil.which("dunst"):
+                subprocess.Popen(["/usr/bin/hyprctl", "dispatch", "exec", "dunst"], stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+                log("notification daemon was gone; relaunched dunst")
+        except Exception as e:
+            log("notifier check failed:", e)
+
+    def _monitor_info(self):
+        name = self.cfg["general"]["monitor"]
+        return next((m for m in (hypr.request("monitors") or []) if m.get("name") == name), None)
+
+    def surface_mapped(self, namespace="bromigos-live", level="0"):
+        levels = hypr.layers_on(self.cfg["general"]["monitor"])
+        return any(L.get("namespace") == namespace for L in (levels.get(level) or []))
+
+    def heal(self, reason="", force=False):
+        info = self._monitor_info()
+        if info is None:                           # the output is gone: drop what died with it
+            if not self.output_gone:
+                log(f"output {self.cfg['general']['monitor']} gone ({reason}); waiting for it")
+            self.output_gone = True
+            if self.bg:
+                self.bg.destroy()
+                self.bg = None
+            for ov in list(self.overlays.values()):
+                ov.finish() if hasattr(ov, "finish") else ov.close()
+            return False
+        if self.output_gone:
+            log(f"output {info['name']} back (id {info.get('id')}, {reason})")
+        self.output_gone = False
+        self.dpms = bool(info.get("dpmsStatus", True))
+        if not self.bg_enabled:
+            return False
+        need = force or self.bg is None or self.bg.dead
+        why = "forced" if force else ("no surface object" if (self.bg is None or self.bg.dead) else "")
+        if not need and time.monotonic() - self.bg.created > 6 and not self.surface_mapped():
+            need, why = True, "surface missing from the compositor"
+        if need:
+            log(f"healing ({reason}): {why}; recreating the background surface")
+            if self.bg:
+                self.bg.destroy()
+                self.bg = None
+            self.show_background()
+        return False
+
+    def _sample(self):
+        """Every 5 s: measured frame rate, DPMS transitions, stall detection."""
+        now = time.monotonic()
+        bg = self.bg
+        t0, f0 = self._sample_at
+        frames = bg.frames if bg else 0
+        self.measured = (frames - f0) / max(now - t0, 1e-3) if bg and frames >= f0 else None
+        self._sample_at = (now, frames)
+        info = self._monitor_info()
+        dpms = bool(info.get("dpmsStatus", True)) if info else False
+        if info and dpms and not self.dpms:
+            self.heal_soon("display on (dpms)")
+        if info and self.output_gone:
+            self.heal_soon("output present again")
+        self.dpms = dpms
+        target = bg.fps if (bg and not bg.dead) else 0
+        stalled = bool(target and dpms and not self.locked and self.measured is not None
+                       and self.measured < 0.4 * target)
+        self.stall_n = self.stall_n + 1 if stalled else 0
+        if self.stall_n == 4:                      # 20 s stalled: is the surface still there?
+            self.heal("stalled")
+        elif self.stall_n >= 12 and not self.covered:
+            self.heal("stalled for a minute with the desktop visible", force=True)
+            self.stall_n = 0
+        return True
+
+    def health(self):
+        """(surface state, fault or '') for status."""
+        if self.output_gone:
+            return "output gone (waiting for it)", ""
+        if not self.bg_enabled:
+            return "off", ""
+        if not self.bg or self.bg.dead:
+            return "MISSING", "no background surface"
+        mapped = self.surface_mapped()
+        if not mapped and time.monotonic() - self.bg.created > 6:
+            return "MISSING", "surface not in the compositor's layers"
+        if self.bg.fps and self.dpms and not self.locked and self.measured is not None \
+                and self.measured < 0.4 * self.bg.fps:
+            return ("mapped" if mapped else "mapping"), f"STALLED: {self.measured:.1f}/s against a {self.bg.fps} fps target"
+        return ("mapped" if mapped else "mapping"), ""
+
     # ------------------------------------------------------------------ state
     mode = "starting"
 
@@ -261,7 +399,7 @@ class App:
             mode, why = "running", "desktop visible"
         fps = 0 if mode == "paused" else int(g.get("fps_covered", 20) if mode == "idle" else g.get("fps", 30))
         self.data.paused = mode == "paused" and not own_full
-        if self.bg:
+        if self.bg and not self.bg.dead:
             self.bg.set_fps(fps)
         if (mode, why) != getattr(self, "_last_mode", None):
             log(f"{mode} ({why}) fps={fps if self.bg else 0}")
@@ -271,18 +409,22 @@ class App:
 
     def describe(self):
         bg = self.bg
-        if not self.bg_enabled or not bg:
-            mode = "off"
-        else:
-            mode = self.mode
-        out = [f"background {mode} fps={bg.fps if bg else 0}"]
+        mode = "off" if not self.bg_enabled else ("waiting for the output" if self.output_gone else self.mode)
+        surface, fault = self.health()
+        m = "--" if self.measured is None else f"{self.measured:.1f}/s"
+        out = [f"background {mode} target={bg.fps if bg else 0}fps measured={m} surface={surface}"
+               + (f" · DPMS off" if not self.dpms else "")]
+        if fault:
+            out.append("FAULT: " + fault + " (self-heal runs on hotplug, unlock, display-on and every 30 s)")
         if bg:
-            now = time.monotonic()
-            f0, t0 = getattr(self, "_probe", (bg.frames, now - 1))
-            rate = (bg.frames - f0) / max(now - t0, 1e-3)
-            self._probe = (bg.frames, now)
-            out.append(f"frames={bg.frames} ticks={bg.ticks} measured={rate:.1f}/s since last status "
-                       f"last_frame={now - bg.last_frame:.1f}s ago failed={bg.failed}")
+            out.append(f"frames={bg.frames} last_frame={time.monotonic() - bg.last_frame:.1f}s ago failed={bg.failed}")
+        levels = hypr.layers_on(self.cfg["general"]["monitor"])
+        ns = {}
+        for lv in levels.values():
+            for L in lv:
+                ns[L.get("namespace")] = ns.get(L.get("namespace"), 0) + 1
+        out.append("layers on " + self.cfg["general"]["monitor"] + ": " +
+                   (", ".join(f"{k}×{v}" for k, v in sorted(ns.items())) or "none"))
         out.append(f"windows={self.covered} fullscreen={self.fullscreen} locked={self.locked} "
                    f"overlays={sorted(self.overlays)}")
         return "\n".join(out)
@@ -291,6 +433,10 @@ class App:
         if ev in ("workspacev2", "fullscreen", "openwindow", "closewindow", "movewindowv2",
                   "focusedmon", "activespecial", "changefloatingmode", "monitoradded", "monitorremoved"):
             self.refresh_state()
+        if ev in ("monitoradded", "monitoraddedv2"):
+            self.heal_soon(f"monitor added: {arg}")
+        elif ev in ("monitorremoved", "monitorremovedv2"):
+            self.heal_soon(f"monitor removed: {arg}", (0.3, 2.0))
         if ev == "workspacev2" and self.bg:
             self.bg.renderer and self.bg.renderer.wipe()
         if ev == "openwindow":
@@ -308,8 +454,10 @@ class App:
             for k in ("screensaver", "holodeck", "radial"):
                 if k in self.overlays:
                     self.overlays[k].close()
-        elif was and self.cfg["events"].get("intercept_on_unlock", True):
-            GLib.timeout_add(150, lambda: (self.overlay("intercept"), False)[1])
+        elif was:
+            self.heal_soon("unlock", (1.0, 5.0))
+            if self.cfg["events"].get("intercept_on_unlock", True):
+                GLib.timeout_add(150, lambda: (self.overlay("intercept"), False)[1])
         self.refresh_state()
         return False
 

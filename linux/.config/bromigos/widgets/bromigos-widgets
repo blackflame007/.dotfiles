@@ -402,8 +402,67 @@ class App:
                 win.win.show_all()
         self.coverage = Coverage(self.monitor_name, self.on_coverage)
         self.coverage.start()
+        # Hotplug: when the output goes away (monitor powered off), gtk-layer-shell turns
+        # the compositor's 'closed' into a window close. Keep the windows, remember which
+        # were shown, and map them again on the output when it comes back.
+        self.lost = set()
+        for name, w in self.windows.items():
+            w.win.connect("delete-event", self.on_surface_closed, name)
+        disp = Gdk.Display.get_default()
+        disp.connect("monitor-added", lambda *_: self.reattach_soon())
+        disp.connect("monitor-removed", lambda *_: self.lost.update(n for n, w in self.windows.items() if w.visible()))
+        GLib.timeout_add_seconds(30, self.check_surfaces)
         self.listen()
         GLib.timeout_add(int(os.environ.get("BROMIGOS_TICK_MS", "100")), self.loop)
+
+    def on_surface_closed(self, win, _ev, name):
+        if win.get_visible():
+            self.lost.add(name)
+        win.hide()
+        print(f"bromigos-widgets: {name} surface closed (output gone?)", file=sys.stderr, flush=True)
+        self.reattach_soon()
+        return True                       # keep the window; it is mapped again later
+
+    def reattach_soon(self):
+        for d in (1500, 4000, 9000):
+            GLib.timeout_add(d, lambda: (self.reattach(), False)[1])
+        GLib.timeout_add(12000, lambda: (self.check_surfaces(), False)[1])
+        return False
+
+    def _monitor_present(self):
+        return any(m.get("name") == self.monitor_name for m in (hypr_request("j/monitors") or []))
+
+    def reattach(self, names=None):
+        names = set(names or self.lost)
+        if not names or not self._monitor_present():
+            return False
+        mon = gdk_monitor(self.monitor_name)
+        for n in names:
+            w = self.windows.get(n)
+            if not w:
+                continue
+            w.win.hide()
+            if mon:
+                GtkLayerShell.set_monitor(w.win, mon)
+            w.win.show_all()
+            w.redraw()
+        print(f"bromigos-widgets: re-attached {', '.join(sorted(names))}", file=sys.stderr, flush=True)
+        self.lost -= names
+        return False
+
+    def check_surfaces(self):
+        """Backstop every 30 s: every shown panel must have a surface on the monitor."""
+        if not self._monitor_present():
+            return True
+        data = hypr_request("j/layers") or {}
+        levels = (data.get(self.monitor_name) or {}).get("levels", {})
+        have = sum(1 for lv in levels.values() for L in lv if L.get("namespace") == "bromigos-widgets")
+        shown = [n for n, w in self.windows.items() if w.visible()]
+        if have < len(shown) or self.lost:
+            print(f"bromigos-widgets: {have} surfaces for {len(shown)} shown panels; re-attaching",
+                  file=sys.stderr, flush=True)
+            self.reattach(set(shown) | self.lost)
+        return True
 
     def read_layout(self):
         with open(LAYOUT) as f:

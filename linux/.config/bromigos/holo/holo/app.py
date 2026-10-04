@@ -82,6 +82,7 @@ def monitor_for(name):
 
 class HoloWindow:
     """A layer-shell window with one GL area; renders only while shown."""
+    ALL = []                              # every window, for hotplug recovery
 
     def __init__(self, ns, scene, size, anchors, margins, keyboard_exclusive=True, overlay_children=(),
                  input_widgets=None):
@@ -130,6 +131,9 @@ class HoloWindow:
         self.failed = False
         self.frames = 0
         self.frame_ms = 0.0
+        self.lost = False                 # was shown when its output went away
+        self.win.connect("delete-event", self._surface_closed)
+        HoloWindow.ALL.append(self)
 
     def update_input_region(self):
         """Only the listed widgets take pointer input; everything else passes through."""
@@ -156,10 +160,39 @@ class HoloWindow:
             "exclusive": GtkLayerShell.KeyboardMode.EXCLUSIVE, "on_demand": GtkLayerShell.KeyboardMode.ON_DEMAND,
             "none": GtkLayerShell.KeyboardMode.NONE}[mode])
 
+    def _surface_closed(self, *_):
+        """Output removed (monitor powered off): gtk-layer-shell turns the compositor's
+        'closed' into a window close. Keep the window; map it again when the output is back."""
+        self.lost = self.lost or self.visible
+        self.hide()
+        log("surface closed (output gone?)", "will reopen" if self.lost else "")
+        return True
+
+    @classmethod
+    def output_lost(cls):
+        """An output went away: its layer surfaces are gone even if GTK still thinks the
+        window is shown (gtk-layer-shell 0.10 does not always close it)."""
+        for w in cls.ALL:
+            if w.visible:
+                w.lost = True
+
+    @classmethod
+    def reattach(cls):
+        for w in cls.ALL:
+            if w.lost:
+                w.lost = False
+                w.hide()                          # drop the dead surface, map a fresh one
+                w.show(focus=False)
+                log("surface reopened after the output came back")
+        return False
+
     def show(self, focus=True):
         """Map the window. An on-demand layer takes the keyboard when it maps (Hyprland),
         so focus=False maps it with no keyboard and allows on-demand just after."""
         if not self.visible:
+            mon = monitor_for(MONITOR)            # the output may be a new object after a hotplug
+            if mon:
+                GtkLayerShell.set_monitor(self.win, mon)
             self.keyboard("exclusive" if self.kb_exclusive else ("on_demand" if focus else "none"))
             self.win.show_all()
             self.visible = True
@@ -253,6 +286,9 @@ class App:
         prov.load_from_data(CSS)
         Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_USER)
         self.live = Live()
+        disp = Gdk.Display.get_default()           # hotplug: reopen windows that were shown
+        disp.connect("monitor-removed", lambda *_: HoloWindow.output_lost())
+        disp.connect("monitor-added", lambda *_: [GLib.timeout_add(d, HoloWindow.reattach) for d in (1500, 4000)])
         self.pilot = None
         self.gallery = None
         self.brain = None
