@@ -32,6 +32,9 @@ KEYNAMES = {
     "XF86AUDIOMUTE": "MUTE", "XF86AUDIOLOWERVOLUME": "VOL−", "XF86AUDIORAISEVOLUME": "VOL+",
     "XF86AUDIOMICMUTE": "MIC", "XF86MONBRIGHTNESSUP": "BRI+", "XF86MONBRIGHTNESSDOWN": "BRI−",
     "XF86AUDIOPLAY": "PLAY", "XF86AUDIOPREV": "PREV", "XF86AUDIONEXT": "NEXT",
+    # Razer BlackWidow V4 Pro macro keys (openrazer driver mode)
+    "F13": "M1", "F14": "M2", "F15": "M3", "F16": "M4", "F17": "M5",
+    "F18": "SIDE 1", "F19": "SIDE 2", "F20": "SIDE 3", "F24": "DIAL",
 }
 
 # (regex on the exec command, description, section). First match wins; the list
@@ -242,13 +245,20 @@ def shortcuts():
         if (sec, desc) in seen:
             i = seen[(sec, desc)]
             s0, k0, d0, a0 = merged[i]
-            if len(keys) < len(k0):              # show the shorter chord on the keycaps
+            # keycaps show the keyboard chord; the Razer macro key goes in "(also …)"
+            if _macro(k0) and not _macro(keys):
+                k0, keys = keys, k0
+            elif _macro(k0) == _macro(keys) and len(keys) < len(k0):
                 k0, keys = keys, k0
             merged[i] = (s0, k0, f"{d0} (also {'+'.join(keys)})", a0)
             continue
         seen[(sec, desc)] = len(merged)
         merged.append((sec, keys, desc, action))
     return merged
+
+
+def _macro(keys):
+    return any(k.startswith(("M", "SIDE", "DIAL")) and k in KEYNAMES.values() for k in keys)
 
 
 def config_mtime():
