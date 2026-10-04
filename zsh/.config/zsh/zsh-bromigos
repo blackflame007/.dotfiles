@@ -112,3 +112,9 @@ if [[ -o interactive && -t 1 && -z $NVIM && $BROMIGOS_BANNER != off ]]; then
     bromigos
   fi
 fi
+
+# ---------------------------------------------------------------- zoxide
+# Frecent folders: `z <part>` jumps, `zi` picks with fzf. Its database also feeds
+# the WORKBENCH desktop panel (bromigos-widgets), so the folders you actually use
+# show up there. Installed with `cargo install --locked zoxide`.
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"

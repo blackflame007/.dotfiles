@@ -14,7 +14,9 @@
     { "name": "storage",     "x": 28,  "y": 780, "width": 470, "height": 214 },
     { "name": "shortcuts",   "x": 28,  "y": 1010, "width": 470, "height": 384 },
     { "name": "lab",         "x": 514, "y": 16,  "width": 470, "height": 752 },
-    { "name": "switchboard", "x": 514, "y": 784, "width": 470, "height": 158 },
-    { "name": "notes",       "x": 514, "y": 958, "width": 470, "height": 410 }
+    { "name": "workbench",   "x": 514, "y": 784, "width": 470, "height": 300,
+      "_workbench": "Recent git repos + zoxide's most-visited folders; projects/folders = how many rows of each.",
+      "projects": 5, "folders": 3 },
+    { "name": "notes",       "x": 514, "y": 1100, "width": 470, "height": 268 }
   ]
 }

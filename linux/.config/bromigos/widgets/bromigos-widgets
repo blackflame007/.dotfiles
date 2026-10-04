@@ -5,7 +5,7 @@ One GTK3 process, one layer-shell surface per panel on the BOTTOM layer of the
 monitor named in layout.json (above any background/live layer, below windows).
 
   bromigos-widgets                 run (Hyprland exec-once)
-  bromigos-widgets toggle NAME     show/hide one panel (system|network|storage|lab|switchboard|shortcuts|notes)
+  bromigos-widgets toggle NAME     show/hide one panel (system|network|storage|lab|workbench|shortcuts|notes)
   bromigos-widgets toggle all      show/hide every panel
   bromigos-widgets notes           focus FIELD NOTES for typing (Esc hands focus back)
   bromigos-widgets reload          re-read layout.json
@@ -385,13 +385,11 @@ class App:
                 win = NotesWindow(self, mon, spec["x"], spec["y"], spec.get("width", 470), spec.get("height", 420))
             else:
                 cls = {"system": P.SystemPanel, "network": P.NetworkPanel, "storage": P.StoragePanel,
-                       "lab": P.LabPanel, "switchboard": P.SwitchboardPanel,
+                       "lab": P.LabPanel, "workbench": P.WorkbenchPanel,
                        "shortcuts": P.ShortcutsPanel}[name]
                 if cls is P.LabPanel:
                     panel = cls(spec, wake=self.wake)
                     lab = panel
-                elif cls is P.SwitchboardPanel:
-                    panel = cls(spec, lab=lab)
                 else:
                     panel = cls(spec)
                 panel.width = spec.get("width", panel.width)

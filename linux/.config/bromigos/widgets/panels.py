@@ -609,72 +609,198 @@ class LabPanel(Panel):
 
 
 # =================================================================== SWITCHBOARD
-class SwitchboardPanel(Panel):
-    name, title = "switchboard", "SWITCHBOARD"
-    height = 158
-    interval = 60.0
+class WorkbenchPanel(Panel):
+    """Recent projects (git repos by last local activity) and the folders you actually
+    use (zoxide's frecency database). Each row opens in nvim, a terminal or Dolphin."""
+    name, title = "workbench", "WORKBENCH"
+    height = 300
+    interval = 1.0                       # cheap redraw; the scan runs every 60 s in a thread
+    ROW, HEAD = 26, 20
+    N_PROJECTS, N_FOLDERS = 5, 3
+    ROOTS = ["~/github.com/*/*", "~/.dotfiles", "~/Repos/*", "~/*"]
+    TERM = ["kitty"]
+    FILES = ["dolphin"]
 
-    # Hosts come from the homelab repo: ARBITER's console from helm/arbiter values
-    # (console.lanHostname), the Lab from helm/homepage ingress.lanHostname; every
-    # other entry is read live from the Lab snapshot's own config (helm/homepage groups).
-    FIXED = [("arbiter", "ARBITER", "The Floor: ARBITER console", "https://arbiter.redacted"),
-             ("lab", "LAB", "EchoCraft Lab homepage", "https://lab.redacted")]
-    FROM_LAB = [("argocd", "ARGO CD"), ("grafana", "GRAFANA"), ("litellm", "LITELLM"),
-                ("openwebui", "OPEN WEBUI"), ("comfyui", "COMFYUI"), ("proxmox", "PROXMOX"),
-                ("vault", "VAULT"), ("rustfs", "RUSTFS")]
-
-    def __init__(self, cfg=None, lab=None):
+    def __init__(self, cfg=None):
         super().__init__(cfg)
-        self.lab = lab
-        self.alive = {}
+        cfg = cfg or {}
+        self.n_projects = cfg.get("projects", self.N_PROJECTS)
+        self.n_folders = cfg.get("folders", self.N_FOLDERS)
+        self.projects, self.folders, self.scanned = [], [], 0
         import threading
-        threading.Thread(target=self._probe_loop, daemon=True).start()
+        threading.Thread(target=self._loop, daemon=True).start()
 
-    def _probe_loop(self):
+    # ------------------------------------------------------------ data
+    def _loop(self):
         while True:
-            for sid, _, _, url in self.FIXED:
-                self.alive[sid] = S.http_alive(url)
+            try:
+                self._scan()
+            except Exception as e:  # never take the panel down
+                print("workbench scan:", e)
             time.sleep(60)
 
-    def entries(self):
-        d = self.lab.lab.data if self.lab else None
-        out = [(sid, name, role, url, self.alive.get(sid)) for sid, name, role, url in self.FIXED]
-        groups = (d or {}).get("config", {}).get("groups", [])
-        status = (d or {}).get("services", {})
-        for sid, label in self.FROM_LAB:
-            for g in groups:
-                for s in g.get("services", []):
-                    if s["id"] == sid and s.get("lan"):
-                        st = status.get(sid, {}).get("status")
-                        out.append((sid, label, s.get("role", ""), s["lan"],
-                                    None if st is None else st == "up"))
-        return out
+    @staticmethod
+    def _activity(repo):
+        """Last local activity: commits/checkouts/pulls (logs/HEAD) or staging (index).
+        Our own `git status` runs with --no-optional-locks so the scan never bumps the index."""
+        import os
+        t = 0
+        for f in ("logs/HEAD", "index", "HEAD"):
+            try:
+                t = max(t, os.path.getmtime(os.path.join(repo, ".git", f)))
+            except OSError:
+                pass
+        return t
+
+    @staticmethod
+    def _git(repo):
+        """(branch, changed files, ahead, behind) from one `git status`."""
+        try:
+            out = subprocess.run(["git", "--no-optional-locks", "-C", repo, "status", "--porcelain=v1", "-b", "--no-renames"],
+                                 capture_output=True, text=True, timeout=5).stdout.splitlines()
+        except (OSError, subprocess.TimeoutExpired):
+            return None, 0, 0, 0
+        branch, ahead, behind = None, 0, 0
+        if out and out[0].startswith("## "):
+            import re
+            head = out[0][3:]
+            branch = head.split("...")[0].replace("No commits yet on ", "")
+            m = re.search(r"ahead (\d+)", head)
+            ahead = int(m.group(1)) if m else 0
+            m = re.search(r"behind (\d+)", head)
+            behind = int(m.group(1)) if m else 0
+            out = out[1:]
+        return branch, len(out), ahead, behind
+
+    def _scan(self):
+        import glob
+        import os
+        home = os.path.expanduser("~")
+        repos = set()
+        for pat in self.ROOTS:
+            for d in glob.glob(os.path.expanduser(pat)):
+                if os.path.isdir(os.path.join(d, ".git")):
+                    repos.add(os.path.realpath(d))
+        ranked = sorted(repos, key=self._activity, reverse=True)[:self.n_projects]
+        projects = []
+        for r in ranked:
+            branch, changed, ahead, behind = self._git(r)
+            projects.append({"path": r, "name": os.path.basename(r) or r,
+                             "where": os.path.dirname(r).replace(home, "~", 1),
+                             "t": self._activity(r), "branch": branch, "changed": changed,
+                             "ahead": ahead, "behind": behind})
+        shown = {p["path"] for p in projects}
+        folders = []
+        try:
+            out = subprocess.run(["zoxide", "query", "-ls"], capture_output=True, text=True, timeout=3,
+                                 env={**os.environ, "PATH": os.environ.get("PATH", "") + ":" + home + "/.cargo/bin"}).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            out = ""
+        for line in out.splitlines():
+            score, _, path = line.strip().partition(" ")
+            path = path.strip()
+            if not path or path in shown or path == home or not os.path.isdir(path):
+                continue
+            folders.append({"path": path, "name": os.path.basename(path) or path,
+                            "where": os.path.dirname(path).replace(home, "~", 1), "score": float(score or 0)})
+            if len(folders) >= self.n_folders:
+                break
+        self.projects, self.folders, self.scanned = projects, folders, time.time()
+
+    # ------------------------------------------------------------ actions
+    def _spawn(self, argv, cwd):
+        subprocess.Popen(argv, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)
+
+    def open_nvim(self, path):
+        self._spawn(self.TERM + ["--directory", path, "nvim", "."], path)
+
+    def open_term(self, path):
+        self._spawn(self.TERM + ["--directory", path], path)
+
+    def open_files(self, path):
+        self._spawn(self.FILES + [path], path)
+
+    # ------------------------------------------------------------ draw
+    @staticmethod
+    def _ago(t):
+        s = max(0, time.time() - t)
+        for n, u in ((86400, "d"), (3600, "h"), (60, "m")):
+            if s >= n:
+                return f"{int(s // n)}{u}"
+        return "now"
+
+    def _button(self, cr, x, y, label, tip, action):
+        lay = D.layout(cr, label, 10, "semibold", 0.06)
+        bw = max(30, lay.get_pixel_size()[0] + 12)
+        D.src(cr, "guard", 0.9)
+        cr.rectangle(x, y, bw, 18)
+        cr.fill()
+        cr.set_line_width(1)
+        D.src(cr, "dim", 0.9)
+        cr.rectangle(x + 0.5, y + 0.5, bw - 1, 17)
+        cr.stroke()
+        D.text(cr, x + bw / 2, y + 2, label, 10, "phosphor", "semibold", spacing=0.06, align="center")
+        self.region(x, y, bw, 18, tip, action)
+        return bw
+
+    def _row(self, cr, x0, x1, y, item, meta, meta_col, tip):
+        path = item["path"]
+        bx = x1
+        for label, verb, act in (("DIR", "Open in Dolphin", self.open_files),
+                                 (">_", "Open a terminal here", self.open_term),
+                                 ("NVIM", "Open in nvim (in kitty)", self.open_nvim)):
+            bw = max(30, D.layout(cr, label, 10, "semibold", 0.06).get_pixel_size()[0] + 12)
+            bx -= bw
+            self._button(cr, bx, y + 3, label, f"{verb}: {item['where']}/{item['name']}",
+                         lambda p=path, a=act: a(p))
+            bx -= 4
+        name_w = bx - x0 - 8
+        D.text(cr, x0, y + 1, item["name"], 12, "soft", "semibold", width=name_w)
+        nw = min(name_w, D.layout(cr, item["name"], 12, "semibold").get_pixel_size()[0])
+        D.text(cr, x0 + nw + 8, y + 3, meta, 10, meta_col, "regular", width=max(0, name_w - nw - 8))
+        self.region(x0, y, bx - x0 - 4, self.ROW - 2, tip + " Click to open it in nvim.",
+                    lambda p=path: self.open_nvim(p))
 
     def draw(self, cr, w, h):
-        top = D.frame(cr, w, h, self.title, "CLICK TO OPEN")
-        self.region(0, 0, w, 34, "Launch shortcuts to the homelab and ARBITER (opens in the browser). "
-                    "Dot: green answering, red not, grey unknown.")
+        right = "SCANNING" if not self.scanned else f"{len(self.projects)} PROJECTS · {len(self.folders)} FOLDERS"
+        top = D.frame(cr, w, h, self.title, right)
+        self.region(0, 0, w, 34, "Your recent projects (git repos ranked by your last commit, checkout or "
+                    "staging) and the folders you visit most (zoxide: `z name` jumps there in a shell). "
+                    "Click a row for nvim; NVIM, >_ and DIR open nvim, a terminal or Dolphin there. "
+                    "Rescans every minute.")
         x0, x1 = 16, w - 16
-        cols = 4
-        cw = (x1 - x0 - (cols - 1) * 6) / cols
-        ch = 30
-        for i, (sid, name, role, url, ok) in enumerate(self.entries()):
-            r, c = divmod(i, cols)
-            bx, by = x0 + c * (cw + 6), top + r * (ch + 6)
-            col = "static" if ok is None else ("phosphor" if ok else "danger")
-            D.src(cr, "void", 0.6)
-            cr.rectangle(bx, by, cw, ch)
-            cr.fill()
-            cr.set_line_width(1)
-            D.src(cr, "dim", 0.7)
-            cr.rectangle(bx + 0.5, by + 0.5, cw - 1, ch - 1)
-            cr.stroke()
-            D.brackets(cr, bx, by, cw, ch, 5, "phosphor", 1.2, 0.8)
-            D.dot(cr, bx + 10, by + ch / 2, 2.5, col, glow=bool(ok))
-            D.label(cr, bx + 20, by + 9, name, "soft", size=10)
-            self.region(bx, by, cw, ch, f"{name}: {role}. Opens {url}"
-                        + ("" if ok is None else (" (answering)" if ok else " (not answering)")),
-                        lambda u=url: open_url(u))
+        y = top
+        D.label(cr, x0, y + 2, "RECENT PROJECTS", "phosphor", size=10)
+        D.rule(cr, x0 + 130, y + 9, x1, "dim", 0.35)
+        y += self.HEAD
+        for p in self.projects:
+            bits, col = [], "static"
+            if p["branch"]:
+                bits.append(p["branch"])
+            if p["changed"]:
+                bits.append(f"{p['changed']} changed")
+                col = "amber"
+            if p["ahead"]:
+                bits.append(f"↑{p['ahead']}")
+            if p["behind"]:
+                bits.append(f"↓{p['behind']}")
+            bits.append(self._ago(p["t"]))
+            tip = (f"{p['where']}/{p['name']}: on {p['branch'] or '?'}, "
+                   f"{p['changed']} uncommitted file(s), {p['ahead']} to push, {p['behind']} to pull, "
+                   f"last activity {self._ago(p['t'])} ago.")
+            self._row(cr, x0, x1, y, p, " · ".join(bits), col, tip)
+            y += self.ROW
+        y += 4
+        D.label(cr, x0, y + 2, "FREQUENT FOLDERS", "phosphor", size=10)
+        D.rule(cr, x0 + 140, y + 9, x1, "dim", 0.35)
+        y += self.HEAD
+        if not self.folders and self.scanned:
+            D.text(cr, x0, y + 2, "Nothing yet: zoxide learns as you cd around.", 11, "static", "regular")
+        for f in self.folders:
+            tip = f"{f['where']}/{f['name']}: one of your most-visited folders (zoxide score {f['score']:.0f})."
+            self._row(cr, x0, x1, y, f, f["where"], "static", tip)
+            y += self.ROW
 
 
 # =================================================================== SHORTCUTS
