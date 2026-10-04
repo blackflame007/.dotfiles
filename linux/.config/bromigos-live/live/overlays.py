@@ -773,6 +773,9 @@ def kind_class(kind):
     if kind == "arbiter" and "arbiter" not in KINDS:
         from .arbiter_deck import ArbiterDeck
         KINDS["arbiter"] = ArbiterDeck
+    if kind == "timeline" and "timeline" not in KINDS:
+        from .timeline import TimelineDeck
+        KINDS["timeline"] = TimelineDeck
     if kind == "codec" and "codec" not in KINDS:
         from .codec_panel import CodecPanel
         KINDS["codec"] = CodecPanel

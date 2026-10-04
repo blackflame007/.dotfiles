@@ -183,6 +183,10 @@ class App:
         self.data.start()
         from .codec import Desk
         self.codec = Desk(self)
+        from .history import History, Recorder
+        self.history = History()
+        Recorder(self.data, self.history).start()
+        self.history.event("start", "live layer started" + (" (login)" if login else ""))
         if self.bg_enabled:
             self.show_background()
         hypr.Events(lambda ev, arg: GLib.idle_add(self.on_hypr, ev, arg)).start()
@@ -220,7 +224,7 @@ class App:
         cur = self.overlays.get(kind)
         if cur and kind == "codec":
             return
-        if cur and kind in ("holodeck", "arbiter", "driftmap", "radial", "screensaver"):
+        if cur and kind in ("holodeck", "arbiter", "driftmap", "timeline", "radial", "screensaver"):
             cur.close()
             return
         if cur:
@@ -244,7 +248,7 @@ class App:
         windows, full, _mon = hypr.monitor_state(self.cfg["general"]["monitor"])
         self.covered, self.fullscreen = windows, full
         g = self.cfg["general"]
-        own_full = [k for k in ("screensaver", "holodeck", "arbiter", "driftmap") if k in self.overlays]
+        own_full = [k for k in ("screensaver", "holodeck", "arbiter", "driftmap", "timeline") if k in self.overlays]
         if self.locked:
             mode, why = "paused", "session locked"
         elif full:
@@ -297,6 +301,8 @@ class App:
 
     def on_lock(self, locked):
         was = self.locked
+        if locked != was:
+            self.history.event("lock" if locked else "unlock")
         self.locked = locked
         if locked:
             for k in ("screensaver", "holodeck", "radial"):
@@ -313,6 +319,8 @@ class App:
             if app_name == "bromigos-live":
                 return False
             quiet = quiet or app_name in self.cfg["sounds"].get("quiet_apps", [])
+            self.history.event("critical" if urgency >= 2 else "notify",
+                               f"{app_name}: {summary}" if urgency >= 2 else (app_name or "notification"))
             if self.bg and self.bg.renderer:
                 self.bg.renderer.burst(2 if urgency >= 2 else 0)
             if urgency >= 2 and self.cfg["events"].get("critical_flash", True) and not self.locked:
@@ -332,6 +340,12 @@ class App:
 
     def on_data_event(self, kind, **info):
         def go():
+            if kind == "arbiter_fill":
+                self.history.event("fill", f"{info.get('n', 1)} paper fill(s)" +
+                                   (" · notable" if info.get("notable") else ""))
+            elif kind == "cluster_alert":
+                self.history.event("lab", "node left Ready" if info.get("node_down")
+                                   else f"alerts firing up to {int(info.get('count') or 0)}")
             if self.bg and self.bg.renderer:
                 self.bg.renderer.burst(1 if kind == "arbiter_fill" else 2)
             cc = self.cfg.get("codec", {})
@@ -386,7 +400,7 @@ class App:
             return "background " + ("on" if self.bg_enabled else "off")
         if c == "mute":
             return "muted" if toggle_mute() else "unmuted"
-        if c in ("intercept", "holodeck", "arbiter", "driftmap", "radial", "screensaver"):
+        if c in ("intercept", "holodeck", "arbiter", "driftmap", "timeline", "radial", "screensaver"):
             if c == "screensaver" and not self.cfg["screensaver"].get("enabled", True):
                 return "screensaver disabled"
             self.overlay(c)
@@ -457,8 +471,12 @@ def main():
     login = "--login" in sys.argv
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     signal.signal(signal.SIGTERM, lambda *a: GLib.idle_add(Gtk.main_quit))
-    App(login=login)
+    app = App(login=login)
     Gtk.main()
+    try:
+        app.history.save()
+    except Exception:
+        pass
     try:
         os.unlink(SOCK)
     except OSError:

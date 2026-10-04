@@ -197,7 +197,7 @@ class ArbiterDeck(Base):
         self._ribbons(b, T)
         self._card(b, T)
         stale = [k for k in self.err]
-        foot = "DRAG TO SPIN · HOVER A STAR · CLICK FOR ITS CARD · TAB: LOCAL DECK · ESC CLOSES"
+        foot = "DRAG TO SPIN · HOVER A STAR · CLICK FOR ITS CARD · TAB: TIMELINE · ESC CLOSES"
         if stale:
             foot = "STALE: " + ", ".join(stale).upper() + " · " + foot
         b.text(foot, self.w / 2, self.h - 22 * s, col("amber" if stale else "dim", 0.85), font="xs", track=2.5,
@@ -546,7 +546,7 @@ class ArbiterDeck(Base):
         elif name == "Tab" and self.app:
             self.close()
             from gi.repository import GLib
-            GLib.timeout_add(300, lambda: (self.app.overlay("holodeck"), False)[1])
+            GLib.timeout_add(300, lambda: (self.app.overlay("timeline"), False)[1])
         elif name in ("Left", "h"):
             self.yaw -= 0.2
         elif name in ("Right", "l"):

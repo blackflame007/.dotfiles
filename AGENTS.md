@@ -121,9 +121,10 @@ Key binds (ALT is `$mainMod`):
 |-----|--------|
 | SUPER W | All panels |
 | SUPER S / N / D / C / B / F | One panel each |
-| SUPER H | Holo deck (local: arc rings, cluster constellation, machine hologram); N opens FIELD NOTES inside it (type to search, links to what a note mentions); Tab switches to ARBITER |
+| SUPER H | Holo deck (local: arc rings, cluster constellation, machine hologram); N opens FIELD NOTES inside it (type to search, links to what a note mentions); Tab cycles local → ARBITER → timeline |
 | SUPER G | ARBITER deck: the Floor as a hologram (road to live, paper core, tape, lineup, ribbons; click a star for its card) |
 | SUPER M | Drift map: the lore as a star chart; the lab's live services are the lit relays |
+| SUPER T | Timeline: minute history (72 h, `~/.local/state/bromigos-live/history.npz` + `events.jsonl`) as a 3D ribbon to scrub; lab lanes backfilled from EchoCraft |
 | SUPER X | Scanner: pin the hardware schematic |
 | SUPER Z (hold) | Scanner: hold to scan |
 | SUPER A | Radial launcher |

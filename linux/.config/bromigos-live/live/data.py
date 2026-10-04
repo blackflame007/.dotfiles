@@ -39,6 +39,7 @@ class Data:
             "board_temp": None, "chipset_temp": None,
         }
         self.static = self._static()
+        self.minute = {"cpu": [], "rx": [], "tx": []}
 
     # ------------------------------------------------------------------ static
     def _static(self):
@@ -84,6 +85,13 @@ class Data:
         with self.lock:
             return dict(self.s)
 
+    def take_minute(self):
+        """Averages of the 1 s samples since the last call (for the history)."""
+        with self.lock:
+            out = {k: (sum(v) / len(v)) for k, v in self.minute.items() if v}
+            self.minute = {k: [] for k in self.minute}
+        return out
+
     def _set(self, **kw):
         with self.lock:
             self.s.update(kw)
@@ -128,6 +136,9 @@ class Data:
                                "w": max(c.write_bytes - p.write_bytes, 0) / dt}
             last, last_disk, last_t = net, dio, now
             with self.lock:
+                self.minute["cpu"].append(sum(cores) / max(len(cores), 1))
+                self.minute["rx"].append(rx)
+                self.minute["tx"].append(tx)
                 self.s["cores"] = cores
                 self.s["cpu"] = sum(cores) / max(len(cores), 1)
                 self.s["mem"] = vm.percent

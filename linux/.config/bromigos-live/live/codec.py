@@ -97,6 +97,8 @@ class Desk:
                 return "dropped: line busy"
             self.history.append((now, text))
             call = Call(channel, text)
+            if getattr(self.app, "history", None):
+                self.app.history.event("codec", f"{channel}: {text}")
             self.current = call
         threading.Thread(target=self._prepare, args=(call,), daemon=True).start()
         from gi.repository import GLib
