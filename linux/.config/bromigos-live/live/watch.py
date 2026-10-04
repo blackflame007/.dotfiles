@@ -50,10 +50,13 @@ class Notifications:
                 urg = hints.get("urgency", 1)
                 if isinstance(urg, (bytes, bytearray)):
                     urg = urg[0]
-                GLib.idle_add(self.cb, "notify", app, summary, int(urg))
+                # tools that play their own cue: a capture.* category or x-bromigos-sound:none
+                quiet = (str(hints.get("category", "")).startswith("capture.")
+                         or str(hints.get("x-bromigos-sound", "")).lower() == "none")
+                GLib.idle_add(self.cb, "notify", app, summary, int(urg), quiet)
             elif member == "NotificationClosed" and body is not None:
                 nid, reason = body.unpack()
-                GLib.idle_add(self.cb, "closed", nid, reason, 0)
+                GLib.idle_add(self.cb, "closed", nid, reason, 0, False)
         except Exception:
             pass
         return msg

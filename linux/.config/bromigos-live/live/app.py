@@ -293,17 +293,19 @@ class App:
         self.refresh_state()
         return False
 
-    def on_notify(self, what, a, b, c):
+    def on_notify(self, what, a, b, c, quiet=False):
         if what == "notify":
             app_name, summary, urgency = a, b, c
             if app_name == "bromigos-live":
                 return False
+            quiet = quiet or app_name in self.cfg["sounds"].get("quiet_apps", [])
             if self.bg and self.bg.renderer:
                 self.bg.renderer.burst(2 if urgency >= 2 else 0)
             if urgency >= 2 and self.cfg["events"].get("critical_flash", True) and not self.locked:
-                self.sound.play("critical")
+                if not quiet:
+                    self.sound.play("critical")
                 self.overlay("transmission", summary=summary)
-            else:
+            elif not quiet:
                 self.sound.play("notify")
         elif what == "closed":
             ov = self.overlays.get("transmission")

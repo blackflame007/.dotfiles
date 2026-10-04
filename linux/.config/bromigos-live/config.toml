@@ -116,6 +116,9 @@ hiss = "hiss.wav"
 sweep = "sweep.wav"
 signoff = "signoff.wav"
 terminal_classes = ["kitty", "Alacritty", "foot", "org.wezfurlong.wezterm"]
+# No chirp for notifications from tools that play their own cue. Also honoured:
+# a category hint starting "capture." or the hint x-bromigos-sound:none.
+quiet_apps = ["SCREENSHOT", "RECORDING"]
 
 [radial]                 # SUPER+A: holographic quick-launch ring (rofi stays the full launcher)
 browser = "xdg-open"
