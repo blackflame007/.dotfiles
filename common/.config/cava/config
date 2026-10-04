@@ -121,16 +121,18 @@
 # Gradient mode, only hex defined colors (and thereby ncurses mode) are supported,
 # background must also be defined in hex  or remain commented out. 1 = on, 0 = off.
 # You can define as many as 8 different colors. They range from bottom to top of screen
+# Bromigos: guard -> phosphor -> phosphor-soft, amber only at the peaks.
+# (previous: '#f7768e' '#9d7cd8' '#2ac3de' '#0db9d7' '#7dcfff' '#ff9e64' '#e0af68' '#9ece6a')
 gradient = 1
 gradient_count = 8
-gradient_color_1 = '#f7768e'
-gradient_color_2 = '#9d7cd8'
-gradient_color_3 = '#2ac3de'
-gradient_color_4 = '#0db9d7'
-gradient_color_5 = '#7dcfff'
-gradient_color_6 = '#ff9e64'
-gradient_color_7 = '#e0af68'
-gradient_color_8 = '#9ece6a'
+gradient_color_1 = '#003b00'
+gradient_color_2 = '#0b6b04'
+gradient_color_3 = '#159b09'
+gradient_color_4 = '#23cc0e'
+gradient_color_5 = '#39ff14'
+gradient_color_6 = '#6bff4f'
+gradient_color_7 = '#9cff8a'
+gradient_color_8 = '#d4af37'
 
 
 

@@ -1,30 +1,35 @@
+# Bromigos palette (colours only; matches kitty/bromigos.conf)
 [colors.bright]
-black = "#4C566A"
-blue = "#5e81ac"
-cyan = "#88c0d0"
-green = "#A3BE8C"
-magenta = "#B48EAD"
-red = "#bf616a"
-white = "#abb2bf"
-yellow = "#D7BA7D"
+black = "#4e6b4e"
+blue = "#8ccaf5"
+cyan = "#8af5e2"
+green = "#9cff8a"
+magenta = "#e3a8ef"
+red = "#ff9d97"
+white = "#e6f5e6"
+yellow = "#f0d36a"
 
 [colors.cursor]
-cursor = "#ECEFF4"
-text = "#3B4252"
+cursor = "#39ff14"
+text = "#000500"
 
 [colors.normal]
-black = "#4C566A"
-blue = "#5e81ac"
-cyan = "#88c0d0"
-green = "#A3BE8C"
-magenta = "#B48EAD"
-red = "#bf616a"
-white = "#abb2bf"
-yellow = "#D7BA7D"
+black = "#000500"
+blue = "#5aa9e6"
+cyan = "#3fe0c5"
+green = "#39ff14"
+magenta = "#c97bdb"
+red = "#ff766f"
+white = "#b4c8b4"
+yellow = "#d4af37"
 
 [colors.primary]
-background = "#232731"
-foreground = "#D8DEE9"
+background = "#000500"
+foreground = "#c4f5bb"
+
+[colors.selection]
+background = "#39ff14"
+text = "#000500"
 
 [cursor.style]
 blinking = "Never"
