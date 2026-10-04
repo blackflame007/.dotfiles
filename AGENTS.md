@@ -94,13 +94,13 @@ The Hyprland desktop is themed as the operator's control center in the Bromigos 
 
 | Piece | Where | Notes |
 |-------|-------|-------|
-| Palette, emblem, logos, portraits, icons | `linux/.config/bromigos/brand/` | `emblem.svg` is the single source; `icons/` (16 px HUD set, `build-icons.py`); palette as CSS, JSON and kitty |
+| Palette, emblem, logos, portraits, icons | `linux/.config/bromigos/brand/` | `emblem.svg` is the single source; `icons/` (16 px HUD set, `build-icons.py`); palette as CSS, JSON and kitty; `README.md` lists every portrait, logo, video and overlay asset with its prompt and model, `contact-sheet.jpg` shows them all |
 | Identity text | `linux/.config/bromigos/identity.json` | Ring motto, caption, sign-off. Rebuild with `bromigos-emblem build` |
 | Desktop widgets | `linux/.config/bromigos/widgets/` | One GTK3 layer-shell app (SYSTEM, NETWORK, STORAGE, LAB, SWITCHBOARD, FIELD NOTES, SHORTCUTS); layout in `layout.json` |
 | Live layer | `linux/.config/bromigos-live/` | GPU shader background, holo deck, radial menu, intercept, screensaver, sounds; toggles in `config.toml` (reloads on save) |
 | Bar, launcher, notifications | `linux/.config/waybar/`, `rofi/`, `dunst/` | Themed; rofi power menu and quick note |
 | Lock and idle | `linux/.config/hypr/hyprlock.conf`, `hypridle.conf` | Lock at 10 min, display off at 15, never suspends; screensaver at 8 min |
-| Wallpapers | `wallpaper/.config/wallpaper/bromigos-*` | `bromigos-wallpaper den|empty|v1` switches the den and lock images (canonical names are symlinks) |
+| Wallpapers | `wallpaper/.config/wallpaper/bromigos-*` | `bromigos-wallpaper den|empty|masked|v1` switches the den and lock images (canonical names are symlinks; all variants share the v1 plate so the live layer's den rects stay fitted) |
 
 Rules the operator set:
 
