@@ -73,8 +73,25 @@ def main():
     clock = {"t": 0.0}
     r.now = lambda: clock["t"]
 
+    # OFF_SCRIPT="3.0 burst 2; 4.5 select CPU" — scripted real-event stand-ins for demo clips
+    script = []
+    for item in filter(None, (x.strip() for x in os.environ.get("OFF_SCRIPT", "").split(";"))):
+        at, cmd, *arg = item.split()
+        script.append([float(at), cmd, arg, False])
+
     def frame(t):
         clock["t"] = t
+        for ev in script:
+            if not ev[3] and t >= ev[0]:
+                ev[3] = True
+                if ev[1] == "burst":
+                    r.burst(int(ev[2][0]) if ev[2] else 0)
+                elif ev[1] == "select":
+                    r.selected = ev[2][0]
+                    r.sel_t = t + 0.01
+                    r.built_at = None
+                elif ev[1] == "radial":
+                    r._select(int(ev[2][0]))
         if hasattr(r, "tick"):
             r.tick(t)
         r.render(tgt.fbo, 30)

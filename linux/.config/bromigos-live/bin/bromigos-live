@@ -94,7 +94,7 @@ case "${1:-start}" in
         ctl "$1" || { [ "$1" = screensaver-off ] || echo "not running (bromigos-live start)"; exit 1; } ;;
     ctl) shift; ctl "$*" ;;
     status)
-        if running; then echo "running (supervisor $(cat "$PIDF"))"; ctl ping; else echo "stopped"; fi
+        if running; then echo "daemon up (supervisor $(cat "$PIDF"))"; ctl state; else echo "stopped"; fi
         [ -f "$STATE/muted" ] && echo "sounds: muted" || echo "sounds: on"
         ;;
     *) sed -n '2,12p' "$0"; exit 2 ;;

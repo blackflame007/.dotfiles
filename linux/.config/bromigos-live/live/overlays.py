@@ -105,6 +105,11 @@ class Base:
         f.f("u_grid", *u.get("grid", (0.0, 0.0, 0.0, 0.0)))
         f.f("u_edge", *u.get("edge", (0.0, 0.0, 0.0, 0.0)))
         f.f("u_vignette", *u.get("vignette", (0.0, 0.0, 1.0, 0.0)))
+        f.f("u_space", *u.get("space", (0.0, -1.0, 0.0, 0.0)))
+        f.f("u_space_rect", *u.get("space_rect", (0.0, 0.0, float(self.w), float(self.h))))
+        f.f("u_planet", *u.get("planet", (0.0, 0.0, 1.0, 0.0)))
+        f.f("u_sun", *u.get("sun", (0.0, 0.0, 0.0, 0.0)))
+        f.f("u_beam", *u.get("beam", (0.0, 0.0, 0.0, 0.0)))
         st.fs.draw()
         if u.get("emblems"):
             GL.glEnable(GL.GL_BLEND)
@@ -505,33 +510,52 @@ class HoloDeck(Base):
 
 # ======================================================================== screensaver
 class Screensaver(Base):
+    """The Drift at rest: a gas giant whose terminator is the local hour, the
+    relay station (spokes = lab services), the cluster constellation, the arc
+    rings, the burn-in turning against the clock, and Drift-script rain."""
     name = "screensaver"
     rebuild_every = 1.0
 
     def build(self, b, d, t):
         s = self.h / 1440.0
-        gadgets.rings(b, d, self.st, 470 * s, 720 * s, 210 * s, t0=0.6, legend="right")
+        sp = self.cfg.get("space", {})
+        gadgets.rings(b, d, self.st, 330 * s, 1060 * s, 190 * s, t0=0.6, legend="right")
         gadgets.constellation(b, d, 0, 0, 230 * s, space=2, t0=0.9)
-        b.text(time.strftime("%H:%M").upper(), self.w / 2, self.h / 2 + 330 * s, col("soft"), font="xxl", track=6,
-               align="c")
-        b.text(time.strftime("%A %d %B").upper(), self.w / 2, self.h / 2 + 372 * s, col("dim"), font="s", track=4,
-               align="c")
+        if sp.get("station", True):
+            gadgets.drift_station(b, d, space=1, t0=0.3)
+        cx = self.w / 2
+        b.text(time.strftime("%H:%M").upper(), cx, 1000 * s, col("soft"), font="xxl", track=6, align="c")
+        b.text(time.strftime("%A %d %B").upper(), cx, 1042 * s, col("dim"), font="s", track=4, align="c")
+        hl = gadgets.health(d)
+        if hl:
+            b.text("DEGRADED · CHECK THE LAB" if hl == 2 else "RUNNING HOT OR LINK STALE", cx, 1080 * s,
+                   col("danger" if hl == 2 else "amber"), font="xs", track=3, align="c")
 
     def frame(self, t, d):
         s = self.h / 1440.0
+        sp = self.cfg.get("space", {})
         p = self.stage.painter
+        p.rot[1] = glkit.rot_matrix(t * 0.05, 0.38, 0.12)
+        p.ctr[1] = (520 * s, 380 * s, 250 * s, 3.4)
         p.rot[2] = glkit.rot_matrix(t * 0.07, 0.4)
-        p.ctr[2] = (2090 * s, 700 * s, 230 * s, 3.2)
-        D = 600 * s
-        cx, cy = self.w / 2, self.h / 2 - 60 * s
+        p.ctr[2] = (2140 * s, 470 * s, 230 * s, 3.2)
+        D = 560 * s
+        cx, cy = self.w / 2, 560 * s
         fade = min(t / 0.8, 1.0)
         if self.closing_at is not None:
             fade = max(0.0, 1.0 - (t - self.closing_at) / 0.25)
         cpu = (d.get("cpu") or 0) / 100
-        rx = d.get("rx") or 0
+        rps = ((d.get("cluster") or {}).get("traefik") or {}).get("rpsNow") or 0.0
+        green = gadgets.all_green(d) and sp.get("relay_beam", True)
         u = {"backdrop": 1.0, "fade": fade, "glow": 1.0,
-             "rain": (0.92, 0.9 + 1.4 * cpu, 0.6, 1.0), "rain_rect": (0.0, 0.0, float(self.w), self.h * 0.66),
-             "grid": (1.0, self.h * 0.66, self.w / 2, max(0.0, min(1.0, math.log10(1 + rx) / 7.5))),
+             "rain": (0.5 + 0.4 * cpu, 0.8 + 1.4 * cpu, 0.32, 1.0 if self.cfg["rain"].get("enabled", True) else 0.0),
+             "rain_rect": (0.0, 0.0, float(self.w), float(self.h)),
+             "space": (1.0 if sp.get("stars", True) else 0.0, gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0,
+                       1.0 if green else 0.0, float(gadgets.health(d) if sp.get("health_tint", True) else 0)),
+             "space_rect": (0.0, 60 * s, float(self.w), 700 * s),
+             "planet": (1880 * s, 1500 * s, 760 * s, 1.0 if sp.get("planet", True) else 0.0),
+             "sun": (gadgets.local_sun_angle(), 0.012, 0.35, 0.0),
+             "beam": (520 * s, 380 * s - 0.9 * 250 * s, -1.75, 0.12 + min(rps, 6.0) / 12.0),
              "emblems": [{"rect": (cx - D / 2, cy - D / 2, D, D), "angle": 0.0 if self.reduced else -t * TAU / 24,
                           "alpha": fade}]}
         if self.closing_at is not None and t - self.closing_at > 0.26:

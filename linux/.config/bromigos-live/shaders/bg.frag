@@ -38,6 +38,7 @@ uniform sampler2D u_ring;
 uniform sampler2D u_flame;
 
 #include rain
+#include space
 
 vec3 floor_pulses(vec2 px) {
     if (u_floor2.z < 0.5) return vec3(0.0);
@@ -177,7 +178,9 @@ void main() {
     float lum_mask = 1.0 - smoothstep(0.06, 0.16, lum);
     vec3 c = base;
     if (u_den.x > 0.5 && u_has_under > 0.5) c = den(px, c);
-    c += rain(px, lum_mask) * (1.0 - plate * 0.85);
+    float sky = lum_mask * (1.0 - plate * 0.85) * step(px.y, u_space_rect.y + u_space_rect.w);
+    vec3 drift = SOFT * stars(px) * 0.55 * u_space.x + traffic(px) + relay_beam(px);
+    c += health_tint(drift * sky + rain(px, lum_mask) * (1.0 - plate * 0.85));
     c += floor_pulses(px);
     // scanner sweep: a phosphor beam with an afterglow that reveals the schematic
     if (u_sweep.y > 0.5) {

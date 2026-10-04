@@ -9,7 +9,7 @@
 [general]
 monitor = "DP-1"
 fps = 30                 # desktop visible (empty workspace)
-fps_covered = 10         # windows tiled over it, only the gaps show
+fps_covered = 20       # windows tiled over it, only the gaps show
 reduced_motion = false   # no tears, no rotation; crossfades only
 
 [background]
@@ -22,7 +22,7 @@ den = true               # make the den's own screens live: scope, burn-in monit
 # The den screens and floor lanes are fitted to one image (rects in live/scene.py
 # DEN, floor values below). The wallpaper is reloaded whenever the file changes;
 # if its sha1 no longer matches, those fitted overlays switch off by themselves.
-den_fit_sha1 = "2c5d34445075bde7f434a022ce6390f9e9a58b22"
+den_fit_sha1 = "ca67fdd84abec3580141b5569dd00dfdcf58eccd"
 glow = 0.85              # bloom on vector lines (no scanlines, no vignette, no CRT pass)
 
 [rain]                   # "Drift script" glyph rain: density and speed track CPU load
@@ -44,6 +44,14 @@ draw_grid = false        # true when there is no underlay grid to ride on
 enabled = true
 period = 24              # seconds between passes
 duration = 5.5
+
+[space]                  # the Drift: behind the art in the background, full vista in the screensaver
+stars = true             # parallax star layers
+traffic = true           # ship lanes + debris; density follows this machine's network throughput
+relay_beam = true        # beam from the station while every lab node is Ready and every service is up
+health_tint = true       # space + rain shift amber (hot / lab link stale) or red (node or service down)
+planet = true            # screensaver gas giant; its terminator is the local time of day
+station = true           # screensaver Drift relay station; spokes are the lab's services, lit = up
 
 [holodeck]               # SUPER+H: arc rings, the cluster constellation, the machine hologram
 enabled = true

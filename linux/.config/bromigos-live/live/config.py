@@ -10,13 +10,15 @@ if not os.path.exists(PATH):
     PATH = os.path.join(HERE, "config.toml")
 
 DEFAULTS = {
-    "general": {"monitor": "DP-1", "fps": 30, "fps_covered": 10, "reduced_motion": False},
+    "general": {"monitor": "DP-1", "fps": 30, "fps_covered": 20, "reduced_motion": False},
     "background": {"enabled": True, "underlay": "", "underlay_brightness": 1.0, "glow": 0.85, "den": True},
     "rain": {"enabled": True, "region": [0, 30, 2390, 600], "brightness": 0.55, "bursts": True},
     "floor": {"enabled": True, "horizon_y": 926, "vanish_x": 690, "lane_slope": 0.98, "lane_offset": 0.71,
               "max_x": 1000, "draw_grid": False},
     "sweep": {"enabled": True, "period": 24, "duration": 5.5},
     "holodeck": {"enabled": True},
+    "space": {"stars": True, "traffic": True, "relay_beam": True, "health_tint": True, "planet": True,
+              "station": True},
     "cluster": {"url": "", "token_file": "", "ca_file": "", "poll_seconds": 25},
     "arbiter": {"url": "", "poll_seconds": 30},
     "events": {"intercept_on_login": True, "intercept_on_unlock": True, "critical_flash": True,

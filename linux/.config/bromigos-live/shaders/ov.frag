@@ -24,6 +24,7 @@ uniform vec4 u_edge;            // edge pulse: strength, colour kind, -, -
 uniform vec4 u_vignette;        // centre x, y, radius, strength (radial dim for menus)
 
 #include rain
+#include space
 
 vec3 own_grid(vec2 px) {
     float dy = px.y - u_grid.y;
@@ -92,7 +93,13 @@ void main() {
         c += bc; a = max(a, max(bc.r, max(bc.g, bc.b)));
     }
     vec3 add = vec3(0.0);
-    if (u_rain.w > 0.5) add += rain(px, 1.0) * (1.0 - plate * 0.9);
+    float cover = 0.0;
+    vec3 pl = planet(px, cover);
+    vec3 far = SOFT * stars(px) * 0.6 * u_space.x + traffic(px);
+    if (u_rain.w > 0.5) far += rain(px, 1.0) * 0.8;
+    add += health_tint(far * (1.0 - cover) + relay_beam(px) * (1.0 - cover)) * (1.0 - plate * 0.9);
+    c = mix(c, VOID * 0.6, cover * u_planet.w);
+    add += pl * (1.0 - plate);
     if (u_grid.x > 0.5) add += own_grid(px) * (1.0 - plate);
     if (u_edge.x > 0.0) {
         float d = min(min(px.x, u_res.x - px.x), min(px.y, u_res.y - px.y));

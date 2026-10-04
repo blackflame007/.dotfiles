@@ -81,6 +81,9 @@ class GLWindow:
         self.fps = 0
         self.timer = None
         self.failed = False
+        self.frames = 0
+        self.ticks = 0
+        self.last_frame = 0.0
         self.area.connect("realize", self._realize)
         self.area.connect("unrealize", self._unrealize)
         self.area.connect("render", self._render)
@@ -122,6 +125,8 @@ class GLWindow:
                 self.failed = True
                 return True
         fbo = GL.glGetIntegerv(GL.GL_DRAW_FRAMEBUFFER_BINDING)
+        self.frames += 1
+        self.last_frame = time.monotonic()
         try:
             self.renderer.render(int(fbo), self.fps or 1)
         except Exception:
@@ -144,6 +149,7 @@ class GLWindow:
             self.area.queue_render()
 
     def _tick(self):
+        self.ticks += 1
         self.area.queue_render()
         return True
 
@@ -218,16 +224,50 @@ class App:
         self.refresh_state()
 
     # ------------------------------------------------------------------ state
+    mode = "starting"
+
     def refresh_state(self):
         windows, full, _mon = hypr.monitor_state(self.cfg["general"]["monitor"])
         self.covered, self.fullscreen = windows, full
         g = self.cfg["general"]
-        hidden = self.locked or full or "screensaver" in self.overlays or "holodeck" in self.overlays
-        fps = 0 if hidden else (int(g.get("fps_covered", 10)) if windows else int(g.get("fps", 30)))
-        self.data.paused = hidden and "screensaver" not in self.overlays and "holodeck" not in self.overlays
+        own_full = [k for k in ("screensaver", "holodeck") if k in self.overlays]
+        if self.locked:
+            mode, why = "paused", "session locked"
+        elif full:
+            mode, why = "paused", "fullscreen window"
+        elif own_full:
+            mode, why = "paused", f"{own_full[0]} on top"
+        elif windows:
+            mode, why = "idle", "windows tiled over it"
+        else:
+            mode, why = "running", "desktop visible"
+        fps = 0 if mode == "paused" else int(g.get("fps_covered", 20) if mode == "idle" else g.get("fps", 30))
+        self.data.paused = mode == "paused" and not own_full
         if self.bg:
             self.bg.set_fps(fps)
+        if (mode, why) != getattr(self, "_last_mode", None):
+            log(f"{mode} ({why}) fps={fps if self.bg else 0}")
+            self._last_mode = (mode, why)
+        self.mode = mode
         return False
+
+    def describe(self):
+        bg = self.bg
+        if not self.bg_enabled or not bg:
+            mode = "off"
+        else:
+            mode = self.mode
+        out = [f"background {mode} fps={bg.fps if bg else 0}"]
+        if bg:
+            now = time.monotonic()
+            f0, t0 = getattr(self, "_probe", (bg.frames, now - 1))
+            rate = (bg.frames - f0) / max(now - t0, 1e-3)
+            self._probe = (bg.frames, now)
+            out.append(f"frames={bg.frames} ticks={bg.ticks} measured={rate:.1f}/s since last status "
+                       f"last_frame={now - bg.last_frame:.1f}s ago failed={bg.failed}")
+        out.append(f"windows={self.covered} fullscreen={self.fullscreen} locked={self.locked} "
+                   f"overlays={sorted(self.overlays)}")
+        return "\n".join(out)
 
     def on_hypr(self, ev, arg):
         if ev in ("workspacev2", "fullscreen", "openwindow", "closewindow", "movewindowv2",
@@ -312,6 +352,8 @@ class App:
         c, _, arg = cmd.partition(" ")
         if c == "ping":
             return "pong"
+        if c == "state":
+            return self.describe()
         if c == "toggle":
             self.toggle_background()
             return "background " + ("on" if self.bg_enabled else "off")

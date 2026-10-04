@@ -414,3 +414,85 @@ def part_state(d):
         "FANS": (0.45 + 0.55 * lin(d.get("gpu_fan"), 0, 100), 0.0),
     }
     return [s[n] for n in PARTS]
+
+
+# ---------------------------------------------------------------- health + space
+def health(d):
+    """0 nominal, 1 degraded (amber), 2 failing (red) — from real readings only."""
+    cl = d.get("cluster") or {}
+    c = cl.get("cluster") or {}
+    svc = cl.get("services") or {}
+    down = sum(1 for v in svc.values() if (v or {}).get("status") == "down")
+    if cl and ((c.get("nodesReady") is not None and c.get("nodesReady") < (c.get("nodesTotal") or 0)) or down):
+        return 2
+    hot = (d.get("cpu_temp") or 0) >= 90 or (d.get("gpu_temp") or 0) >= 87
+    stale = d.get("cluster_at") and not d.get("cluster_ok")
+    return 1 if (hot or stale) else 0
+
+
+def all_green(d):
+    cl = d.get("cluster") or {}
+    c = cl.get("cluster") or {}
+    svc = cl.get("services") or {}
+    return bool(d.get("cluster_ok") and c and c.get("nodesReady") == c.get("nodesTotal") and svc
+                and all((v or {}).get("status") == "up" for v in svc.values()))
+
+
+def traffic_level(d):
+    v = (d.get("rx") or 0.0) + (d.get("tx") or 0.0)
+    return max(0.0, min(1.0, math.log10(1.0 + v) / 7.3))
+
+
+def local_sun_angle():
+    """The terminator follows local time: noon faces the viewer, midnight away."""
+    import time as _t
+    lt = _t.localtime()
+    hours = lt.tm_hour + lt.tm_min / 60.0 + lt.tm_sec / 3600.0
+    return (hours / 24.0) * TAU          # 0 = midnight (sun behind), pi = noon (facing)
+
+
+def drift_station(b, d, space=1, t0=0.0, labels=True):
+    """The orbital Drift relay: a ring station whose spokes are the lab's real
+    services (lit = up, red = down), on a mast cut like the burn-in's."""
+    rv = lambda k: (t0 + k) if t0 else 0.0  # noqa: E731
+    svc = sorted(((k, (v or {}).get("status", "unknown")) for k, v in
+                  ((d.get("cluster") or {}).get("services") or {}).items()))
+    n = max(len(svc), 12)
+    for y, r, a in ((0.05, 1.0, 0.95), (-0.05, 1.0, 0.95), (0.0, 0.86, 0.6)):
+        pts = [(math.cos(i / 96 * TAU) * r, y, math.sin(i / 96 * TAU) * r) for i in range(97)]
+        for i in range(96):
+            b.line(pts[i], pts[i + 1], col("phosphor", a), space=space, reveal=rv(0.1 + i * 0.004))
+    for i in range(0, 96, 4):   # ring struts
+        a = i / 96 * TAU
+        p0 = (math.cos(a), 0.05, math.sin(a))
+        p1 = (math.cos(a), -0.05, math.sin(a))
+        b.line(p0, p1, col("dim", 0.8), space=space, reveal=rv(0.4))
+    for i in range(n):
+        a = i / n * TAU
+        name, st = svc[i] if i < len(svc) else ("", "unknown")
+        c = {"up": "phosphor", "down": "danger", "warn": "amber"}.get(st, "guard")
+        hub = (math.cos(a) * 0.14, 0.0, math.sin(a) * 0.14)
+        rim = (math.cos(a) * 0.86, 0.0, math.sin(a) * 0.86)
+        b.line(hub, rim, col(c, 0.75 if st == "up" else 0.95), space=space, reveal=rv(0.5 + i * 0.01))
+        if st == "up":
+            b.arc(hub, 0, 1.8, 0, TAU, col("soft", 0.9), kind=2, space=space, end=rim, speed=0.18 + 0.1 * (i % 3),
+                  phase=i / n, reveal=rv(0.9))
+        elif st == "down":
+            b.arc(rim, 0, 4.5, 0, TAU, col("danger"), kind=2, space=space, reveal=rv(0.9))
+    # hub + the mast (the first relay), with three narrowing crossbars
+    for y, r in ((0.08, 0.14), (-0.08, 0.14)):
+        pts = [(math.cos(i / 32 * TAU) * r, y, math.sin(i / 32 * TAU) * r) for i in range(33)]
+        for i in range(32):
+            b.line(pts[i], pts[i + 1], col("soft", 0.9), space=space, reveal=rv(0.3))
+    b.line((0, -0.75, 0), (0, 0.9, 0), col("soft", 0.95), space=space, reveal=rv(0.2))
+    for y, w in ((0.25, 0.22), (0.48, 0.16), (0.68, 0.10)):
+        b.line((-w, y, 0), (w, y, 0), col("soft", 0.9), space=space, reveal=rv(0.35))
+        b.line((0, y, -w), (0, y, w), col("dim", 0.7), space=space, reveal=rv(0.35))
+    b.arc((0, 0.9, 0), 0, 3.0, 0, TAU, col("danger" if health(d) == 2 else "soft"), kind=2, space=space)
+    if labels:
+        up = sum(1 for _, s in svc if s == "up")
+        b.text("THE DRIFT // RELAY ZERO", 0, -0.75, col("soft"), font="s", track=3, space=space, dx=-110, dy=40,
+               reveal=rv(1.0), type_rate=0.015)
+        b.text(f"{up}/{len(svc)} SERVICES LIT" if svc else "NO LAB SNAPSHOT", 0, -0.75,
+               col("phosphor" if svc and up == len(svc) else "amber"), font="xs", track=2, space=space, dx=-110, dy=62,
+               reveal=rv(1.1))

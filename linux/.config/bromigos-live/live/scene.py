@@ -228,6 +228,17 @@ class Background:
         f.f("u_meter1", *self._px(DEN["meter1"]))
         f.f("u_meter_v", *self.meter_v)
         f.f("u_meter_face", *self.face)
+        sp = cfg.get("space", {})
+        hl = gadgets.health(d) if sp.get("health_tint", True) else 0
+        green = gadgets.all_green(d) and sp.get("relay_beam", True)
+        rps = ((d.get("cluster") or {}).get("traefik") or {}).get("rpsNow") or 0.0
+        f.f("u_space", 1.0 if sp.get("stars", True) else 0.0,
+            gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0, 1.0 if green else 0.0, float(hl))
+        f.f("u_space_rect", 0.0, 34.0 * sy, 2400.0 * sx, (fl["horizon_y"] - 34.0) * sy)
+        f.f("u_planet", 0.0, 0.0, 1.0, 0.0)
+        f.f("u_sun", 0.0, 0.0, 0.0, 0.0)
+        bx0, by0 = 2000.0 * sx, 370.0 * sy
+        f.f("u_beam", bx0, by0, -2.5, 0.12 + min(rps, 6.0) / 12.0)
         self.stage.fs.draw()
 
     def _draw_schematic(self, d):

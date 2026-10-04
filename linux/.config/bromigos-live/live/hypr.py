@@ -43,19 +43,22 @@ def request(cmd, as_json=True):
 
 
 def monitor_state(name):
-    """(workspace has windows, workspace has fullscreen) for the monitor."""
+    """(active workspace has windows, a client there is in TRUE fullscreen, monitor).
+    Maximize (fullscreen mode 1) does not count: the layer still shows in the gaps."""
     mons = request("monitors") or []
     mon = next((m for m in mons if m.get("name") == name), None)
     if not mon:
         return False, False, None
-    ws_id = (mon.get("activeWorkspace") or {}).get("id")
+    ids = {(mon.get("activeWorkspace") or {}).get("id")}
     special = (mon.get("specialWorkspace") or {}).get("id") or 0
-    wss = request("workspaces") or []
+    if special:
+        ids.add(special)
     windows = full = False
-    for w in wss:
-        if w.get("id") == ws_id or (special and w.get("id") == special):
-            windows = windows or w.get("windows", 0) > 0
-            full = full or bool(w.get("hasfullscreen"))
+    for c in request("clients") or []:
+        if (c.get("workspace") or {}).get("id") in ids and c.get("mapped", True) and not c.get("hidden"):
+            windows = True
+            if c.get("fullscreen") == 2:
+                full = True
     return windows, full, mon
 
 
