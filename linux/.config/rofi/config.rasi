@@ -57,7 +57,11 @@ steal-focus: true;
 /*	pid: "/run/user/1000/rofi.pid";*/
 /*	display-run: ;*/
 /*	display-ssh: ;*/
-display-drun: "      : ";
+display-drun: "APPS";
+display-run: "RUN";
+display-window: "WINDOWS";
+modes: "drun,run,window";
+drun-display-format: "{name}";
 /*	display-combi: ;*/
 /*	display-keys: ;*/
 /*	display-filebrowser: ;*/
@@ -147,7 +151,8 @@ me-accept-entry: "MousePrimary";
       sorting-method:    "name";
   }
 }
-@theme "onedarker"
+@theme "~/.config/rofi/bromigos.rasi"
+/* @theme "onedarker" */
 /* @theme "onedarker_dmenu" */
 /* @theme "android_notification" */
 /* @theme "arthur" */
