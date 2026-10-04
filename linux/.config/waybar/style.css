@@ -142,7 +142,7 @@ window#waybar.empty #window {
    Each module draws its icon as a background at the left of the cell; the warning
    and critical classes swap to the amber/danger variant so icon and value match. */
 #cpu, #memory, #custom-gpu, #temperature, #custom-storage, #network,
-#pulseaudio, #mpris, #clock {
+#pulseaudio, #mpris, #clock, #custom-pilot {
   padding-left: 34px;
   background-size: 16px 16px;
   background-position: 12px center;
@@ -171,3 +171,14 @@ window#waybar.empty #window {
 #mpris                { background-image: url("../bromigos/brand/icons/tape.svg"); }
 #mpris.paused         { background-image: url("../bromigos/brand/icons/tape-dim.svg"); }
 #clock                { background-image: url("../bromigos/brand/icons/clock.svg"); }
+
+/* PILOT pip (bromigos-holo): the iris in the state's colour; hidden while the daemon is off */
+#custom-pilot             { background-image: url("../bromigos/brand/icons/pilot.svg"); color: @phosphor;
+                            font-weight: 700; letter-spacing: 0.08em; }
+#custom-pilot.minimized   { color: @static; background-image: url("../bromigos/brand/icons/pilot-dim.svg"); }
+#custom-pilot.thinking,
+#custom-pilot.listening   { color: @amber; background-image: url("../bromigos/brand/icons/pilot-amber.svg"); }
+#custom-pilot.speaking    { color: @phosphor; background-image: url("../bromigos/brand/icons/pilot.svg");
+                            text-shadow: 0 0 8px alpha(@phosphor, 0.6); }
+#custom-pilot.error       { color: @danger; background-image: url("../bromigos/brand/icons/pilot-danger.svg"); }
+#custom-pilot.unread      { text-shadow: 0 0 8px alpha(@amber, 0.6); }

@@ -10,6 +10,7 @@ from .. import gl
 from ..render import Holo, approach, col, ease, lin
 from ..stage import Stage
 from .avatar import Avatar
+from .text import plain
 
 STATE_WORD = {"idle": "STANDING BY", "listening": "LISTENING", "thinking": "THINKING", "speaking": "SPEAKING",
               "error": "TROUBLE", "sleep": "DOZING"}
@@ -71,6 +72,22 @@ class PilotScene:
         for m in self.msgs:
             if m.role == "pilot":
                 m.done = True
+
+    def reroute(self, model, why):
+        """A model didn't answer in time; the same turn goes to the next one. Say so."""
+        self.end_reply()
+        self.msgs.append(Msg("route", f"rerouting to {model} ({why})"))
+        self.avatar.glance(-0.5, -0.1, 0.8)
+        self._trim()
+
+    def catch_up(self):
+        """Opening after a minimize: replies that arrived while hidden show whole."""
+        for m in self.msgs:
+            if m.role == "pilot" and m.done:
+                m.shown = float(len(m.text))
+
+    def streaming(self):
+        return any(m.role == "pilot" and not m.done and m.text for m in self.msgs[-1:])
 
     def note(self, text):
         self.msgs.append(Msg("sys", text))
@@ -165,7 +182,9 @@ class PilotScene:
             self.stage.draw_callouts(H, (14 * sc, h - 150 * sc, lw - 28 * sc, 122 * sc), which=which,
                                      size=int(12 * sc), max_lines=3, reveal=self.ex_amt, row=True)
         self._text(H, w, h, lw)
-        H.end(fbo, bg=(0.0, 0.02, 0.0, 0.88), bloom=1.2, fade=self.fade)
+        # nearly clear behind the hologram (under the compositor's blur threshold) so the
+        # window you click through to stays visible; the transcript gets its own backing
+        H.end(fbo, bg=(0.0, 0.02, 0.0, 0.12), bloom=1.2, fade=self.fade)
 
     def _text(self, H, w, h, lw):
         sc = self.scale
@@ -190,9 +209,10 @@ class PilotScene:
         width = w - x0 - 32 * sc
         y = h - 78 * sc
         top = 72 * sc
+        rows = []
         for m in reversed(self.msgs):
             if m.role == "pilot":
-                text = m.text[:int(m.shown)].strip()
+                text = plain(m.text[:int(m.shown)]).strip()
                 if not text:
                     continue
                 if m.shown < len(m.text) or not m.done:
@@ -202,15 +222,25 @@ class PilotScene:
                 text, c, size, weight, ind = "› " + m.text, col("white", 1, 0.95 * f), 14, "medium", 0
             elif m.role == "tool":
                 text, c, size, weight, ind = "⟐ " + m.text, col("dim", 1.5, 0.95 * f), 12, "normal", 14
+            elif m.role == "route":
+                text, c, size, weight, ind = "↻ " + m.text, col("amber", 0.9, 0.95 * f), 12, "normal", 14
             else:
                 text, c, size, weight, ind = m.text, col("amber", 1, f), 13, "normal", 0
             tw_, th_ = H.measure(text, int(size * sc), weight, width=(width - ind * sc) / sc)
             y -= th_ + (10 if m.role != "tool" else 4) * sc
             if y < top:
                 break
-            H.label(text, x0 + ind * sc, y, c, int(size * sc), weight, width=(width - ind * sc) / sc)
-        if self.typing:
-            H.label("type, Enter to send · Esc to close", w - 28 * sc, h - 22 * sc, col("static", 1, 0.8 * f), int(11 * sc), anchor="rb")
+            rows.append((text, x0 + ind * sc, y, c, int(size * sc), weight, (width - ind * sc) / sc))
+        # a dark backing under the transcript and the entry, only as tall as the text
+        y_top = min([r[2] for r in rows] + [h - 78 * sc]) - 12 * sc
+        H.rect(x0 - 14 * sc, y_top, w - x0 - 4 * sc, h - y_top - 10 * sc, (0.0, 0.035, 0.0, 0.8 * f))
+        H.rect(x0 - 14 * sc, 12 * sc, w - x0 - 4 * sc, 84 * sc, (0.0, 0.035, 0.0, 0.62 * f))   # header backing
+        H.rect(12 * sc, 12 * sc, 330 * sc, 52 * sc, (0.0, 0.035, 0.0, 0.5 * f))
+        for text, x, yy, c, size, weight, wd in rows:
+            H.label(text, x, yy, c, size, weight, width=wd)
+        hint = ("Enter sends · Esc hands the keyboard back · Shift+Esc minimizes" if self.typing else
+                "click the box to type · clicks elsewhere go to your windows · SUPER+E minimizes")
+        H.label(hint, w - 28 * sc, h - 14 * sc, col("static", 1, 0.8 * f), int(11 * sc), anchor="rb")
 
     def demo_transcript(self):
         """For offscreen screenshots only."""

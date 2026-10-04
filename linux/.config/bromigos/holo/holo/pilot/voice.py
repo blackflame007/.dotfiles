@@ -204,7 +204,8 @@ class Voice:
                 self._enqueue(m.group(1))
 
     def _enqueue(self, sentence):
-        s = re.sub(r"\s+", " ", sentence).strip()
+        from .text import spoken
+        s = re.sub(r"\s+", " ", spoken(sentence)).strip()
         if not re.search(r"\w", s):
             return
         with self.qlock:

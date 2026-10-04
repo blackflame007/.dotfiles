@@ -8,7 +8,7 @@
   "spacing": 0,
   "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
   "modules-center": ["mpris"],
-  "modules-right": ["cpu", "memory", "custom/gpu", "temperature", "custom/storage", "network",
+  "modules-right": ["custom/pilot", "cpu", "memory", "custom/gpu", "temperature", "custom/storage", "network",
                     "pulseaudio", "tray", "clock"],
 
   "custom/launcher": {
@@ -61,6 +61,15 @@
     "tooltip-format": "RAM {used:0.1f} / {total:0.1f} GiB used, {avail:0.1f} GiB available\nswap {swapUsed:0.1f} / {swapTotal:0.1f} GiB\namber 75% · red 90% · click: btop",
     "states": { "warning": 75, "critical": 90 },
     "on-click": "kitty -e btop"
+  },
+
+  "custom/pilot": {
+    "exec": "~/.config/waybar/scripts/pilot.py",
+    "return-type": "json",
+    "interval": 30,
+    "signal": 9,
+    "on-click": "~/.config/bromigos/holo/bin/bromigos-holo pilot",
+    "on-click-right": "~/.config/bromigos/holo/bin/bromigos-holo mute"
   },
 
   "custom/gpu": {

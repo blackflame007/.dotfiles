@@ -1,9 +1,16 @@
 """bromigos-holo daemon: one GTK process hosting PILOT's console and the hologram gallery,
 both on the shared renderer. Controlled over a unix socket by bin/bromigos-holo.
 
-Windows are layer-shell surfaces on the overlay layer, shown only when summoned and
-hidden again with Esc (or the same key). Hidden windows render nothing and poll nothing;
-the idle daemon is a sleeping GTK main loop."""
+Windows are layer-shell surfaces on the overlay layer, shown only when summoned.
+Hidden windows render nothing; the idle daemon is a sleeping GTK main loop.
+
+PILOT never blocks the desktop: its window takes input only on the chat entry and its
+minimize button (an input region; clicks anywhere else go to the window behind it),
+and it holds keyboard focus on demand (when SUPER+E opens it or the entry is clicked;
+Esc or a click elsewhere hands it back). Minimized, PILOT keeps working: a running
+turn finishes, the reply is spoken (voice on) and queued for the next open, and the
+bar module (waybar custom/pilot, fed by $XDG_RUNTIME_DIR/bromigos-pilot.json) shows its
+state and unread count."""
 import json
 import os
 import signal
@@ -26,6 +33,8 @@ from .live import Live  # noqa: E402
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCK = os.path.join(RUNTIME, "bromigos-holo.sock")
+PILOT_STATE = os.path.join(RUNTIME, "bromigos-pilot.json")
+WAYBAR_SIGNAL = 9           # waybar custom/pilot "signal": 9 -> refresh on SIGRTMIN+9
 MONITOR = os.environ.get("BROMIGOS_HOLO_MONITOR", "DP-1")
 CSS = b"""
 #pilot-entry {
@@ -41,6 +50,20 @@ CSS = b"""
 }
 #pilot-entry:focus { border-color: #39ff14; }
 #pilot-entry selection { background-color: #159b09; color: #000500; }
+#pilot-min {
+  background-image: none;
+  background-color: rgba(0, 19, 0, 0.82);
+  color: #9cff8a;
+  border: 1px solid rgba(21, 155, 9, 0.9);
+  border-radius: 0;
+  box-shadow: none;
+  font-family: "Geist Mono";
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  min-height: 0;
+}
+#pilot-min:hover { color: #000500; background-color: #39ff14; border-color: #39ff14; }
 """
 
 
@@ -60,8 +83,10 @@ def monitor_for(name):
 class HoloWindow:
     """A layer-shell window with one GL area; renders only while shown."""
 
-    def __init__(self, ns, scene, size, anchors, margins, keyboard_exclusive=True, overlay_children=()):
+    def __init__(self, ns, scene, size, anchors, margins, keyboard_exclusive=True, overlay_children=(),
+                 input_widgets=None):
         self.scene = scene
+        self.input_widgets = input_widgets      # None: the whole window takes input
         self.anchors = anchors
         self.win = Gtk.Window()
         GtkLayerShell.init_for_window(self.win)
@@ -96,6 +121,9 @@ class HoloWindow:
         for child in overlay_children:
             self.ov.add_overlay(child)
         self.win.add(self.ov)
+        if input_widgets is not None:
+            self.win.connect("size-allocate", lambda *a: GLib.idle_add(self.update_input_region))
+            self.win.connect("map", lambda *a: GLib.idle_add(self.update_input_region))
         self.visible = False
         self.timer = None
         self.fps = 0
@@ -103,16 +131,40 @@ class HoloWindow:
         self.frames = 0
         self.frame_ms = 0.0
 
+    def update_input_region(self):
+        """Only the listed widgets take pointer input; everything else passes through."""
+        gw = self.win.get_window()
+        if gw is None or self.input_widgets is None:
+            return False
+        import cairo
+        rects = []
+        for w in self.input_widgets:
+            if not w.get_visible() or not w.get_realized():
+                continue
+            a = w.get_allocation()
+            xy = w.translate_coordinates(self.win, 0, 0)
+            if xy:
+                rects.append(cairo.RectangleInt(int(xy[0]) - 2, int(xy[1]) - 2, a.width + 4, a.height + 4))
+        gw.input_shape_combine_region(cairo.Region(rects), 0, 0)
+        self.input_rects = [(r.x, r.y, r.width, r.height) for r in rects]
+        return False
+
+    input_rects = ()
+
     def keyboard(self, mode):
         GtkLayerShell.set_keyboard_mode(self.win, {
             "exclusive": GtkLayerShell.KeyboardMode.EXCLUSIVE, "on_demand": GtkLayerShell.KeyboardMode.ON_DEMAND,
             "none": GtkLayerShell.KeyboardMode.NONE}[mode])
 
-    def show(self):
+    def show(self, focus=True):
+        """Map the window. An on-demand layer takes the keyboard when it maps (Hyprland),
+        so focus=False maps it with no keyboard and allows on-demand just after."""
         if not self.visible:
-            self.keyboard("exclusive" if self.kb_exclusive else "on_demand")
+            self.keyboard("exclusive" if self.kb_exclusive else ("on_demand" if focus else "none"))
             self.win.show_all()
             self.visible = True
+            if not focus and not self.kb_exclusive:
+                GLib.timeout_add(150, lambda: (self.visible and self.keyboard("on_demand"), False)[1])
         self.set_fps(60)
 
     def hide(self):
@@ -206,8 +258,13 @@ class App:
         self.brain = None
         self.voice = None
         self.last_activity = time.monotonic()
+        self.unread = 0
+        self.hidden_since = None
+        self.focused = False
+        self._state_sig = None
         self._serve()
         GLib.timeout_add_seconds(5, self._idle_check)
+        GLib.timeout_add(400, self._publish_state)
 
     # ------------------------------------------------------------------ PILOT
     def ensure_pilot(self):
@@ -224,9 +281,21 @@ class App:
         self.entry.set_margin_bottom(34)
         self.entry.set_size_request(1180 - self.pscene.left_w - 14 - 30, -1)
         self.entry.connect("activate", self._on_entry)
+        self.entry.set_tooltip_text("Type to PILOT; Enter sends. Esc hands the keyboard back; click here to type again.")
+        self.minbtn = Gtk.Button(label="— MINIMIZE", name="pilot-min")
+        self.minbtn.set_halign(Gtk.Align.END)
+        self.minbtn.set_valign(Gtk.Align.START)
+        self.minbtn.set_margin_end(30)
+        self.minbtn.set_margin_top(64)
+        self.minbtn.set_can_focus(False)
+        self.minbtn.set_tooltip_text("Minimize PILOT. It keeps working: replies are spoken and wait here for you. "
+                                     "SUPER+E brings it back; the bar's PILOT pip shows what it is doing.")
+        self.minbtn.connect("clicked", lambda b: self.hide_pilot())
         self.pilot = HoloWindow("bromigos-pilot", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
-                                overlay_children=[self.entry])
+                                keyboard_exclusive=False, overlay_children=[self.entry, self.minbtn],
+                                input_widgets=[self.entry, self.minbtn])
         self.pilot.win.connect("key-press-event", self._pilot_key)
+        self.pilot.win.connect("notify::has-toplevel-focus", self._pilot_focus)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
         self.ensure_voice()
 
@@ -249,6 +318,9 @@ class App:
         def error(self, msg):
             GLib.idle_add(self.app._pilot_error, msg)
 
+        def reroute(self, model, why):
+            GLib.idle_add(self.app._pilot_reroute, model, why)
+
     def _pilot_state(self, s):
         self.pscene.set_state(s)
         self.pscene.subtitle = ""
@@ -267,18 +339,48 @@ class App:
 
     def _pilot_done(self, text, stats):
         self.pscene.end_reply()
+        self.pscene.route = f"{stats.get('model', self.brain.model)} · homelab LiteLLM"
         self.last_activity = time.monotonic()
         if self.voice:
             self.voice.flush()
         log("reply", json.dumps(stats))
-        if self.pilot.visible:
-            self.pilot.keyboard("on_demand")      # reading time: let the operator click away
+        if not self._pilot_shown():
+            self.unread += 1
+            self._notify("PILOT", text)
 
     def _pilot_error(self, msg):
         self.pscene.end_reply()
         self.pscene.set_state("error")
-        self.pscene.note("Oh no. That didn't work: " + msg)
-        GLib.timeout_add(2500, lambda: (self.pscene.set_state("idle"), False)[1])
+        line = "Oh no. Sorry, sorry: " + msg
+        self.pscene.note(line)
+        if self.voice:
+            self.voice.say("Oh no. Sorry. Every model I can reach has gone quiet." if "went quiet" in msg
+                           else "Oh no. That didn't work, sorry.")
+        if not self._pilot_shown():
+            self.unread += 1
+            self._notify("PILOT: trouble", line)
+        GLib.timeout_add(2500, lambda: (self.pscene.avatar.state == "error" and self.pscene.set_state("idle"), False)[1])
+
+    def _pilot_reroute(self, model, why):
+        self.pscene.reroute(model, why)
+        self.pscene.route = f"{model} · homelab LiteLLM (rerouted)"
+
+    def _pilot_shown(self):
+        return bool(self.pilot and self.pilot.visible and self.pscene.fade_to > 0)
+
+    def _notify(self, title, body):
+        """A quiet notification while PILOT is minimized (no live-layer chirp; voice speaks it)."""
+        from .pilot.text import plain
+        body = plain(body)
+        body = body if len(body) <= 220 else body[:217] + "…"
+        try:
+            import subprocess
+            subprocess.Popen(["notify-send", "-a", "PILOT", "-u", "low", "-t", "9000",
+                              "-h", "string:x-bromigos-sound:none", "-h", "string:x-dunst-stack-tag:pilot",
+                              title, body + "\nSUPER+E to open"],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            pass
 
     def _ui_from_brain(self, name, args):
         """UI-only tools, called from the brain thread."""
@@ -311,21 +413,43 @@ class App:
         name = Gdk.keyval_name(ev.keyval)
         self.last_activity = time.monotonic()
         if name == "Escape":
-            self.hide_pilot()
+            if ev.state & Gdk.ModifierType.SHIFT_MASK:
+                self.hide_pilot()               # Shift+Esc minimizes
+            else:
+                self.release_keyboard()         # Esc hands the keyboard back; PILOT stays up
             return True
         if not self.entry.has_focus():
             self.entry.grab_focus_without_selecting()
         return False
 
+    def _pilot_focus(self, win, *a):
+        self.focused = win.props.has_toplevel_focus
+        self.pscene.typing = self.focused
+
+    def release_keyboard(self):
+        """Give keyboard focus back to the window behind; clicking the entry takes it again."""
+        if not self.pilot:
+            return
+        self.pilot.keyboard("none")
+        GLib.timeout_add(120, lambda: (self.pilot.visible and self.pilot.keyboard("on_demand"), False)[1])
+
+    def focus_pilot(self):
+        """SUPER+E: the window was just mapped on-demand, so the compositor gave it the
+        keyboard; put the caret in the entry. A click on any other window takes it back."""
+        self.entry.grab_focus()
+
     def show_pilot(self, focus=True):
         self.ensure_pilot()
         first = not self.pscene.msgs
         self.pscene.fade_to = 1.0
-        self.pilot.show()
-        self.pscene.typing = True
+        was_hidden = not self.pilot.visible
+        self.pilot.show(focus=focus)
+        if was_hidden:
+            self.pscene.catch_up()              # replies that came in while minimized: show them whole
+        self.unread = 0
+        self.hidden_since = None
         if focus:
-            self.pilot.keyboard("exclusive")
-            self.entry.grab_focus()
+            self.focus_pilot()
         if first:
             from .pilot.persona import GREETING
             self.pscene.set_state("speaking")
@@ -339,18 +463,15 @@ class App:
         self.last_activity = time.monotonic()
 
     def hide_pilot(self):
+        """Minimize: the window goes, PILOT keeps working (turn, tools, voice)."""
         if self.pilot and self.pilot.visible:
             self.pscene.fade_to = 0.0
-            if self.voice:
-                self.voice.stop()
+            self.hidden_since = time.monotonic()
             GLib.timeout_add(260, lambda: (self.pilot.hide() if self.pscene.fade_to == 0 else None, False)[1])
 
     def toggle_pilot(self):
-        if self.pilot and self.pilot.visible and self.pscene.fade_to > 0:
-            if self.entry.has_focus():
-                self.hide_pilot()
-            else:
-                self.show_pilot()
+        if self._pilot_shown():
+            self.hide_pilot()
         else:
             self.show_pilot()
 
@@ -413,10 +534,47 @@ class App:
 
     # ------------------------------------------------------------------ housekeeping
     def _idle_check(self):
-        # PILOT steps back after a quiet minute once it has finished talking
-        if self.pilot and self.pilot.visible and not (self.brain and self.brain.busy) and not self.pscene.revealing():
-            if time.monotonic() - self.last_activity > 75 and not (self.voice and self.voice.active()):
+        # PILOT steps back after a quiet two minutes once it has finished talking (unless you're typing)
+        if self._pilot_shown() and not self.busy() and not self.pscene.revealing() and not self.focused:
+            if time.monotonic() - self.last_activity > 120:
                 self.hide_pilot()
+        return True
+
+    def busy(self):
+        """A turn is running or speech is queued/playing: never exit or drop it."""
+        return bool((self.brain and self.brain.busy) or (self.voice and self.voice.active()))
+
+    def pilot_state(self):
+        if not self.pilot:
+            return "off"
+        if self.voice and self.voice.rec:
+            return "listening"
+        if self.pscene.avatar.state == "error":
+            return "error"
+        if self.voice and self.voice.speaking:
+            return "speaking"
+        if self.brain and self.brain.busy:
+            return "speaking" if self.pscene.streaming() else "thinking"
+        return "idle"
+
+    def _publish_state(self):
+        """The bar module's feed: state, unread count, whether it is minimized."""
+        st = {"state": self.pilot_state(), "unread": self.unread, "shown": self._pilot_shown(),
+              "model": self.brain.model if self.brain else None,
+              "muted": bool(self.voice and self.voice.muted)}
+        sig = json.dumps(st, sort_keys=True)
+        if sig != self._state_sig:
+            self._state_sig = sig
+            tmp = PILOT_STATE + ".part"
+            with open(tmp, "w") as f:
+                f.write(sig)
+            os.replace(tmp, PILOT_STATE)
+            try:
+                import subprocess
+                subprocess.Popen(["pkill", f"-RTMIN+{WAYBAR_SIGNAL}", "-x", "waybar"],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except OSError:
+                pass
         return True
 
     def status(self):
@@ -425,7 +583,9 @@ class App:
             if w:
                 out[k] = {"visible": w.visible, "fps": w.fps, "frames": w.frames, "frame_ms": round(w.frame_ms, 2)}
         if self.pilot:
-            out["pilot"]["state"] = self.pscene.avatar.state
+            out["pilot"].update(state=self.pilot_state(), unread=self.unread, focused=self.focused,
+                                model=self.brain.model, input_rects=list(self.pilot.input_rects),
+                                entry_text=self.entry.get_text())
         if self.voice:
             out["voice"] = self.voice.status()
         return json.dumps(out)
@@ -473,7 +633,20 @@ class App:
         elif verb == "status":
             return self.status()
         elif verb == "stop":
+            # a running turn or queued speech finishes first (up to 90 s) unless "stop now"
+            if arg != "now" and self.busy():
+                t0 = time.monotonic()
+
+                def wait():
+                    if self.busy() and time.monotonic() - t0 < 90:
+                        return True
+                    Gtk.main_quit()
+                    return False
+                GLib.timeout_add(500, wait)
+                return "stopping after the current turn"
             GLib.idle_add(Gtk.main_quit)
+        elif verb == "release":
+            self.release_keyboard()
         else:
             return "unknown command"
         return "ok"
@@ -517,9 +690,19 @@ def main():
     App()
     log("ready on", SOCK)
     Gtk.main()
+    for p in (SOCK, PILOT_STATE):
+        try:
+            os.unlink(p)
+        except OSError:
+            pass
+    subprocess_quiet(["pkill", f"-RTMIN+{WAYBAR_SIGNAL}", "-x", "waybar"])
+
+
+def subprocess_quiet(argv):
+    import subprocess
     try:
-        os.unlink(SOCK)
-    except OSError:
+        subprocess.run(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+    except (OSError, subprocess.TimeoutExpired):
         pass
 
 
