@@ -3,7 +3,19 @@
 Push-to-talk: SUPER+V down starts `pw-record` (16 kHz mono, raw to a pipe) and PILOT
 shows LISTENING with a live MIC indicator; key up stops it at once. Nothing records
 unless the key is held, and a recording is cut at `max_record_seconds` in case a
-release is missed. Audio goes to the venv voice server for speech-to-text; the text
+release is missed.
+
+PILOT never hears itself (the operator has speakers, not headphones):
+  * barge-in: SUPER+V down kills playback, clears the speech queue and interrupts the
+    running turn, like talking over someone;
+  * nothing is spoken while the mic is open, and the first `drain_ms` of a recording that
+    starts right after playback is dropped (audio still draining from the speakers);
+  * echo cancellation (voice.json "echo_cancel"): a session-only PipeWire webrtc AEC pair,
+    pilot_aec_sink -> the default speakers and the default mic -> pilot_aec_source. PILOT
+    plays into the sink and records from the source, so its own voice is the reference
+    that gets subtracted. Defaults are untouched; the nodes sit suspended (no CPU) when
+    unused, and they are rebuilt if the default devices change;
+  * a transcript that matches what PILOT said in the last 30 s is dropped. Audio goes to the venv voice server for speech-to-text; the text
 is asked like typed text. Replies are spoken sentence by sentence as they stream in
 (TTS cached on disk); SUPER+SHIFT+V mutes the voice (persisted). There is no hotword.
 """
@@ -59,6 +71,10 @@ class Voice:
         self.gen = 0               # bumps on stop(): stale audio is dropped
         self.last_stats = {}
         self.server_proc = None
+        self.play_end = 0.0        # when playback last stopped (monotonic)
+        self.skip_until = 0.0      # mic audio before this is speaker drain, dropped
+        self.said = []             # (monotonic, sentence) PILOT spoke recently
+        self.aec = None            # (module id, sink master, source master)
 
     # ------------------------------------------------------------------ server
     def _req(self, obj, timeout=30.0):
@@ -102,17 +118,62 @@ class Voice:
             time.sleep(0.1)
 
     # ------------------------------------------------------------------ listening
+    # ------------------------------------------------------------------ echo cancellation
+    def _pactl(self, *args):
+        return subprocess.run(["pactl", *args], capture_output=True, text=True, timeout=5).stdout.strip()
+
+    def ensure_aec(self):
+        """The AEC pair on the current default devices; None when off or unavailable."""
+        if not self.cfg.get("echo_cancel", True) or self.cfg.get("sink"):
+            return None
+        try:
+            sink, src = self._pactl("get-default-sink"), self._pactl("get-default-source")
+            if not sink or not src or sink.startswith("pilot_aec") or src.startswith("pilot_aec"):
+                return None
+            mods = self._pactl("list", "short", "modules")
+            if self.aec and self.aec[1:] == (sink, src) and f"{self.aec[0]}\t" in mods + "\t":
+                return self.aec
+            for line in mods.splitlines():          # ours from an earlier run, or on old devices
+                if "pilot_aec_source" in line:
+                    self._pactl("unload-module", line.split()[0])
+            mid = self._pactl("load-module", "module-echo-cancel", "aec_method=webrtc",
+                              f"source_master={src}", f"sink_master={sink}",
+                              "source_name=pilot_aec_source", "sink_name=pilot_aec_sink",
+                              "rate=16000", "channels=1")
+            self.aec = (mid, sink, src) if mid.isdigit() else None
+        except (OSError, subprocess.TimeoutExpired):
+            self.aec = None
+        return self.aec
+
+    def drop_aec(self):
+        if self.aec:
+            try:
+                self._pactl("unload-module", self.aec[0])
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            self.aec = None
+
+    # ------------------------------------------------------------------ listening
     def ptt_down(self):
         if self.rec:
             return
-        self.stop()                                   # talking over PILOT interrupts it
-        self.app.show_pilot(focus=False)
+        was_speaking = self.speaking or (self.player and self.player.poll() is None)
+        self.stop()                                   # barge-in: talking over PILOT stops it
+        if self.app.brain:
+            self.app.brain.interrupt()                # ... and the turn it was answering
+        self.app.pscene.end_reply()
+        # speaker drain: drop the first part of the recording if PILOT was just talking
+        drain = self.cfg.get("drain_ms", 350) / 1000
+        self.skip_until = time.monotonic() + drain if (was_speaking or time.monotonic() - self.play_end < drain) else 0.0
+        self.app.show_pilot(focus=False, greet=False)
         sc = self.app.pscene
         sc.set_state("listening")
         sc.mic_live = True
         self.rec_buf = bytearray()
         self.rec_t0 = time.monotonic()
-        self.rec = subprocess.Popen(["pw-record", "--raw", "--rate", "16000", "--channels", "1", "--format", "s16", "-"],
+        aec = self.ensure_aec()
+        self.rec = subprocess.Popen(["pw-record", "--raw", "--rate", "16000", "--channels", "1", "--format", "s16"]
+                                    + (["--target", "pilot_aec_source"] if aec else []) + ["-"],
                                     stdout=subprocess.PIPE, stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         threading.Thread(target=self._read_mic, args=(self.rec,), daemon=True).start()
         threading.Thread(target=lambda: self._safe(lambda: self._req({"op": "warm"}, 60)), daemon=True).start()
@@ -129,6 +190,8 @@ class Voice:
             chunk = proc.stdout.read(800)           # 25 ms
             if not chunk:
                 break
+            if time.monotonic() < self.skip_until:
+                continue                            # PILOT's voice still leaving the speakers
             self.rec_buf += chunk
             a = np.frombuffer(chunk[: len(chunk) // 2 * 2], np.int16).astype(np.float32) / 32768.0
             rms = float(np.sqrt(np.mean(a * a))) if len(a) else 0.0
@@ -169,11 +232,37 @@ class Voice:
             if len(re.sub(r"\W", "", text)) < 2:
                 GLib.idle_add(self._heard_nothing)
                 return
+            if self._echo_of_self(text):
+                self.last_stats["echo_rejected"] = text[:80]
+                GLib.idle_add(self._heard_echo)
+                return
             GLib.idle_add(self.app.ask, text)
         except Exception as e:
             GLib.idle_add(self.app._pilot_error, f"voice: {e}")
         finally:
             os.unlink(path)
+
+    def _echo_of_self(self, text):
+        """True when the transcript is PILOT's own recent speech coming back through the mic."""
+        now = time.monotonic()
+        recent = " ".join(s for t, s in self.said if now - t < 30)
+        if not recent:
+            return False
+        words = lambda x: re.findall(r"[a-z0-9']+", x.lower())
+        heard, spoke = words(text), words(recent)
+        if len(heard) < 2:
+            return False
+        sset = set(spoke)
+        contained = sum(w in sset for w in heard) / len(heard)
+        import difflib
+        run = difflib.SequenceMatcher(None, heard, spoke, autojunk=False).find_longest_match(0, len(heard), 0, len(spoke)).size
+        # a verbatim stretch of its own words; loose word overlap is not enough, because the
+        # operator often asks about exactly what PILOT just said
+        return run >= 4 or (run >= 3 and run >= 0.75 * len(heard)) or (contained == 1.0 and len(heard) >= 7)
+
+    def _heard_echo(self):
+        self.app.pscene.note("That was me talking, I think. Sorry! Hold SUPER+V and go ahead.")
+        self.app.pscene.set_state("idle")
 
     def _heard_nothing(self):
         self.app.pscene.note("Sorry, I didn't catch that. Hold SUPER+V while you talk.")
@@ -209,8 +298,8 @@ class Voice:
         self.pending = ""
 
     def say(self, text):
-        """A whole line (the greeting, a fixed phrase)."""
-        if not self.muted:
+        """A whole line (the greeting, a fixed phrase). Never while the mic is open."""
+        if not self.muted and not self.rec:
             for m in SENT_END.finditer(text.strip() + " "):
                 self._enqueue(m.group(1))
 
@@ -243,7 +332,7 @@ class Voice:
                 nxt = _Prefetch(self, peek) if peek else None
                 if gen != self.gen or self.muted:
                     continue
-                self._play(out["wav"], gen)
+                self._play(out["wav"], gen, s)
         except Exception as e:
             GLib.idle_add(self.app.pscene.note, f"(voice trouble: {str(e)[:80]})")
         finally:
@@ -251,16 +340,20 @@ class Voice:
                 self.speaking = False
             GLib.idle_add(self._done_speaking)
 
-    def _play(self, path, gen):
+    def _play(self, path, gen, sentence=""):
         with wave.open(path) as w:
             sr = w.getframerate()
             a = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768.0
         hop = sr // 30
         env = np.array([np.sqrt(np.mean(a[i:i + hop] ** 2)) for i in range(0, len(a), hop)] or [0.0])
         env = np.clip((20 * np.log10(np.maximum(env, 1e-5)) + 50) / 38, 0, 1)
+        if self.rec:
+            return                                   # never speak into an open mic
         sc = self.app.pscene
         GLib.idle_add(sc.set_state, "speaking")
-        sink = self.cfg.get("sink")
+        sink = self.cfg.get("sink") or ("pilot_aec_sink" if self.ensure_aec() else None)
+        now = time.monotonic()
+        self.said = [(t, x) for t, x in self.said if now - t < 30] + [(now, sentence)]
         self.player = subprocess.Popen(["pw-play"] + (["--target", sink] if sink else []) + [path], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                        stderr=subprocess.DEVNULL)
         t0 = time.monotonic()
@@ -272,6 +365,7 @@ class Voice:
             sc.audio_level = float(env[min(k, len(env) - 1)])
             time.sleep(1 / 30)
         sc.audio_level = None
+        self.play_end = time.monotonic()
 
     def _done_speaking(self):
         sc = self.app.pscene
@@ -286,7 +380,12 @@ class Voice:
             self.queue.clear()
         self.pending = ""
         if self.player and self.player.poll() is None:
-            self.player.terminate()
+            self.player.kill()                       # SIGKILL: no fade-out tail into the mic
+            try:
+                self.player.wait(0.5)
+            except subprocess.TimeoutExpired:
+                pass
+            self.play_end = time.monotonic()
 
     # ------------------------------------------------------------------ misc
     def toggle_mute(self):

@@ -439,8 +439,9 @@ class App:
 
     def ask(self, text):
         self.ensure_pilot()
+        self.last_word = time.monotonic()
         if not self.pilot.visible:
-            self.show_pilot(focus=False)
+            self.show_pilot(focus=False, greet=False)
         self.pscene.add_user(text)
         self.last_activity = time.monotonic()
         self.brain.ask(text)
@@ -474,9 +475,15 @@ class App:
         keyboard; put the caret in the entry. A click on any other window takes it back."""
         self.entry.grab_focus()
 
-    def show_pilot(self, focus=True):
+    GREET_AFTER_IDLE = 4 * 3600      # greet again only after this long without a word
+
+    def show_pilot(self, focus=True, greet=True):
+        """greet: the hello is for SUPER+E only, once per session (or after a long quiet
+        spell); never when PILOT is opened by push-to-talk or an ask, so it can't talk
+        over the operator or into the mic."""
         self.ensure_pilot()
-        first = not self.pscene.msgs
+        quiet_for = time.monotonic() - getattr(self, "last_word", -1e9)
+        first = greet and (not getattr(self, "greeted", False) or quiet_for > self.GREET_AFTER_IDLE)
         self.pscene.fade_to = 1.0
         was_hidden = not self.pilot.visible
         self.pilot.show(focus=focus)
@@ -488,6 +495,8 @@ class App:
             self.focus_pilot()
         if first:
             from .pilot.persona import GREETING
+            self.greeted = True
+            self.last_word = time.monotonic()
             self.pscene.set_state("speaking")
             self.pscene.feed(GREETING)
             self.pscene.end_reply()
@@ -723,9 +732,11 @@ class App:
 def main():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     signal.signal(signal.SIGTERM, lambda *a: Gtk.main_quit())
-    App()
+    app = App()
     log("ready on", SOCK)
     Gtk.main()
+    if app.voice:
+        app.voice.drop_aec()
     for p in (SOCK, PILOT_STATE):
         try:
             os.unlink(p)

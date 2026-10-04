@@ -1,12 +1,31 @@
 {
   "_comment": "PILOT's voice. engine: kokoro (local, default) | breeze (homelab TTS, voice designed by instruction, slow) | fish (Fish Audio; only with a reference_id you own, e.g. a model made from the operator's own recording). The kokoro voice is an original blend of two stock British male styles, pitched quick and bright; no one's voice is cloned. Rendered lines are cached on disk by text hash (~/.cache/bromigos/pilot-tts), so repeats cost nothing.",
   "engine": "kokoro",
-  "kokoro": {"blend": {"bm_fable": 0.55, "bm_lewis": 0.45}, "speed": 1.15, "lang": "en-gb"},
-  "breeze": {"url": "https://tts.redacted/v1/audio/speech", "seed": 7,
-             "instruction": "A young British man, quick and slightly breathless, bright and warm, talking a little fast with nervous, eager enthusiasm. Light London accent. Clear and friendly."},
-  "fish": {"reference_id": null, "format": "wav"},
-  "stt": {"model": "small.en", "device": "cuda", "compute_type": "float16"},
+  "kokoro": {
+    "blend": {
+      "bm_fable": 0.55,
+      "bm_lewis": 0.45
+    },
+    "speed": 1.15,
+    "lang": "en-gb"
+  },
+  "breeze": {
+    "url": "https://tts.redacted/v1/audio/speech",
+    "seed": 7,
+    "instruction": "A young British man, quick and slightly breathless, bright and warm, talking a little fast with nervous, eager enthusiasm. Light London accent. Clear and friendly."
+  },
+  "fish": {
+    "reference_id": null,
+    "format": "wav"
+  },
+  "stt": {
+    "model": "small.en",
+    "device": "cuda",
+    "compute_type": "float16"
+  },
   "max_record_seconds": 30,
   "unload_after_seconds": 600,
-  "exit_after_seconds": 1800
+  "exit_after_seconds": 1800,
+  "echo_cancel": true,
+  "drain_ms": 350
 }

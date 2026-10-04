@@ -104,6 +104,9 @@ class Brain:
                     stats["rounds"] = rnd + 1
                     content, calls = self._stream_any(stats, t0)
                     if self.cancel.is_set():
+                        # interrupted (push-to-talk barge-in): keep what was said so the history stays coherent
+                        self.history.append({"role": "assistant", "content": (content + " …").strip() if content else "…"})
+                        self._log({"role": "interrupted", "text": content[:300]})
                         return
                     if calls:
                         self.history.append({"role": "assistant", "content": content or None, "tool_calls": calls})
@@ -243,6 +246,11 @@ class Brain:
         for k, c in enumerate(out):
             c["id"] = c["id"] or f"call_{int(time.time() * 1000)}_{k}"
         return content.strip(), out
+
+    def interrupt(self):
+        """Barge-in: stop the turn now (the stream loop checks this between chunks)."""
+        if self.busy:
+            self.cancel.set()
 
     def reset(self):
         self.history.clear()
