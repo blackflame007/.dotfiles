@@ -107,8 +107,21 @@ class Voice:
                     raise
                 self._spawn()
 
+    _spawn_lock = threading.Lock()
+
     def _spawn(self):
+        with self._spawn_lock:             # concurrent callers share one spawn
+            self._spawn_locked()
+
+    def _spawn_locked(self):
         os.makedirs(STATE, exist_ok=True)
+        try:                               # already up (another caller won the race)
+            s = socket.socket(socket.AF_UNIX)
+            s.connect(SOCK)
+            s.close()
+            return
+        except OSError:
+            pass
         if not (self.server_proc and self.server_proc.poll() is None):
             self.server_proc = subprocess.Popen([os.path.join(VENV, "bin/python"), "-m", "holo.voice_server"], cwd=HERE,
                                                 env=_venv_env(), stdin=subprocess.DEVNULL, stdout=open(LOG, "a"),

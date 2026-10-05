@@ -366,6 +366,15 @@ class Server:
                 os._exit(0)
 
     def serve(self):
+        # One server per session: two clients spawning at once each loaded every model and
+        # the second ran the 12 GB card out of memory (CUBLAS_STATUS_ALLOC_FAILED).
+        import fcntl
+        self._lock = open(SOCK + ".lock", "w")
+        try:
+            fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            log("another voice server holds the lock; exiting")
+            os._exit(0)
         try:
             os.unlink(SOCK)
         except FileNotFoundError:
