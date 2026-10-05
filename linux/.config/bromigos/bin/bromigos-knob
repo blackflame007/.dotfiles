@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""The BlackWidow V4 Pro's command dial as VECTOR's voice dial.
+
+Turning the dial right/left steps VECTOR's voice through
+auto -> Voss (main) -> Sigil (robot) -> Arc (scientist) -> Lynx (floor) -> Lin Yao (notify),
+via `bromigos-holo voice <mode>`, with a quiet notification naming the voice.
+Pressing the dial sends F24 (bound in hyprland.conf to mute VECTOR).
+
+The dial arrives as horizontal scroll (REL_HWHEEL) on the keyboard's own mouse
+interface, not on any real mouse. That device is grabbed so the turns don't also
+scroll windows sideways. Reading it needs the `openrazer` group (openrazer's udev
+rules own the device nodes). Run by bromigos-knob.service.
+"""
+import os
+import subprocess
+import time
+
+import evdev
+
+DEV = "/dev/input/by-id/usb-Razer_Razer_BlackWidow_V4_Pro-if02-event-mouse"
+HOLO = os.path.expanduser("~/.config/bromigos/holo/bin/bromigos-holo")
+STATE = os.path.expanduser("~/.local/state/bromigos/vector-voice-mode")
+MODES = [("auto", "AUTO — VECTOR picks per sentence"), ("main", "Governor Voss"),
+         ("robot", "Sigil"), ("scientist", "Professor Arc"), ("floor", "Revolver Lynx"),
+         ("notify", "Lin Yao")]
+STEP_GAP = 0.12                     # at most one voice step per detent burst slice
+
+
+def current():
+    try:
+        m = open(STATE).read().strip()
+    except OSError:
+        m = "auto"
+    names = [k for k, _ in MODES]
+    return names.index(m) if m in names else 0
+
+
+def step(direction):
+    i = (current() + direction) % len(MODES)
+    mode, label = MODES[i]
+    subprocess.run([HOLO, "voice", mode], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    subprocess.Popen(["notify-send", "-a", "VECTOR", "-t", "1500", "-h", "string:x-dunst-stack-tag:vector-voice",
+                      "-h", "string:x-bromigos-sound:none", "VOICE", label],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def run(dev):
+    dev.grab()
+    last = 0.0
+    try:
+        for ev in dev.read_loop():
+            if ev.type == evdev.ecodes.EV_REL and ev.code == evdev.ecodes.REL_HWHEEL and ev.value:
+                now = time.monotonic()
+                if now - last >= STEP_GAP:
+                    last = now
+                    step(1 if ev.value > 0 else -1)
+    finally:
+        try:
+            dev.ungrab()
+        except OSError:
+            pass
+
+
+def main():
+    while True:                     # survive unplug / replug and sleep
+        try:
+            run(evdev.InputDevice(DEV))
+        except (OSError, FileNotFoundError):
+            time.sleep(2)
+
+
+if __name__ == "__main__":
+    main()

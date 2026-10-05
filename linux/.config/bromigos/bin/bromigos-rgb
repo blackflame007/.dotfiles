@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""Razer lighting follows VECTOR: the keyboard and mouse take the colour of whichever
+voice is speaking, and his mood on top of it (alarmed = red breathing, concerned =
+amber). When VECTOR isn't running, they rest in Bromigos phosphor green.
+
+Source: VECTOR's published state file ($XDG_RUNTIME_DIR/bromigos-vector.json: voice
+role, mood, state), and the per-voice colours in holo/voice.json, so a voice's
+colour on the desk always matches the hologram. Lighting goes through openrazer's
+daemon (DBus); a write happens only when the target colour changes.
+Run by bromigos-rgb.service.
+"""
+import json
+import os
+import time
+
+from openrazer.client import DeviceManager
+
+RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+STATE = os.path.join(RUNTIME, "bromigos-vector.json")
+SOCK = os.path.join(RUNTIME, "bromigos-holo.sock")
+VOICE_JSON = os.path.expanduser("~/.config/bromigos/holo/voice.json")
+PHOSPHOR, AMBER, DANGER = "#39ff14", "#d4af37", "#ff766f"
+REST_BRIGHTNESS, ACTIVE_BRIGHTNESS = 55, 100
+
+
+def rgb(hexcol):
+    h = hexcol.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def voice_colours():
+    try:
+        v = json.load(open(VOICE_JSON))
+        return {k: r.get("colour", PHOSPHOR) for k, r in (v.get("voices") or {}).items()}
+    except (OSError, ValueError):
+        return {}
+
+
+def target():
+    """(effect, colour, brightness) for VECTOR's current state."""
+    try:
+        if not os.path.exists(SOCK):                # VECTOR's daemon isn't running
+            raise OSError
+        st = json.load(open(STATE))
+    except (OSError, ValueError):
+        return ("static", PHOSPHOR, REST_BRIGHTNESS)
+    mood = st.get("mood", "calm")
+    if mood == "alarmed":
+        return ("breath", DANGER, ACTIVE_BRIGHTNESS)
+    if mood == "concerned":
+        return ("static", AMBER, ACTIVE_BRIGHTNESS)
+    # a voice pinned with the dial shows at once; in auto, the voice speaking right now
+    role = st.get("voice_mode") if st.get("voice_mode") not in (None, "auto") else st.get("voice", "main")
+    col = voice_colours().get(role, PHOSPHOR)
+    active = st.get("state") in ("thinking", "speaking", "listening", "working") or st.get("conversation")
+    return ("static", col, ACTIVE_BRIGHTNESS if active or mood == "excited" else REST_BRIGHTNESS)
+
+
+def apply(devices, effect, colour, brightness):
+    r, g, b = rgb(colour)
+    for d in devices:
+        try:
+            if d.has("brightness"):
+                d.brightness = brightness
+            if d.has("lighting_static"):
+                if effect == "breath" and d.has("lighting_breath_single"):
+                    d.fx.breath_single(r, g, b)
+                else:
+                    d.fx.static(r, g, b)
+            else:                                   # the Naga: logo + scroll wheel zones
+                k = brightness / 100
+                for zone in ("logo", "scroll"):
+                    fx = getattr(d.fx.misc, zone, None)
+                    if fx is not None and d.has(f"lighting_{zone}_static"):
+                        fx.static(int(r * k), int(g * k), int(b * k))
+        except Exception as e:                     # a device that drops out mid-write
+            print("rgb:", d.name, e, flush=True)
+
+
+def main():
+    last, devices, found_at = None, [], 0.0
+    while True:
+        if not devices or time.time() - found_at > 60:
+            try:
+                devices, found_at = list(DeviceManager().devices), time.time()
+                last = None                         # re-apply after (re)connect
+            except Exception:
+                devices = []
+        want = target()
+        if devices and want != last:
+            apply(devices, *want)
+            last = want
+        time.sleep(0.25)
+
+
+if __name__ == "__main__":
+    main()

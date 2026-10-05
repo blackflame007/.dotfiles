@@ -1,0 +1,12 @@
+[Unit]
+Description=Razer command dial as VECTOR's voice dial (bromigos-knob)
+Documentation=file://%h/.config/bromigos/bin/bromigos-knob
+After=openrazer-daemon.service
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.config/bromigos/bin/bromigos-knob
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
