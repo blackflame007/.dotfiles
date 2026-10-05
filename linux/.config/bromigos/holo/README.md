@@ -88,6 +88,21 @@ The infrastructure tools in `holo/vector/tools.py` stay **read-only**, and they 
 
 Writes and actions outside the terminal: his own memory, FIELD NOTES, launching an allowlisted app or an http(s) URL, panels, the den wallpaper, the scanner and holograms. Every call goes to `~/.local/state/bromigos/vector-audit.log`, and the conversation to `vector-chat.log`; both stay local. Keys are read from mode-600 files in `~/.local/share/bromigos/` and never logged.
 
+## The web and herdr
+
+`holo/vector/reach.py`.
+
+- **`web_search`** queries the homelab's SearXNG (`https://search.redacted/search?format=json`, homelab CA). Until that's live it fails cleanly with a one-line message.
+- **`web_fetch`** returns a page's readable text, extracted with trafilatura and capped at 8,000 characters. Only http and https; LAN hosts are refused (checked after DNS too, including on redirects), except `*.redacted`.
+- **herdr** (the operator's workspace manager for AI coding agents) through fixed argv:
+  - `herdr_status`: agents with working, idle or blocked status, from `herdr api snapshot`;
+  - `herdr_read`: recent output;
+  - `herdr_send`: types to an agent (logged, with the text hashed);
+  - `herdr_start`: e.g. Claude Code in a repo;
+  - `herdr_wait`.
+  - Agents are matched by id or by a hint such as the repo name.
+- **The herdr watcher** polls `herdr agent list` every 5 s. An agent turning **blocked** ("the homelab session is waiting on you") or finishing after at least 20 s of work becomes a notice in the Lin Yao voice, with an unread pip if VECTOR is minimized. It's capped at 12 an hour, and identical notices for the same agent are dropped within 2 minutes.
+
 ## VECTOR's terminal (full access, not read-only)
 
 `run_shell` (`holo/vector/shell.py`) runs bash on the workstation **as the operator's user, with no approval step**. VECTOR says in one line what he is about to run before anything that changes state, then summarises the result.

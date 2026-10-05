@@ -372,6 +372,11 @@ class App:
             log("memory unavailable:", e)
             self.memory = None
         self.summarized_at = 0               # history length at the last end-of-conversation summary
+        try:                                 # herdr agents waiting on the host / finishing -> a spoken notice
+            from .vector.reach import HerdrWatcher
+            self.herdr = HerdrWatcher(lambda msg, a: GLib.idle_add(self._herdr_notice, msg))
+        except Exception as e:
+            log("herdr watcher unavailable:", e)
         self.ensure_voice()
 
     class _BrainCB:
@@ -444,6 +449,15 @@ class App:
             self.unread += 1
             self._notify("VECTOR: trouble", line)
         GLib.timeout_add(2500, lambda: (self.pscene.avatar.state == "error" and self.pscene.set_state("idle"), False)[1])
+
+    def _herdr_notice(self, msg):
+        self.pscene.note(msg)
+        if self.voice and not self.voice.muted and not self.voice.rec:
+            self.voice.say(msg, role="notify")
+        if not self._vector_shown():
+            self.unread += 1
+            self._notify("VECTOR · herdr", msg)
+        return False
 
     def _shell_changed(self, cur):
         """A terminal command started (cur) or ended (None): live line + STOP button."""

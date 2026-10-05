@@ -96,7 +96,7 @@ EXHIBIT = {
 }
 
 
-PRIVATE_ARGS = {"remember": ("text",), "forget": ("what",), "gnosis_search": ("query",)}
+PRIVATE_ARGS = {"remember": ("text",), "forget": ("what",), "gnosis_search": ("query",), "herdr_send": ("text",)}
 
 
 def _audit(name, args, ok, ms, size=0, err=None):
@@ -375,6 +375,10 @@ def shell_off():
     return {"ok": True, "terminal": "off", "note": "only the host can switch it back on (bromigos-holo shell on)"}
 
 
+from .reach import (herdr_read, herdr_send, herdr_start, herdr_status, herdr_wait,  # noqa: E402
+                    web_fetch, web_search)
+
+
 def notes_read(last_lines=60):
     if not os.path.exists(NOTES):
         return ""
@@ -494,6 +498,19 @@ SPECS = {
                   _p({"command": S, "cwd": S, "timeout_s": I}, ["command"])),
     "shell_off": ("Switch your terminal off (kill switch) when the host asks you to stop using it. You cannot switch it back on.",
                   _p({})),
+    "web_search": ("Search the web (the homelab's SearXNG) for current information. Returns title, url and snippet. "
+                   "Say where facts came from.", _p({"query": S, "n": I}, ["query"])),
+    "web_fetch": ("Fetch a web page's readable text (http/https; no LAN hosts except *.redacted).", _p({"url": S}, ["url"])),
+    "herdr_status": ("The host's herdr workspaces: AI coding agents (e.g. Claude Code sessions) with their status: "
+                     "working, idle, or blocked (waiting on the host).", _p({})),
+    "herdr_read": ("Recent output of a herdr agent (target: its id, or a hint like the repo name).",
+                   _p({"agent": S, "lines": I}, ["agent"])),
+    "herdr_send": ("Send text to a herdr agent, as if typed (no Enter is added unless the text ends with a newline). "
+                   "Say what you are sending first.", _p({"agent": S, "text": S}, ["agent", "text"])),
+    "herdr_start": ("Start a new agent in herdr, e.g. a Claude Code session in a repo: name, cwd, argv (default [\"claude\"]).",
+                    _p({"name": S, "cwd": S, "argv": {"type": "array", "items": S}}, ["name"])),
+    "herdr_wait": ("Wait until a herdr agent reaches a status (idle, working, blocked), up to timeout_s.",
+                   _p({"agent": S, "status": S, "timeout_s": I}, ["agent"])),
     "notes_read": ("Read the end of FIELD NOTES, the operator's notepad.", _p({"last_lines": I})),
     "notes_append": ("Append a line to FIELD NOTES (only when the operator asks to note something).", _p({"text": S}, ["text"])),
     "launch": ("Open an app (terminal, browser, chrome, files, discord, spotify, obs, steam), a switchboard entry (arbiter, lab, grafana, argocd, …) or an http(s) URL.",
