@@ -307,6 +307,16 @@ class App:
         if self.vector:
             return
         from .vector.brain import Brain
+        try:
+            with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "voice.json")) as f:
+                which = json.load(f).get("brain", "classic")
+        except (OSError, ValueError):
+            which = "classic"
+        if which == "pai":
+            try:
+                from .vector.brain_pai import PaiBrain as Brain   # noqa: F811
+            except ImportError as e:          # not in venv-brain: run the classic brain
+                log("pydantic-ai brain unavailable, using classic:", e)
         from .vector.scene import VectorScene
         self.pscene = VectorScene(self.live)
         self.entry = Gtk.Entry(name="vector-entry")
@@ -347,6 +357,9 @@ class App:
 
         def tool(self, name, args, label, ex):
             GLib.idle_add(self.app._vector_tool, name, label, ex)
+
+        def ack(self, text):
+            GLib.idle_add(self.app._vector_ack, text)
 
         def mood(self, mood):
             GLib.idle_add(self.app.pscene.set_mood_from_facts, mood)
@@ -399,6 +412,12 @@ class App:
             self.unread += 1
             self._notify("VECTOR: trouble", line)
         GLib.timeout_add(2500, lambda: (self.pscene.avatar.state == "error" and self.pscene.set_state("idle"), False)[1])
+
+    def _vector_ack(self, text):
+        """The voice lane handed the turn to the deep lane: say a short in-character line meanwhile."""
+        self.pscene.add_tool("handing to the deep lane")
+        if self.voice:
+            self.voice.say(text, role=self.voice.voice_now)
 
     def _vector_reroute(self, model, why):
         self.pscene.reroute(model, why)

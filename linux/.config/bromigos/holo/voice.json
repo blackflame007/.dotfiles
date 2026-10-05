@@ -10,46 +10,109 @@
   },
   "voices": {
     "main": {
-      "name": "governor_voss", "ref": "~/.local/share/bromigos/voices/main-governor_voss.wav", "shimmer": 0.25,
-      "colour": "#39ff14", "marker": null, "use": "everything else (the default)",
-      "kokoro": {"blend": {"bm_george": 0.7, "bm_fable": 0.3}, "speed": 1.02, "lang": "en-gb"}
+      "name": "governor_voss",
+      "ref": "~/.local/share/bromigos/voices/main-governor_voss.wav",
+      "shimmer": 0.25,
+      "colour": "#39ff14",
+      "marker": null,
+      "use": "everything else (the default)",
+      "kokoro": {
+        "blend": {
+          "bm_george": 0.7,
+          "bm_fable": 0.3
+        },
+        "speed": 1.02,
+        "lang": "en-gb"
+      }
     },
     "robot": {
-      "name": "sigil", "ref": "~/.local/share/bromigos/voices/robot-sigil.wav", "shimmer": 0.6,
-      "colour": "#3fe0c5", "marker": "robot",
+      "name": "sigil",
+      "ref": "~/.local/share/bromigos/voices/robot-sigil.wav",
+      "shimmer": 0.6,
+      "colour": "#3fe0c5",
+      "marker": "robot",
       "use": "machine readouts: status reports, lists of numbers, diagnostics, 'running scan' lines, anything said as a system",
-      "kokoro": {"blend": {"bm_lewis": 1.0}, "speed": 0.98, "lang": "en-gb"}
+      "kokoro": {
+        "blend": {
+          "bm_lewis": 1.0
+        },
+        "speed": 0.98,
+        "lang": "en-gb"
+      }
     },
     "scientist": {
-      "name": "professor_arc", "ref": "~/.local/share/bromigos/voices/scientist-professor_arc.wav", "shimmer": 0.15,
-      "colour": "#d4af37", "marker": "sci",
+      "name": "professor_arc",
+      "ref": "~/.local/share/bromigos/voices/scientist-professor_arc.wav",
+      "shimmer": 0.15,
+      "colour": "#d4af37",
+      "marker": "sci",
       "use": "technology specifically: how something works, a clever mechanism, new tech, a discovery or a cool result",
-      "kokoro": {"blend": {"am_puck": 1.0}, "speed": 1.08, "lang": "en-us"}
+      "kokoro": {
+        "blend": {
+          "am_puck": 1.0
+        },
+        "speed": 1.08,
+        "lang": "en-us"
+      }
     },
     "floor": {
-      "name": "revolver_lynx", "ref": "~/.local/share/bromigos/voices/floor-revolver_lynx.wav", "shimmer": 0.2,
-      "colour": "#f0d36a", "marker": "floor",
+      "name": "revolver_lynx",
+      "ref": "~/.local/share/bromigos/voices/floor-revolver_lynx.wav",
+      "shimmer": 0.2,
+      "colour": "#f0d36a",
+      "marker": "floor",
       "use": "ARBITER and the Floor: markets, trades, positions, P&L, the referee and the lineup",
-      "kokoro": {"blend": {"am_michael": 1.0}, "speed": 1.0, "lang": "en-us"}
+      "kokoro": {
+        "blend": {
+          "am_michael": 1.0
+        },
+        "speed": 1.0,
+        "lang": "en-us"
+      }
     },
     "notify": {
-      "name": "lin_yao", "ref": "~/.local/share/bromigos/voices/notify-lin_yao.wav", "shimmer": 0.2,
-      "colour": "#9cff8a", "marker": null, "use": "notifications and codec calls (chosen by the desktop, never by the brain)",
-      "kokoro": {"blend": {"bf_emma": 1.0}, "speed": 1.05, "lang": "en-gb"}
+      "name": "lin_yao",
+      "ref": "~/.local/share/bromigos/voices/notify-lin_yao.wav",
+      "shimmer": 0.2,
+      "colour": "#9cff8a",
+      "marker": null,
+      "use": "notifications and codec calls (chosen by the desktop, never by the brain)",
+      "kokoro": {
+        "blend": {
+          "bf_emma": 1.0
+        },
+        "speed": 1.05,
+        "lang": "en-gb"
+      }
     }
   },
-  "designed_fallback": {"ref": "voices/vector-ref-A.wav", "text": "Hello, and welcome. I am the caretaker, and everything here is running exactly as it should. Protocol is wise, and I am simply delighted to see you."},
-  "mood_shimmer": {"excited": 0.0, "concerned": 0.05, "alarmed": 0.15},
-  "cue": {"enabled": true, "seconds": 0.24},
+  "designed_fallback": {
+    "ref": "voices/vector-ref-A.wav",
+    "text": "Hello, and welcome. I am the caretaker, and everything here is running exactly as it should. Protocol is wise, and I am simply delighted to see you."
+  },
+  "mood_shimmer": {
+    "excited": 0.0,
+    "concerned": 0.05,
+    "alarmed": 0.15
+  },
+  "cue": {
+    "enabled": true,
+    "seconds": 0.24
+  },
   "stt": {
     "model": "large-v3-turbo",
     "device": "cuda",
     "compute_type": "float16",
     "prompt": "VECTOR, the Wick, ARBITER, the rack room, Argo CD, Prometheus, EchoCraft Lab, vLLM, Qwen, crackle, pop, snap."
   },
-  "fish": {"reference_id": null, "format": "wav"},
+  "fish": {
+    "reference_id": null,
+    "format": "wav"
+  },
   "breeze": {
-    "url": "https://tts.redacted/v1/audio/speech", "seed": 5, "cfg_scale": 4,
+    "url": "https://tts.redacted/v1/audio/speech",
+    "seed": 5,
+    "cfg_scale": 4,
     "instruction": "An older English gentleman with a bright, prim, precise voice and crisp diction; chipper, sing-song and delighted, with quiet ancient authority, like a very polite caretaker who loves his job."
   },
   "preload_tts": true,
@@ -57,5 +120,19 @@
   "drain_ms": 350,
   "max_record_seconds": 30,
   "unload_after_seconds": 600,
-  "exit_after_seconds": 1800
+  "exit_after_seconds": 1800,
+  "brain": "pai",
+  "lanes": {
+    "voice": [
+      "hive",
+      "nemotron-lightning-30b",
+      "qwen3.8-flash-next"
+    ],
+    "deep": [
+      "hive",
+      "nemotron-lightning-30b",
+      "qwen3.8-flash-next"
+    ]
+  },
+  "_comment_brain": "brain: pai (Pydantic AI, holo/vector/brain_pai.py, runs in ~/.local/share/bromigos/venv-brain) or classic (holo/vector/brain.py). lanes: voice answers first; if deep differs, the voice lane can hand a turn to it (think_harder). Measured 2026-10-04 with VECTOR's full prompt and tools: hive 0.4-0.5 s to first token, nemotron-lightning-30b 0.8-0.9 s (and it rarely tags voices), so hive leads both lanes."
 }

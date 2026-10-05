@@ -17,6 +17,9 @@ SOCK="$RUN/bromigos-holo.sock"
 STATE="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos"
 LOG="$STATE/holo.log"
 PY=/usr/bin/python3
+# the Pydantic AI brain lives in its own venv (system site packages, so GTK still loads)
+[ -x "$HOME/.local/share/bromigos/venv-brain/bin/python" ] && PY="$HOME/.local/share/bromigos/venv-brain/bin/python"
+export PYDANTIC_AI_NO_BANNER=1
 mkdir -p "$STATE"
 
 send() {

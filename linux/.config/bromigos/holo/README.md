@@ -32,6 +32,18 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 | `holo/pilot/` | Compatibility alias for older callers (`holo.pilot.voice` is `holo.vector.voice`) |
 | `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning |
 
+## The brain
+
+`voice.json` `"brain"` picks the brain. `"pai"` is the default: `holo/vector/brain_pai.py` on Pydantic AI (`pydantic-ai-slim` 2.54.0 and `pydantic-ai-harness` 0.54.0, pinned, in `~/.local/share/bromigos/venv-brain`, a venv with system site packages so GTK still loads; `bin/bromigos-holo` runs the daemon there). `"classic"` is the hand-rolled `holo/vector/brain.py`. Both drive the same callbacks, so they can run side by side.
+
+- **Events.** The agent's event stream drives the text deltas, tool rows, voice and mood markers, reroute lines, and the done or error line. Barge-in cancels the run.
+- **Tools.** Exactly `tools.SPECS`, as in-process functions; there are no framework built-ins. Every call goes through `tools.call()`, which stays the single place where read-only access is enforced and audited.
+- **Fallback.** Each lane is a `FallbackModel` over guarded models. A `Guard` (`WrapperModel`) gives its model 9 s to produce the first stream event and 45 s between events. A model that misses the first-byte rule fails while its stream is still opening, so `FallbackModel` moves on, the amber "rerouting to …" line appears, and the failed model is skipped for two minutes.
+- **Lanes.** `voice.json` `"lanes"` sets `voice` and `deep`. When they differ, the voice lane gets one extra tool, `think_harder`, which hands the turn to the deep lane, and a pre-rendered in-character acknowledgement plays in the current voice meanwhile.
+  - Measured on 2026-10-04 with VECTOR's full prompt and tools: hive gives the first token in 0.4–0.5 s, Nemotron-Lightning in 0.8–0.9 s. Nemotron also rarely tags voices.
+  - So hive leads both lanes and the hand-off is off. Pydantic AI and the classic brain are within noise of each other on the same model.
+- **MCP.** `holo/vector/mcp_server.py` publishes the read-only tools (15 of them, never desktop actions or memory writes) as an MCP server over stdio, or over HTTP on 127.0.0.1 with `--http PORT`, for background workers.
+
 ## Reusing the renderer
 
 ```python

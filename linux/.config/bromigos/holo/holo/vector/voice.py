@@ -452,8 +452,23 @@ class Voice:
             self.play_end = time.monotonic()
 
     def warm_tts(self):
-        """Load the voice in the background (when the window opens), so the first reply is quick."""
-        threading.Thread(target=lambda: self._safe(lambda: self._req({"op": "warm_tts"}, 10)), daemon=True).start()
+        """Load the voice in the background (when the window opens), so the first reply is quick;
+        then pre-render the hand-off acknowledgements in every voice (once; they're cached)."""
+        def work():
+            self._safe(lambda: self._req({"op": "warm_tts"}, 10))
+            lanes = self.cfg.get("lanes", {})
+            if getattr(self, "_acks_done", False) or lanes.get("voice") == lanes.get("deep"):
+                return
+            from .brain_pai import ACKS
+            for _ in range(240):                        # wait for the GPU voice, then render
+                if self._req({"op": "ping"}, 5).get("qwen"):
+                    break
+                time.sleep(0.5)
+            for role in self.roles:
+                for line in ACKS:
+                    self._safe(lambda: self._req({"op": "tts", "text": line, "role": role}, 90))
+            self._acks_done = True
+        threading.Thread(target=work, daemon=True).start()
 
     def _done_speaking(self):
         sc = self.app.pscene
