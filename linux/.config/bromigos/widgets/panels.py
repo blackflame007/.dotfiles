@@ -829,8 +829,14 @@ class ShortcutsPanel(Panel):
             self.items = self.kb.shortcuts()
 
     def content_height(self):
-        secs = len({s for s, *_ in self.items})
-        return secs * self.HEAD + len(self.items) * self.ROW
+        return getattr(self, "_content_h", 0) or len(self.items) * self.ROW
+
+    @staticmethod
+    def _split(desc):
+        """'Holo deck (also M3)' -> ('Holo deck', 'also M3'): the alternate key goes on a dim second line."""
+        import re
+        m = re.search(r"\s*\((also [^)]*)\)\s*$", desc)
+        return (desc[:m.start()], m.group(1)) if m else (desc, None)
 
     def scroll(self, dy):
         view = self.height - 44 - 10
@@ -864,7 +870,9 @@ class ShortcutsPanel(Panel):
         cr.rectangle(0, view_top, w, view_bot - view_top)
         cr.clip()
         y = view_top - self.offset
+        y0 = y
         sec = None
+        dx = x0 + 200
         for s, keys, desc, action in self.items:
             if s != sec:
                 sec = s
@@ -873,22 +881,37 @@ class ShortcutsPanel(Panel):
                     D.label(cr, x0, y + 6, s, "phosphor", size=10)
                     D.rule(cr, x0 + lw + 10, y + 13, x1, "dim", 0.35)
                 y += self.HEAD
-            if view_top - self.ROW <= y <= view_bot:
+            main, alt = self._split(desc)
+            if main.startswith(s + ": "):            # "VECTOR: hold to talk" under VECTOR -> "hold to talk"
+                main = main[len(s) + 2:]
+                main = main[:1].upper() + main[1:]
+            kx = x0
+            for k in keys:
+                kx += D.layout(cr, k, 11, "semibold", 0.04).get_pixel_size()[0] + 12 + 12
+            tx = max(kx, dx)
+            tw = x1 - tx
+            mh = D.layout(cr, main, 12, "regular", 0, tw, wrap=True).get_pixel_size()[1]
+            ah = D.layout(cr, alt, 10, "regular", 0, tw, wrap=True).get_pixel_size()[1] if alt else 0
+            rh = max(self.ROW, mh + ah + 6)
+            if view_top - rh <= y <= view_bot:
                 kx = x0
                 for i, k in enumerate(keys):
                     if i:
                         D.text(cr, kx + 2, y + 2, "+", 10, "static", "regular")
                         kx += 12
                     kx += self.keycap(cr, kx, y + 1, k)
-                D.text(cr, max(kx + 12, x0 + 200), y + 2, desc, 12, "soft", "regular",
-                       width=x1 - max(kx + 12, x0 + 200))
+                D.text(cr, tx, y + 2, main, 12, "soft", "regular", width=tw, wrap=True)
+                if alt:
+                    D.text(cr, tx, y + 2 + mh, alt, 10, "static", "regular", width=tw, wrap=True)
                 runnable = action and s in self.RUNNABLE
-                if runnable and view_top <= y and y + self.ROW <= view_bot:
+                tip = f"{' + '.join(keys)}: {desc}." + (" Click to run it now." if runnable else "")
+                if view_top <= y and y + rh <= view_bot:
                     import subprocess as _sp
-                    self.region(x0, y, x1 - x0, self.ROW - 2, f"{' + '.join(keys)}: {desc}. Click to run it now.",
-                                lambda a=action: _sp.Popen(["/usr/bin/hyprctl", "dispatch", a[0], a[1]],
-                                                           stdout=_sp.DEVNULL, stderr=_sp.DEVNULL))
-            y += self.ROW
+                    self.region(x0, y, x1 - x0, rh - 2, tip,
+                                (lambda a=action: _sp.Popen(["/usr/bin/hyprctl", "dispatch", a[0], a[1]],
+                                                            stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)) if runnable else None)
+            y += rh
+        self._content_h = y - y0
         cr.restore()
         # scroll position rail
         total = self.content_height()

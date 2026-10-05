@@ -56,7 +56,7 @@ def _fd(size, weight):
     return _fd_cache[k]
 
 
-def layout(cr, s, size=11, weight="medium", spacing=0.0, width=None):
+def layout(cr, s, size=11, weight="medium", spacing=0.0, width=None, wrap=False):
     lay = PangoCairo.create_layout(cr)
     lay.set_font_description(_fd(size, weight))
     if spacing:
@@ -65,15 +65,18 @@ def layout(cr, s, size=11, weight="medium", spacing=0.0, width=None):
         lay.set_attributes(attrs)
     if width:
         lay.set_width(int(width * Pango.SCALE))
-        lay.set_ellipsize(Pango.EllipsizeMode.END)
+        if wrap:                                  # wrap onto more lines instead of "…"
+            lay.set_wrap(Pango.WrapMode.WORD_CHAR)
+        else:
+            lay.set_ellipsize(Pango.EllipsizeMode.END)
     lay.set_text(s, -1)
     return lay
 
 
 def text(cr, x, y, s, size=11, color="soft", weight="medium", spacing=0.0, align="left",
-         glow=False, alpha=1.0, width=None):
+         glow=False, alpha=1.0, width=None, wrap=False):
     """Draw s with its top-left (or top-right/centre) at x,y. Returns (w, h)."""
-    lay = layout(cr, s, size, weight, spacing, width)
+    lay = layout(cr, s, size, weight, spacing, width, wrap)
     w, h = lay.get_pixel_size()
     if align == "right":
         x -= w
