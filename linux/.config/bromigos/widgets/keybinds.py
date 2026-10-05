@@ -34,7 +34,9 @@ KEYNAMES = {
     "XF86AUDIOPLAY": "PLAY", "XF86AUDIOPREV": "PREV", "XF86AUDIONEXT": "NEXT",
     # Razer BlackWidow V4 Pro macro keys (openrazer driver mode)
     "F13": "M1", "F14": "M2", "F15": "M3", "F16": "M4", "F17": "M5",
-    "F18": "SIDE 1", "F19": "SIDE 2", "F20": "SIDE 3", "F24": "DIAL",
+    "F18": "SIDE 1", "F19": "SIDE 2", "F20": "SIDE 3", "F24": "DIAL PRESS",
+    "CODE:191": "M1", "CODE:192": "M2", "CODE:193": "M3", "CODE:194": "M4", "CODE:195": "M5",
+    "CODE:196": "SIDE 1", "CODE:197": "SIDE 2", "CODE:198": "SIDE 3", "CODE:202": "DIAL PRESS",
 }
 
 # (regex on the exec command, description, section). First match wins; the list
@@ -115,6 +117,9 @@ DISPATCH = {
     ("exit", ""): ("Quit Hyprland", "SYSTEM"),
 }
 DIRS = {"l": "left", "r": "right", "u": "up", "d": "down"}
+# Inputs handled outside Hyprland's bind table (so `hyprctl binds` can't list them):
+# (section, keys, description, rank). The dial is read by bromigos-knob.
+EXTRA = [("VECTOR", ["DIAL TURN"], "VECTOR: cycle voices (auto, Voss, Sigil, Arc, Lynx, Lin Yao)", 2.5)]
 _DRANK = {k: len(EXEC) + i for i, k in enumerate(DISPATCH)}
 
 
@@ -139,7 +144,8 @@ def _hypr_binds():
         mods = [n for bit, n in ((64, "SUPER"), (8, MOD), (4, "CTRL"), (1, "SHIFT")) if mm & bit]
         if b.get("release"):                   # the key-up half of a hold bind
             continue
-        binds.append((mods, b["key"], b["dispatcher"], b.get("arg", "")))
+        key = b["key"] or (f"code:{b['keycode']}" if b.get("keycode") else "")   # keycode binds (code:N)
+        binds.append((mods, key, b["dispatcher"], b.get("arg", "")))
     return binds
 
 
@@ -240,6 +246,9 @@ def shortcuts():
             keys = [k for _, k in group]
             rng = f"{keys[0]}–{keys[-1]}" if len(keys) > 1 else keys[0]
             out.append(("WORKSPACES", group[0][0] + [rng], desc, None, 10_000))
+    for sec, keys, desc, rank in EXTRA:
+        if os.path.exists(os.path.expanduser("~/.config/systemd/user/bromigos-knob.service")):
+            out.append((sec, keys, desc, None, rank))
     out.sort(key=lambda s: (SECTIONS.index(s[0]) if s[0] in SECTIONS else 99, s[4]))   # stable: ties keep conf order
     merged, seen = [], {}
     for sec, keys, desc, action, _ in out:     # two binds, one job (ALT+C and ALT+SHIFT+C both close)
