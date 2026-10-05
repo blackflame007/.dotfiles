@@ -18,6 +18,7 @@ import calendar
 import datetime as dt
 import fnmatch
 import json
+import math
 import os
 import re
 import subprocess
@@ -41,7 +42,8 @@ WIDGETS = os.path.join(HOME, ".config/bromigos/widgets/bromigos-widgets")
 WALLPAPER = os.path.join(HOME, ".config/bromigos/bin/bromigos-wallpaper")
 LIVE = os.path.join(HOME, ".config/bromigos-live/bin/bromigos-live")
 ORG = "bromigos-org"
-DOC_ROOTS = [os.path.join(HOME, "github.com/bromigos-org"), os.path.join(HOME, ".dotfiles")]
+DOC_ROOTS = [os.path.join(HOME, "github.com/bromigos-org"), os.path.join(HOME, "github.com/nolgiainc"),
+             os.path.join(HOME, "github.com/blackflame007"), os.path.join(HOME, ".dotfiles")]
 DOC_EXT = (".md", ".json", ".yaml", ".yml", ".txt", ".toml")
 SECRETISH = re.compile(r"(secret|token|credential|password|passwd|\.env|private|\.key$|\.pem$|kubeconfig|vault|zsh-secrets)", re.I)
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "build", ".next", "target", "private"}
@@ -312,6 +314,102 @@ def gnosis_search(space, query, limit=5):
             for x in d.get("results", [])]
 
 
+KB_SPACES = {"bromigos": "kb-bromigos", "nolgia": "kb-nolgia", "personal": "kb-personal", "desktop": "kb-desktop",
+             "homelab": "kb-homelab"}
+
+
+_STOP = set("a an and are as at be by can do does for from has have how i in is it its me my of on or our so that the "
+             "their them there this to us was we what whats when where which who why will with you your about".split())
+
+
+def _terms(q):
+    return [w for w in re.findall(r"[a-z0-9][a-z0-9_.-]*[a-z0-9]|[a-z0-9]", q.lower().replace("'s", "")) if w not in _STOP and len(w) > 1]
+
+
+def _kb_file(space, repo, path):
+    """Where a knowledge-base chunk's doc lives on this machine, if it does."""
+    if not repo or not path:
+        return None
+    home = os.path.expanduser("~")
+    if space == "kb-desktop":
+        roots = [os.path.join(home, ".dotfiles")]
+    else:
+        org = {"kb-bromigos": "bromigos-org", "kb-nolgia": "nolgiainc", "kb-personal": "blackflame007",
+               "kb-homelab": "bromigos-org"}.get(space)
+        roots = [os.path.join(home, "github.com", org, repo)] if org else []
+    for r in roots:
+        f = os.path.join(r, path)
+        if os.path.isfile(f):
+            return f
+    return None
+
+
+def knowledge_search(query, space=None, limit=6):
+    """The knowledge base in Gnosis (READMEs, AGENTS.md, CLAUDE.md and docs of the operator's
+    repos, the canon lore and the desktop record), read through the gnosis-gate.
+
+    Gnosis ranks by embeddings only (its hybrid BM25 leg is off server-wide), which misses
+    exact names like WORKBENCH or LIVE.md, so a wider pool per space is re-ranked here with a
+    small lexical bonus (query words in the path, heading and text), and copies of the same
+    doc (a repo kept in two orgs) are folded together."""
+    import concurrent.futures as cf
+    spaces = list(KB_SPACES.values())
+    if space:
+        sp = KB_SPACES.get(space.replace("kb-", ""), space)
+        if sp not in spaces:
+            raise ValueError(f"space must be one of {sorted(KB_SPACES)}")
+        spaces = [sp]
+    with open(GNOSIS_TOKEN) as f:
+        tok = f.read().strip()
+    n = max(1, min(int(limit), 10))
+    terms = _terms(query)
+
+    def one(sp):
+        body = {"scope": {"tenant_id": "bromigos", "space_id": sp, "agent_id": "vector", "session_id": "vector",
+                          "user_id": sp, "visibility": "agent_shared"}, "query": query[:400], "limit": 20, "use_llm": False}
+        req = urllib.request.Request(GNOSIS + "/v1/memories/search", data=json.dumps(body).encode(), method="POST",
+                                     headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx()) as r:
+            return sp, json.load(r).get("results", [])
+
+    WORD = re.compile(r"[a-z0-9][a-z0-9_.-]*[a-z0-9]|[a-z0-9]")
+    pool = []
+    with cf.ThreadPoolExecutor(len(spaces)) as ex:
+        for sp, res in ex.map(one, spaces):
+            for x in res:
+                m = x.get("metadata") or {}
+                text = x.get("content") or ""
+                where = f"{m.get('repo') or ''}/{m.get('path') or ''} {m.get('heading') or ''}".lower()
+                pool.append((sp, x, m, text, where, set(WORD.findall(text.lower()))))
+    # words rare in the pool (WORKBENCH, LIVE.md) say more than common ones (panel, work)
+    idf = {t: math.log((len(pool) + 1) / (1 + sum(1 for p in pool if t in p[5] or t in p[4]))) + 0.1 for t in terms}
+    total = sum(idf.values()) or 1.0
+    hits, seen = [], {}
+    for sp, x, m, text, where, words in pool:
+        bonus = (0.14 * sum(idf[t] for t in terms if t in words) + 0.08 * sum(idf[t] for t in terms if t in where)) / total
+        score = (x.get("score") or 0) + bonus
+        key = (m.get("path"), m.get("heading"), text[:200])
+        h = {"space": sp, "score": round(score, 3), "repo": m.get("repo"), "path": m.get("path"),
+             "heading": m.get("heading"), "url": m.get("url"), "text": text[:900]}
+        f = _kb_file(sp, m.get("repo"), m.get("path"))
+        if f:
+            h["file"] = f                 # the local copy: docs_read takes this, not the url
+        if key in seen:                   # the same doc in two repos: keep one, note the other
+            keep = seen[key]
+            keep.setdefault("also_in", []).append(f"{sp}:{m.get('repo')}")
+            keep["score"] = max(keep["score"], h["score"])
+            continue
+        seen[key] = h
+        hits.append(h)
+    hits.sort(key=lambda h: -h["score"])
+    return {"query": query, "hits": hits[:n]}
+
+
+def conversation_history(query="", when="", limit=8):
+    from . import history
+    return history.tool(query, when, limit)
+
+
 def _doc_ok(path):
     rp = os.path.realpath(path)
     if not any(rp.startswith(os.path.realpath(r) + os.sep) for r in DOC_ROOTS):
@@ -488,6 +586,14 @@ SPECS = {
                 _p({"view": S, "key": S}, ["view"])),
     "gnosis_search": ("Search memory: vector (your own long-term memory), arbiter-research or arbiter-signals (ARBITER's research and event memory, read only).",
                       _p({"space": S, "query": S, "limit": I}, ["space", "query"])),
+    "knowledge_search": ("Search the knowledge base: what the host's software is and how it works. Spaces: bromigos "
+                         "(the Bromigos org's repos and the canon lore), nolgia (Nolgia, the host's other company), personal "
+                         "(his own repos), desktop (everything built on this desktop, keybinds), homelab. Omit space to search "
+                         "all. For exact detail, docs_read a hit's file (its local path; never the url); desktop hits from .py "
+                         "files are code docstrings, so read those with run_shell.", _p({"query": S, "space": S, "limit": I}, ["query"])),
+    "conversation_history": ("Your past conversations with the host (from the local log). query: words to find "
+                             "(e.g. 'gnosis'); when: today, yesterday, last week, a weekday or YYYY-MM-DD. Returns "
+                             "session titles, summaries or matching snippets.", _p({"query": S, "when": S, "limit": I})),
     "docs_search": ("Search the lore, AGENTS.md/CLAUDE.md and repo docs (markdown) for a phrase. repo: optional bromigos-org repo name or 'dotfiles'.",
                     _p({"query": S, "repo": S}, ["query"])),
     "docs_read": ("Read part of a doc found by docs_search (path as returned).", _p({"path": S, "start_line": I, "lines": I}, ["path"])),
@@ -499,7 +605,7 @@ SPECS = {
     "shell_off": ("Switch your terminal off (kill switch) when the host asks you to stop using it. You cannot switch it back on.",
                   _p({})),
     "web_search": ("Search the web (the homelab's SearXNG) for current information. Returns title, url and snippet. "
-                   "Say where facts came from.", _p({"query": S, "n": I}, ["query"])),
+                   "Say where facts came from. category: general (default), it, science or news.", _p({"query": S, "n": I, "category": S}, ["query"])),
     "web_fetch": ("Fetch a web page's readable text (http/https; no LAN hosts except *.redacted).", _p({"url": S}, ["url"])),
     "herdr_status": ("The host's herdr workspaces: AI coding agents (e.g. Claude Code sessions) with their status: "
                      "working, idle, or blocked (waiting on the host).", _p({})),

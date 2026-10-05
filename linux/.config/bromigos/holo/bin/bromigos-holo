@@ -62,7 +62,7 @@ case "${1:-}" in
 esac
 
 case "${1:-status}" in
-    vector|gallery|ask|ptt|mute|voice|conversation|shell|vector-show|vector-hide|gallery-hide|gallery-do|snap)
+    vector|gallery|ask|ptt|mute|voice|conversation|shell|history|vector-show|vector-hide|gallery-hide|gallery-do|snap)
         start && send "$@" ;;
     status) send status || echo "not running" ;;
     stop) send stop >/dev/null 2>&1; sleep 0.3; echo stopped ;;

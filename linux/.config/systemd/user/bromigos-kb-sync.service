@@ -1,0 +1,8 @@
+[Unit]
+Description=Sync the operator's software docs into Gnosis (VECTOR's knowledge base)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.config/bromigos/holo/tools/kb-sync.py
+Nice=10

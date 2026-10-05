@@ -64,6 +64,18 @@ CSS = b"""
   min-height: 0;
 }
 #vector-min:hover { color: #000500; background-color: #39ff14; border-color: #39ff14; }
+#vector-history {
+  background-color: rgba(0, 12, 0, 0.92);
+  border: 1px solid rgba(21, 155, 9, 0.9);
+  font-family: "Geist Mono";
+}
+#vector-history list, #vector-history row { background-color: transparent; }
+#vector-history row { padding: 6px 10px; border-bottom: 1px solid rgba(21, 155, 9, 0.25); }
+#vector-history row:hover { background-color: rgba(57, 255, 20, 0.12); }
+#vector-history .hist-title { color: #9cff8a; font-weight: 700; font-size: 13px; }
+#vector-history .hist-meta { color: #7e927e; font-size: 11px; }
+#vector-history .hist-head { color: #39ff14; font-weight: 700; font-size: 12px; letter-spacing: 2px; padding: 8px 10px; }
+#vector-history textview, #vector-history textview text { background-color: transparent; color: #c4f5bb; font-size: 13px; }
 """
 
 
@@ -327,6 +339,7 @@ class App:
         self.entry.set_margin_bottom(34)
         self.entry.set_size_request(1180 - self.pscene.left_w - 14 - 30, -1)
         self.entry.connect("activate", self._on_entry)
+        self.entry.connect("changed", lambda e: self.histpanel.get_visible() and GLib.timeout_add(250, self._history_typed, e.get_text()))
         self.entry.set_tooltip_text("Type to VECTOR; Enter sends. Esc hands the keyboard back; click here to type again.")
         self.minbtn = Gtk.Button(label="— MINIMIZE", name="vector-min")
         self.minbtn.set_halign(Gtk.Align.END)
@@ -347,6 +360,16 @@ class App:
                                       "answers when you pause, and listens again; talk over him to interrupt. "
                                       "Off after two quiet minutes. The mic is closed whenever this is off.")
         self.convbtn.connect("clicked", lambda b: self.toggle_conversation())
+        self.histbtn = Gtk.Button(label="☰ HISTORY", name="vector-min")
+        self.histbtn.set_halign(Gtk.Align.END)
+        self.histbtn.set_valign(Gtk.Align.START)
+        self.histbtn.set_margin_end(300)
+        self.histbtn.set_margin_top(64)
+        self.histbtn.set_can_focus(False)
+        self.histbtn.set_tooltip_text("Past conversations with VECTOR, newest first (Ctrl+H). Type in the box below to search "
+                                      "every message; click one to read it; CONTINUE picks it up again.")
+        self.histbtn.connect("clicked", lambda b: self.toggle_history())
+        self.histpanel = self._build_history()
         self.stopbtn = Gtk.Button(label="■ STOP", name="vector-min")
         self.stopbtn.set_halign(Gtk.Align.END)
         self.stopbtn.set_valign(Gtk.Align.END)
@@ -359,8 +382,8 @@ class App:
         from .vector.shell import RUNNER
         RUNNER.on_change = lambda cur: GLib.idle_add(self._shell_changed, cur)
         self.vector = HoloWindow("bromigos-vector", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
-                                keyboard_exclusive=False, overlay_children=[self.entry, self.minbtn, self.convbtn, self.stopbtn],
-                                input_widgets=[self.entry, self.minbtn, self.convbtn, self.stopbtn])
+                                keyboard_exclusive=False, overlay_children=[self.histpanel, self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn],
+                                input_widgets=[self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.histpanel])
         self.vector.win.connect("key-press-event", self._vector_key)
         self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
@@ -459,6 +482,152 @@ class App:
             self._notify("VECTOR · herdr", msg)
         return False
 
+    # ------------------------------------------------------------------ history
+    def _build_history(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, name="vector-history")
+        box.set_halign(Gtk.Align.END)
+        box.set_valign(Gtk.Align.START)
+        box.set_margin_end(30)
+        box.set_margin_top(100)
+        box.set_size_request(1180 - 540 - 14 - 30, 440)
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
+        self.hist_head = Gtk.Label(label="PAST CONVERSATIONS", xalign=0)
+        self.hist_head.get_style_context().add_class("hist-head")
+        bar.pack_start(self.hist_head, True, True, 0)
+        self.hist_back = Gtk.Button(label="◀ BACK", name="vector-min")
+        self.hist_back.set_tooltip_text("Back to the list of conversations.")
+        self.hist_back.connect("clicked", lambda b: self._history_list())
+        self.hist_cont = Gtk.Button(label="↻ CONTINUE", name="vector-min")
+        self.hist_cont.set_tooltip_text("Load this conversation's recent turns back into VECTOR's context and carry on.")
+        self.hist_cont.connect("clicked", lambda b: self._history_continue())
+        for b in (self.hist_back, self.hist_cont):
+            b.set_can_focus(False)
+            b.set_no_show_all(True)
+            bar.pack_end(b, False, False, 4)
+        box.pack_start(bar, False, False, 0)
+        self.hist_scroll = Gtk.ScrolledWindow()
+        self.hist_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.hist_list = Gtk.ListBox()
+        self.hist_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.hist_list.connect("row-activated", lambda lb, row: self._history_open(row.session_id))
+        self.hist_text = Gtk.TextView()
+        self.hist_text.set_editable(False)
+        self.hist_text.set_cursor_visible(False)
+        self.hist_text.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.hist_text.set_left_margin(10)
+        self.hist_text.set_right_margin(10)
+        self.hist_scroll.add(self.hist_list)
+        box.pack_start(self.hist_scroll, True, True, 0)
+        box.set_no_show_all(True)
+        self.hist_open_id = None
+        return box
+
+    def toggle_history(self):
+        if self.histpanel.get_visible():
+            self.histpanel.hide()
+            self.entry.set_placeholder_text("ask VECTOR…")
+        else:
+            from .vector import history
+            history.title_missing()
+            self.histpanel.show()              # (no_show_all: show the parts by hand; BACK/CONTINUE stay hidden)
+            for w in (self.hist_head.get_parent(), self.hist_head, self.hist_scroll, self.hist_list):
+                w.show()
+            self._history_list()
+            self.entry.set_placeholder_text("search past conversations…")
+        self.pscene.history_open = self.histpanel.get_visible()
+        if self.vector:
+            self.vector.update_input_region()
+            GLib.timeout_add(50, lambda: (self.vector.update_input_region(), False)[1])
+        return "history " + ("open" if self.histpanel.get_visible() else "closed")
+
+    def _history_list(self, query=None):
+        from .vector import history
+        self.hist_open_id = None
+        self.hist_back.hide()
+        self.hist_cont.hide()
+        if self.hist_scroll.get_child() is not self.hist_list:
+            self.hist_scroll.remove(self.hist_scroll.get_child())
+            self.hist_scroll.add(self.hist_list)
+        for row in self.hist_list.get_children():
+            self.hist_list.remove(row)
+        q = (query if query is not None else self.entry.get_text()).strip()
+        if q:
+            hits = history.search(q, 60)
+            seen, items = set(), []
+            for s, m in hits:
+                if s["id"] not in seen:
+                    seen.add(s["id"])
+                    items.append((s, f"{m['role']}: {m['text'][:110]}"))
+            self.hist_head.set_text(f"MATCHING “{q[:24]}” · {len(items)}")
+        else:
+            items = [(s, s.get("summary") or "") for s in history.sessions()[:200]]
+            self.hist_head.set_text(f"PAST CONVERSATIONS · {len(items)}")
+        for s, sub in items:
+            row = Gtk.ListBoxRow()
+            row.session_id = s["id"]
+            v = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+            t = Gtk.Label(label=s["title"], xalign=0)
+            t.set_ellipsize(3)
+            t.get_style_context().add_class("hist-title")
+            meta = Gtk.Label(label=f"{s['start'].strftime('%a %d %b %Y · %H:%M')} · {s['count']} messages"
+                             + (f" · {sub[:90]}" if sub else ""), xalign=0)
+            meta.set_ellipsize(3)
+            meta.get_style_context().add_class("hist-meta")
+            v.pack_start(t, False, False, 0)
+            v.pack_start(meta, False, False, 0)
+            row.add(v)
+            row.set_tooltip_text("Open this conversation (read only); CONTINUE inside picks it up again.")
+            self.hist_list.add(row)
+        self.hist_list.show_all()
+
+    def _history_typed(self, text):
+        if self.histpanel.get_visible() and self.entry.get_text() == text and self.hist_open_id is None:
+            self._history_list(text)
+        return False
+
+    def _history_open(self, sid):
+        from .vector import history
+        s = next((x for x in history.sessions() if x["id"] == sid), None)
+        if not s:
+            return
+        self.hist_open_id = sid
+        self.hist_head.set_text(f"{s['start'].strftime('%a %d %b · %H:%M')} · {s['title'][:40]}")
+        buf = self.hist_text.get_buffer()
+        lines = []
+        for m in s["messages"]:
+            who = {"you": "› YOU", "vector": "VECTOR", "tool": "  ⟐"}.get(m["role"], m["role"])
+            lines.append(f"{m['t'].strftime('%H:%M')}  {who}  {m['text']}")
+        buf.set_text("\n\n".join(lines))
+        self.hist_scroll.remove(self.hist_scroll.get_child())
+        self.hist_scroll.add(self.hist_text)
+        self.hist_text.show()
+        self.hist_back.show()
+        self.hist_cont.show()
+
+    def _history_continue(self):
+        from .vector import history
+        s = next((x for x in history.sessions() if x["id"] == self.hist_open_id), None)
+        if not s or not self.brain:
+            return
+        turns, pending = [], None
+        for m in s["messages"]:
+            if m["role"] == "you":
+                pending = m["text"]
+            elif m["role"] == "vector" and pending is not None:
+                turns.append((pending, m["text"]))
+                pending = None
+        keep, size = [], 0
+        for u, v in reversed(turns):             # the most recent turns, up to ~16k characters
+            size += len(u) + len(v)
+            if keep and (len(keep) >= 24 or size > 16000):
+                break
+            keep.insert(0, (u, v))
+        if len(keep) < len(turns) and s.get("summary"):   # what came before, in one line
+            keep.insert(0, ("(Earlier in this conversation, before the turns below.)", "Earlier we covered: " + s["summary"]))
+        self.brain.load_turns(keep)
+        self.pscene.note(f"Continuing “{s['title'][:50]}” ({min(len(keep), len(turns))} of {len(turns)} turns back in context).")
+        self.toggle_history()
+
     def _shell_changed(self, cur):
         """A terminal command started (cur) or ended (None): live line + STOP button."""
         self.pscene.shell_cmd = (cur["command"], cur["t0"]) if cur else None
@@ -555,6 +724,9 @@ class App:
         return {"ok": True, "gallery": model}
 
     def _on_entry(self, entry):
+        if self.histpanel.get_visible():          # in history, the box searches
+            self._history_list()
+            return
         text = entry.get_text().strip()
         if not text:
             return
@@ -573,6 +745,12 @@ class App:
     def _vector_key(self, w, ev):
         name = Gdk.keyval_name(ev.keyval)
         self.last_activity = time.monotonic()
+        if name in ("h", "H") and ev.state & Gdk.ModifierType.CONTROL_MASK:
+            self.toggle_history()
+            return True
+        if name == "Escape" and self.histpanel.get_visible():
+            self.toggle_history()
+            return True
         if name == "Escape":
             if ev.state & Gdk.ModifierType.SHIFT_MASK:
                 self.hide_vector()               # Shift+Esc minimizes
@@ -848,6 +1026,21 @@ class App:
                 GLib.timeout_add(500, wait)
                 return "stopping after the current turn"
             GLib.idle_add(Gtk.main_quit)
+        elif verb == "history":
+            if arg.startswith("open "):        # open the Nth conversation (1 = newest); for scripts and tests
+                from .vector import history
+                ss = history.sessions()
+                n = int(arg.split()[1]) - 1
+                if not self.histpanel.get_visible():
+                    self.toggle_history()
+                self._history_open(ss[n]["id"])
+                return "opened " + ss[n]["title"][:40]
+            if arg == "continue":              # carry on with the open conversation (scripts and tests)
+                if not self.hist_open_id:
+                    return "no conversation open"
+                self._history_continue()
+                return "continuing"
+            return self.toggle_history()
         elif verb == "shell":
             from .vector.shell import RUNNER, enabled, set_enabled
             if arg in ("off", "on"):

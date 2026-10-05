@@ -36,20 +36,30 @@ def _ctx():
 
 
 # ------------------------------------------------------------------ web
-def web_search(query, n=5):
-    q = urllib.parse.urlencode({"q": query[:300], "format": "json"})
-    try:
-        with urllib.request.urlopen(urllib.request.Request(f"{SEARX}/search?{q}", headers={"User-Agent": UA}),
-                                    timeout=8, context=_ctx()) as r:
-            d = json.load(r)
-    except Exception as e:
-        return {"error": f"web search isn't available right now ({type(e).__name__}: {str(e)[:60]}); "
-                         "the homelab SearXNG at search.redacted may still be coming up"}
-    out = []
-    for x in d.get("results", [])[:max(1, min(int(n), 10))]:
-        out.append({"title": x.get("title", "")[:160], "url": x.get("url"), "snippet": (x.get("content") or "")[:300],
-                    "engine": x.get("engine")})
-    return {"query": query, "results": out}
+def web_search(query, n=5, category=""):
+    """SearXNG; when a category comes back empty, try the others before giving up."""
+    cats = [category] if category else [""]
+    cats += [c for c in ("general", "it", "science", "news") if c not in cats]
+    last_err = None
+    for cat in cats:
+        params = {"q": query[:300], "format": "json"}
+        if cat:
+            params["categories"] = cat
+        try:
+            with urllib.request.urlopen(urllib.request.Request(f"{SEARX}/search?{urllib.parse.urlencode(params)}",
+                                                               headers={"User-Agent": UA}), timeout=8, context=_ctx()) as r:
+                d = json.load(r)
+        except Exception as e:
+            last_err = e
+            continue
+        out = [{"title": x.get("title", "")[:160], "url": x.get("url"), "snippet": (x.get("content") or "")[:300],
+                "engines": x.get("engines") or [x.get("engine")]} for x in d.get("results", [])[:max(1, min(int(n), 10))]]
+        info = [{"title": b.get("infobox"), "text": (b.get("content") or "")[:400]} for b in (d.get("infoboxes") or [])[:1]]
+        if out or info:
+            return {"query": query, "category": cat or "general", "results": out, **({"infobox": info[0]} if info else {})}
+    if last_err:
+        return {"error": f"web search isn't available right now ({type(last_err).__name__}: {str(last_err)[:60]})"}
+    return {"query": query, "results": [], "note": "no results in any category"}
 
 
 def _allowed_url(url):

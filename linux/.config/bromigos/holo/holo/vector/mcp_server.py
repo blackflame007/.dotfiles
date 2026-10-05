@@ -23,7 +23,7 @@ from mcp.types import ToolAnnotations  # noqa: E402
 from holo.vector import tools  # noqa: E402
 
 READ_ONLY = ["system_stats", "lab_status", "k8s_get", "k8s_logs", "k8s_events", "argocd_apps", "prometheus_query",
-             "github", "arbiter", "gnosis_search", "docs_search", "docs_read", "notes_read", "time_now", "calendar_month"]
+             "github", "arbiter", "gnosis_search", "knowledge_search", "web_search", "web_fetch", "docs_search", "docs_read", "notes_read", "time_now", "calendar_month"]
 
 
 def _wrap(name):

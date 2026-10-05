@@ -296,7 +296,7 @@ class VectorScene:
         y = h - 78 * sc
         top = 72 * sc
         rows = []
-        for m in reversed(self.msgs):
+        for m in ([] if getattr(self, "history_open", False) else reversed(self.msgs)):   # the history panel covers it
             if m.role == "vector":
                 text = plain(m.text[:int(m.shown)], streaming=True).strip()
                 if not text:

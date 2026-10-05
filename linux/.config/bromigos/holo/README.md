@@ -7,7 +7,7 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 
 ## Living with VECTOR on screen
 
-- **Click-through.** Only the chat entry and the MINIMIZE button take the mouse (a layer-shell input region); every other pixel of the hologram passes clicks to the window behind it, and the backdrop is nearly clear so you can see that window.
+- **Click-through.** Only the chat entry and the buttons (MINIMIZE, ◉ CONVERSATION, ☰ HISTORY, ■ STOP while a command runs), and the history panel while it's open, take the mouse (a layer-shell input region); every other pixel of the hologram passes clicks to the window behind it, and the backdrop is nearly clear so you can see that window.
 - **Keyboard on demand.** SUPER+E maps VECTOR with on-demand keyboard interactivity, so it gets the keyboard as it opens. Esc hands the keyboard back (VECTOR stays up), a click on any other window takes it back too, and a click on the entry gives it to VECTOR again. Shift+Esc minimizes.
 - **Minimized, still working.** SUPER+E (or MINIMIZE, or Shift+Esc) only hides the window. A running turn finishes, its tools run, the reply is spoken if voice is on, and it waits in the transcript for the next open. A quiet notification (no live-layer chirp: `x-bromigos-sound:none`) shows the reply, and the bar's **VECTOR pip** (waybar `custom/vector`, the iris icon) shows idle, thinking, speaking, listening or trouble, plus the unread count; click it to show or minimize, right-click to mute. After two quiet minutes VECTOR minimizes itself unless you're typing. `bromigos-holo stop` waits for a running turn or queued speech (up to 90 s; `stop now` doesn't).
 - **Never one model.** The brain tries `hive` (LiteLLM's default alias: Qwen3.8-Flash-Next with Nemotron-Lightning behind it), then `nemotron-lightning-30b` (DGX Spark) by name, then `qwen3.8-flash-next`. LiteLLM fails over on errors, but a wedged backend hangs, so each model gets 9 s to start answering; on a timeout, connection error, 5xx or 429 the same turn moves to the next model, the transcript shows an amber "rerouting to …" line, and the failed model is skipped for two minutes. Once an answer is streaming only a 45 s silence counts as failure. If every model fails VECTOR says so, in character, on screen and aloud. Thinking stays off on every route.
@@ -16,7 +16,7 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 
 | File | What |
 |------|------|
-| `bin/bromigos-holo` | Launcher and control: `vector` (show/minimize), `vector-show`, `vector-hide`, `ask "…"`, `gallery [model]`, `ptt on/off`, `mute`, `status`, `stop [now]`, `restart`, `log`, `snap vector|gallery PATH` (save what a window renders) |
+| `bin/bromigos-holo` | Launcher and control: `vector` (show/minimize), `vector-show`, `vector-hide`, `ask "…"`, `gallery [model]`, `ptt on/off`, `mute`, `voice …`, `conversation`, `shell off|on`, `history` (toggle; `history open N`, `history continue` for scripts), `status`, `stop [now]`, `restart`, `log`, `snap vector|gallery PATH` (save what a window renders) |
 | `../../waybar/scripts/vector.py` | The bar's VECTOR pip, read from `$XDG_RUNTIME_DIR/bromigos-vector.json` (written by the daemon on every change, with SIGRTMIN+9 to waybar) |
 | `holo/app.py` | The daemon (system python, GTK3 layer-shell, overlay layer). Windows exist only while summoned; hidden ones render and poll nothing |
 | `holo/render.py`, `shaders.py`, `gl.py`, `text.py` | The shared renderer: projection table (emitter bed, rotating rings, light cone), part-indexed models (depth prepass, fresnel shell, topographic slices, scan band, fat AA edges with hidden-line ghosting), 2D overlay (leader lines, label boxes, Pango text), quarter-res bloom, one composite |
@@ -30,7 +30,9 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 | `tools/voice-demo.py` | Render a tagged reply to a wav exactly as the desktop would speak it |
 | `holo/shimmer.py` | The projector shimmer DSP (band-limit, swept comb, quiet ring mod, tiny room), streamable, one knob per voice; and the dial scratch between voices |
 | `holo/pilot/` | Compatibility alias for older callers (`holo.pilot.voice` is `holo.vector.voice`) |
-| `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning |
+| `holo/vector/history.py` | Conversation history from `vector-chat.log`: sessions, titles, search, the `conversation_history` tool |
+| `tools/kb-sync.py` | Syncs the operator's docs into the Gnosis knowledge base (`kb-*` spaces); nightly via `bromigos-kb-sync.timer` |
+| `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning (`HISTORY_OPEN=1` renders the console as it looks under the history panel) |
 
 ## Memory
 
@@ -88,11 +90,38 @@ The infrastructure tools in `holo/vector/tools.py` stay **read-only**, and they 
 
 Writes and actions outside the terminal: his own memory, FIELD NOTES, launching an allowlisted app or an http(s) URL, panels, the den wallpaper, the scanner and holograms. Every call goes to `~/.local/state/bromigos/vector-audit.log`, and the conversation to `vector-chat.log`; both stay local. Keys are read from mode-600 files in `~/.local/share/bromigos/` and never logged.
 
+## Knowledge base
+
+What the operator's software is and how it works lives in Gnosis, in five knowledge spaces (tenant `bromigos`, `user_id` = the space), written by `tools/kb-sync.py` and read by the `knowledge_search` tool.
+
+| Space | Source | Chunks (2026-10-04) |
+|-------|--------|------|
+| `kb-bromigos` | `~/github.com/bromigos-org/*` (except homelab) and platform `agents/LORE.md` | 2,955 |
+| `kb-nolgia` | `~/github.com/nolgiainc/*` (Nolgia, the operator's other company) | 5,755 |
+| `kb-personal` | `~/github.com/blackflame007/*` | 513 |
+| `kb-desktop` | `~/.dotfiles`: AGENTS.md, the holo/live/brand READMEs, the live keybind table, and the docstrings of the desktop's own Python (widgets, holo, waybar scripts; panels are headed by their on-screen title, e.g. "WORKBENCH panel") | 188 |
+| `kb-homelab` | `~/github.com/bromigos-org/homelab` | 213 |
+
+- **Sources.** Per repo, the `README*`, `AGENTS.md`, `CLAUDE.md` and `docs/**/*.md` that git tracks (so ignored files never go), minus vendored and generated directories and anything secret-looking, up to 300 KB a file. New clones are picked up on the next run.
+- **Sync.** Chunks follow headings (about 1,500 characters), verbatim (`infer=false`), with metadata `{repo, path, heading, sha, url}`. A state file (`~/.local/state/bromigos/kb-sync.json`) maps each chunk key to its Gnosis id and content hash, so a run only adds changed chunks and deletes stale ones. A first full sync took 413 s (about 25 chunks/s); a run with no changes takes seconds. `bromigos-kb-sync.timer` runs it nightly at 03:30; `tools/kb-sync.py --space kb-desktop` syncs one space, `--dry-run` only counts. Log: `~/.local/state/bromigos/kb-sync.log`.
+- **Tokens.** It writes through the gnosis-gate with `gnosis-kb-ingest-token` (write and delete in the `kb-*` spaces only). VECTOR's read token reads them.
+- **Search.** `knowledge_search` queries every space in parallel (or one, with `space`), takes 20 candidates from each, and reranks them. Gnosis ranks by embeddings only, which misses exact names, so query words add a small bonus where they appear in a chunk's text, path or heading, weighted by how rare they are among the candidates. The same doc kept in two repos (gnosis is in both orgs) is folded into one hit. Each hit carries its local `file` for `docs_read`. About 0.15 s.
+- **Gnosis setting this relies on.** The homelab Gnosis runs with `GNOSIS_SCOPED_DENSE_RETRIEVAL_ENABLED` (homelab `02004f4`). Without it, the vector search ranks the whole store and filters by space afterwards, so big spaces crowd small ones out: kb-desktop returned nothing, and searches took about 0.9 s.
+
+## History
+
+Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, local, never rewritten). `holo/vector/history.py` reads it:
+
+- **Sessions.** A new session starts after ten quiet minutes or when the brain is reset.
+- **Titles.** Each finished session gets a short title and a one-line summary from `hive`, generated once and cached in `vector-sessions.json`; until then the first question is the title.
+- **The panel.** ☰ HISTORY (or Ctrl+H while VECTOR has the keyboard) lists past conversations, newest first. Typing in the box searches them as you type, Enter searches, and Esc closes the panel. Click a conversation to read it (read only). **↻ CONTINUE** puts its recent turns (up to 24, about 16k characters) back into VECTOR's context, with the session's summary in front when older turns didn't fit, and carries on; ◀ BACK returns to the list. The live transcript is hidden while the panel covers it.
+- **The tool.** `conversation_history(query, when)` lets VECTOR answer "what did we talk about yesterday?" or "when did we discuss gnosis?" (`when`: today, yesterday, last week, a weekday or a date). It reads the local log and takes about 5 ms.
+
 ## The web and herdr
 
 `holo/vector/reach.py`.
 
-- **`web_search`** queries the homelab's SearXNG (`https://search.redacted/search?format=json`, homelab CA). Until that's live it fails cleanly with a one-line message.
+- **`web_search`** queries the homelab's SearXNG (`https://search.redacted/search?format=json`, homelab CA) in about 1 s. It takes an optional category (`general`, `it`, `science`, `news`); when one comes back empty it tries the others before giving up, and it returns SearXNG's infobox when there is one. If SearXNG is down it fails cleanly with a one-line message.
 - **`web_fetch`** returns a page's readable text, extracted with trafilatura and capped at 8,000 characters. Only http and https; LAN hosts are refused (checked after DNS too, including on redirects), except `*.redacted`.
 - **herdr** (the operator's workspace manager for AI coding agents) through fixed argv:
   - `herdr_status`: agents with working, idle or blocked status, from `herdr api snapshot`;

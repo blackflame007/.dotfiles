@@ -108,6 +108,7 @@ def main():
         time.sleep(float(os.environ.get("OFF_WARM", 4)))
         tt = float(args[2]) if len(args) > 2 else 3.0
         p.demo_transcript()
+        p.history_open = os.environ.get("HISTORY_OPEN") == "1"
         p.fade = 1.0
         for k in range(int(tt * 30)):
             p.advance(1 / 30)

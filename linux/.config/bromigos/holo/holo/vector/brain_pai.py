@@ -200,6 +200,14 @@ class PaiBrain:
     def reset(self):
         self.history.clear()
         self.messages.clear()
+        self._log({"role": "session_start"})
+
+    def load_turns(self, turns):
+        """Continue an earlier session: its recent turns become the context again."""
+        self.reset()
+        for u, v in turns:
+            self.history += [{"role": "user", "content": u}, {"role": "assistant", "content": v}]
+            self.messages += [ModelRequest(parts=[UserPromptPart(u)]), ModelResponse(parts=[TextPart(v or "…")])]
 
     def _log(self, rec):
         os.makedirs(os.path.dirname(CHATLOG), exist_ok=True)

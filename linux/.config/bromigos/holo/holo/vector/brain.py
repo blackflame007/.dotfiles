@@ -280,3 +280,9 @@ class Brain:
 
     def reset(self):
         self.history.clear()
+        self._log({"role": "session_start"})
+
+    def load_turns(self, turns):
+        self.reset()
+        for u, v in turns:
+            self.history += [{"role": "user", "content": u}, {"role": "assistant", "content": v}]
