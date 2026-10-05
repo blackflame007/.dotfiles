@@ -72,6 +72,8 @@ class Brain:
         self.ctx = ssl.create_default_context(cafile=CA) if os.path.exists(CA) else ssl.create_default_context()
         self.cooled = {}           # model -> monotonic time it may be tried again
         self.model = MODEL         # the model that answered last
+        self.memory = None         # holo.vector.memory.Memory, set by the app
+        self.recalled = []
 
     def ask(self, text):
         if self.busy:
@@ -87,7 +89,11 @@ class Brain:
 
     def _messages(self):
         now = time.strftime("%A %d %B %Y, %H:%M %Z")
-        sys = persona.SYSTEM + persona.voices_block() + f"\nIt is {now}. The workstation is an Arch Linux desktop (Hyprland) the operator sits at."
+        mem = ""
+        if getattr(self, "recalled", None):
+            mem = ("\nWHAT YOU REMEMBER (your long-term memory, for this question; trust it but don't recite it)\n"
+                   + "\n".join(f"- {x[:240]}" for x in self.recalled[:5]) + "\n")
+        sys = persona.SYSTEM + persona.voices_block() + mem + f"\nIt is {now}. The workstation is an Arch Linux desktop (Hyprland) the operator sits at."
         return [{"role": "system", "content": sys}] + self.history[-24:]
 
     def _run(self, text):
@@ -96,9 +102,15 @@ class Brain:
             t0 = time.monotonic()
             stats = {"first_token_s": None, "tools": 0, "rounds": 0}
             try:
+                self.cb.state("thinking")
+                self.recalled = []
+                if self.memory is not None:        # capped at 0.2 s; skipped gracefully
+                    self.recalled, rs = self.memory.recall(text)
+                    stats.update(rs)
+                    if self.recalled and hasattr(self.cb, "memory"):
+                        self.cb.memory("recall", len(self.recalled))
                 self.history.append({"role": "user", "content": text})
                 self._log({"role": "user", "text": text})
-                self.cb.state("thinking")
                 final = ""
                 for rnd in range(MAX_ROUNDS):
                     stats["rounds"] = rnd + 1

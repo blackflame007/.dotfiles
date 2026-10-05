@@ -31,10 +31,10 @@ HOME = os.path.expanduser("~")
 STATE = os.path.join(HOME, ".local/state/bromigos")
 AUDIT = os.path.join(STATE, "vector-audit.log")
 KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/pilot-kubeconfig")
-GNOSIS_TOKEN = os.path.join(HOME, ".local/share/bromigos/gnosis-read-token")
+GNOSIS_TOKEN = os.path.join(HOME, ".local/share/bromigos/gnosis-vector-read-token")   # gate token: read only
 NOTES = os.path.join(HOME, ".local/share/bromigos/notes.md")
 PROM = "https://prometheus.redacted"
-GNOSIS = "https://gnosis.redacted"
+GNOSIS = "https://gnosis.redacted/gate"           # gnosis-gate: narrow tokens, never the service token
 ARBITER = "https://arbiter.redacted"
 LAB = "https://lab.redacted/api/status"
 WIDGETS = os.path.join(HOME, ".config/bromigos/widgets/bromigos-widgets")
@@ -48,7 +48,8 @@ SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", "dist", "bu
 
 APPS = {  # name -> argv (the desktop's own launch commands, from the Hyprland binds)
     "terminal": ["kitty"], "kitty": ["kitty"], "browser": ["librewolf"], "librewolf": ["librewolf"],
-    "chrome": ["google-chrome-stable"], "files": ["pcmanfm"], "discord": ["discord"],
+    "chrome": ["google-chrome-stable"], "files": ["pcmanfm"], "pcmanfm": ["pcmanfm"], "dolphin": ["dolphin"],
+    "discord": ["discord"],
     "spotify": ["spotify-launcher"], "obs": ["obs"], "steam": ["steam"],
 }
 ARBITER_VIEWS = {  # name -> (path, what it is)
@@ -95,8 +96,18 @@ EXHIBIT = {
 }
 
 
+PRIVATE_ARGS = {"remember": ("text",), "forget": ("what",), "gnosis_search": ("query",)}
+
+
 def _audit(name, args, ok, ms, size=0, err=None):
     os.makedirs(STATE, exist_ok=True)
+    if name in PRIVATE_ARGS:      # memory text is hashed and truncated, never logged whole
+        import hashlib
+        args = dict(args)
+        for k in PRIVATE_ARGS[name]:
+            if isinstance(args.get(k), str):
+                t = args[k]
+                args[k] = {"sha1": hashlib.sha1(t.encode()).hexdigest()[:12], "head": t[:40], "chars": len(t)}
     rec = {"t": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "tool": name, "args": args, "ok": ok, "ms": ms, "bytes": size}
     if err:
         rec["err"] = str(err)[:200]
@@ -282,14 +293,15 @@ def arbiter(view, key=None):
 
 
 def gnosis_search(space, query, limit=5):
-    users = {"arbiter-research": ("arbiter-research", "arbiter-research"), "arbiter-signals": ("arbiter-signals", "arbiter-news")}
+    users = {"arbiter-research": ("arbiter-research", "arbiter-research"), "arbiter-signals": ("arbiter-signals", "arbiter-news"),
+             "vector": ("operator", "vector")}
     if space not in users:
-        raise ValueError("space must be arbiter-research or arbiter-signals")
+        raise ValueError("space must be vector (your own memory), arbiter-research or arbiter-signals")
     with open(GNOSIS_TOKEN) as f:
         tok = f.read().strip()
     user, agent = users[space]
     body = {"scope": {"tenant_id": "bromigos", "space_id": space, "agent_id": agent, "session_id": agent,
-                      "user_id": user, "visibility": "agent_shared"},
+                      "user_id": user, "visibility": "private_user" if space == "vector" else "agent_shared"},
             "query": query[:400], "limit": max(1, min(int(limit), 8)), "use_llm": False}
     req = urllib.request.Request(GNOSIS + "/v1/memories/search", data=json.dumps(body).encode(), method="POST",
                                  headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
@@ -456,7 +468,7 @@ SPECS = {
     "arbiter": ("ARBITER market floor, read-only console views (paper trading; never trades or arms). view: " +
                 ", ".join(sorted(ARBITER_VIEWS)) + ", cause_detail (needs key from causes).",
                 _p({"view": S, "key": S}, ["view"])),
-    "gnosis_search": ("Search ARBITER's research memory. space: arbiter-research or arbiter-signals.",
+    "gnosis_search": ("Search memory: vector (your own long-term memory), arbiter-research or arbiter-signals (ARBITER's research and event memory, read only).",
                       _p({"space": S, "query": S, "limit": I}, ["space", "query"])),
     "docs_search": ("Search the lore, AGENTS.md/CLAUDE.md and repo docs (markdown) for a phrase. repo: optional bromigos-org repo name or 'dotfiles'.",
                     _p({"query": S, "repo": S}, ["query"])),
@@ -469,6 +481,11 @@ SPECS = {
               _p({"name": S, "action": S}, ["name"])),
     "wallpaper": ("Switch the den wallpaper: den, empty, masked, v1.", _p({"variant": S}, ["variant"])),
     "scan": ("Run the desktop scanner pass (the hardware schematic sweep).", _p({})),
+    "remember": ("Write something durable to your long-term memory (Gnosis): a host preference, a decision, a fact about "
+                 "the lab worth keeping, or a recurring problem. One short self-contained sentence. category: host preferences, "
+                 "decisions, lab facts or recurring problems.", _p({"text": S, "category": S}, ["text"])),
+    "forget": ("Remove something from your own long-term memory when the host asks you to forget it. what: a description "
+               "of it, or 'that' for the last thing you filed.", _p({"what": S})),
     "set_voice": ("Choose your voice on the line: auto (you pick per sentence, the default), or pin one of main, robot, "
                   "scientist, floor, notify. Use when the host asks, e.g. 'use the robot voice' or 'back to normal' (auto).",
                   _p({"mode": S}, ["mode"])),
@@ -490,7 +507,7 @@ def call(name, args, ui=None, live=None):
     t0 = time.monotonic()
     args = args or {}
     try:
-        if name in ("show_hologram", "open_gallery", "set_voice"):
+        if name in ("show_hologram", "open_gallery", "set_voice", "remember", "forget"):
             if ui is None:
                 raise RuntimeError("no display")
             res = ui(name, args)

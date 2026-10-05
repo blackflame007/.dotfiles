@@ -91,6 +91,12 @@ class VectorScene:
     def mood_name(self):
         return self.avatar.mood_name()
 
+    def memory_flash(self, what, n=1):
+        """A brief glyph when VECTOR recalls (cyan-white), files (phosphor) or forgets (dim) something."""
+        self.mem_flash = (what, n, time.monotonic())
+        self.avatar.activity = 1.0
+        self.avatar.glitch = max(self.avatar.glitch, 0.35)
+
     def add_user(self, text):
         self.msgs.append(Msg("you", text))
         self._trim()
@@ -242,6 +248,19 @@ class VectorScene:
         sc_col = {"thinking": "amber", "error": "danger", "listening": "white", "sleep": "dim"}.get(st, "soft")
         word = STATE_WORD.get(st, st.upper()) + (f" · {self.subtitle}" if self.subtitle else "")
         H.label(word, 26 * sc + tw + 16 * sc, 22 * sc + th - 18 * sc, col(sc_col, 1, f), int(13 * sc), "bold", spacing=2.5)
+        mf = getattr(self, "mem_flash", None)
+        if mf and time.monotonic() - mf[2] < 1.8:
+            # memory: a small ring of dots closing around the word, then fading
+            age = time.monotonic() - mf[2]
+            a = (1.0 if age < 1.2 else 1.0 - (age - 1.2) / 0.6) * f
+            word = {"recall": f"◈ RECALLED {mf[1]}", "store": "◈ FILED", "forget": "◈ FORGOTTEN"}.get(mf[0], "◈ MEMORY")
+            c = {"recall": "white", "store": "phosphor", "forget": "static"}.get(mf[0], "soft")
+            cx, cy = lw * 0.5, h * 0.17
+            for k in range(12):
+                ang = k * math.pi / 6 + age * 2.0
+                r = 46 * sc * (1.0 - 0.25 * min(1.0, age * 2))
+                H.label("·", cx + r * math.cos(ang), cy + 0.45 * r * math.sin(ang), col(c, 1, a * (0.4 + 0.6 * (k % 3 == 0))), int(14 * sc), anchor="cm")
+            H.label(word, cx, cy, col(c, 1, a), int(12 * sc), "bold", anchor="cm", spacing=2.5)
         # the line: VECTOR answers from his post at the SpacePort arrivals pad, over the relays
         pulse = 0.55 + 0.25 * math.sin(time.monotonic() * 1.3)
         H.label("ARRIVALS · LINE OPEN", 26 * sc, 22 * sc + th + 4 * sc, col("dim", 1.5, pulse * f), int(10 * sc), "bold", spacing=3)

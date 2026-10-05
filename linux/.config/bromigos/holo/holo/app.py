@@ -343,6 +343,14 @@ class App:
         self.vector.win.connect("key-press-event", self._vector_key)
         self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
+        try:
+            from .vector.memory import Memory
+            self.memory = Memory()
+            self.brain.memory = self.memory
+        except Exception as e:
+            log("memory unavailable:", e)
+            self.memory = None
+        self.summarized_at = 0               # history length at the last end-of-conversation summary
         self.ensure_voice()
 
     class _BrainCB:
@@ -360,6 +368,9 @@ class App:
 
         def ack(self, text):
             GLib.idle_add(self.app._vector_ack, text)
+
+        def memory(self, what, n=1):
+            GLib.idle_add(self.app.pscene.memory_flash, what, n)
 
         def mood(self, mood):
             GLib.idle_add(self.app.pscene.set_mood_from_facts, mood)
@@ -442,6 +453,17 @@ class App:
 
     def _ui_from_brain(self, name, args):
         """UI-only tools, called from the brain thread."""
+        if name in ("remember", "forget"):
+            if not self.memory:
+                raise RuntimeError("long-term memory unavailable")
+            if name == "remember":
+                out = self.memory.remember((args or {}).get("text", ""), (args or {}).get("category") or "note")
+                GLib.idle_add(self.pscene.memory_flash, "store", 1)
+            else:
+                out = self.memory.forget((args or {}).get("what", ""))
+                if out.get("ok"):
+                    GLib.idle_add(self.pscene.memory_flash, "forget", 1)
+            return out
         from . import fmt
         model = (args or {}).get("model") or "workstation"
         if model not in fmt.available():
@@ -548,6 +570,16 @@ class App:
             GLib.timeout_add(900, lambda: (self.pscene.avatar.state == "listening" and self.pscene.set_state("idle"), False)[1])
         self.last_activity = time.monotonic()
 
+    def summarize_conversation(self):
+        """Hand the conversation since the last summary to Gnosis (infer=true), in the background."""
+        if not (self.memory and self.brain) or self.brain.busy:
+            return
+        turns = self.brain.history[self.summarized_at:]
+        if sum(1 for m in turns if m.get("role") == "user") < 2:
+            return
+        self.summarized_at = len(self.brain.history)
+        threading.Thread(target=self.memory.summarize, args=(turns,), daemon=True, name="memory-summary").start()
+
     def hide_vector(self):
         """Minimize: the window goes, VECTOR keeps working (turn, tools, voice)."""
         if self.vector and self.vector.visible:
@@ -637,6 +669,8 @@ class App:
         if self._vector_shown() and not self.busy() and not self.pscene.revealing() and not self.focused:
             if time.monotonic() - self.last_activity > 120:
                 self.hide_vector()
+        if self.vector and time.monotonic() - self.last_activity > 600:
+            self.summarize_conversation()            # a quiet ten minutes ends a conversation
         return True
 
     def busy(self):

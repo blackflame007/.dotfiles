@@ -168,6 +168,8 @@ class Voice:
         self.stop()                                   # barge-in: talking over VECTOR stops it
         if self.app.brain:
             self.app.brain.interrupt()                # ... and the turn it was answering
+        if getattr(self.app, "memory", None):
+            self.app.memory.warm()                    # recall will be ready when the transcript is
         self.app.pscene.end_reply()
         # speaker drain: drop the first part of the recording if VECTOR was just talking
         drain = self.cfg.get("drain_ms", 350) / 1000

@@ -32,6 +32,24 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 | `holo/pilot/` | Compatibility alias for older callers (`holo.pilot.voice` is `holo.vector.voice`) |
 | `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning |
 
+## Memory
+
+VECTOR keeps a long-term memory in Gnosis, the homelab memory service (`holo/vector/memory.py`). His scope is tenant `bromigos`, space `vector`, agent `vector`, user `operator`, `private_user`.
+
+- **Tokens.** Every call goes through the homelab's **gnosis-gate** (`helm/gnosis-gate`, at `https://gnosis.redacted/gate/`) with two narrow tokens. Gnosis itself has only one service token for everyone, and its operator tokens share that value, so the desktop never holds it.
+  - `gnosis-vector-write-token`: add, search, list, context and delete in his own scope only.
+  - `gnosis-vector-read-token`: read his scope, and search `arbiter-research` and `arbiter-signals`.
+  - Both live in Vault `secret/<vault-path>` and as mode-600 files in `~/.local/share/bromigos/`.
+- **Recall, before every turn.** Recall starts when the typed text is submitted or the transcript is final. Push-to-talk-down warms the mirror and the embedding path.
+  - It is capped at 0.2 s. Gnosis's `/v1/memory/context` takes about 6 s with its LLM legs and about 0.35 s without, so the hot path races it against a local mirror of his Gnosis space, embedded with the same local qwen3-embedding model Gnosis uses and ranked by cosine. The mirror answers in about 0.05 s.
+  - Up to five lines go into the prompt as "WHAT YOU REMEMBER". On a timeout the turn simply goes without; `recall_ms`, `recall_source` and `recalled` are in the reply stats.
+- **Writing.** The `remember` tool writes one short sentence (host preferences, decisions, lab facts, recurring problems) asynchronously, with Gnosis fact extraction on (`messages` + `infer=true`). The note is in the mirror at once.
+  - After ten quiet minutes, the conversation since the last summary goes to Gnosis the same way.
+- **Forgetting.** `forget` ("forget that" means the last note) deletes in his own space only, then sweeps near-duplicates that extraction filed in other words, at once and again 12 s later.
+- **Reading other memory.** `gnosis_search` reads `vector`, `arbiter-research` or `arbiter-signals`.
+- **Audit.** Every recall, remember, forget, summary and search is in `~/.local/state/bromigos/vector-audit.log` with the text hashed and truncated, never whole.
+- **On the avatar.** A ring of dots with "◈ RECALLED n", "◈ FILED" or "◈ FORGOTTEN" flickers by the construct, and he says it in character ("noted; filed under host preferences").
+
 ## The brain
 
 `voice.json` `"brain"` picks the brain. `"pai"` is the default: `holo/vector/brain_pai.py` on Pydantic AI (`pydantic-ai-slim` 2.54.0 and `pydantic-ai-harness` 0.54.0, pinned, in `~/.local/share/bromigos/venv-brain`, a venv with system site packages so GTK still loads; `bin/bromigos-holo` runs the daemon there). `"classic"` is the hand-rolled `holo/vector/brain.py`. Both drive the same callbacks, so they can run side by side.
