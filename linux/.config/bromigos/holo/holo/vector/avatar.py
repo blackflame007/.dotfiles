@@ -160,6 +160,15 @@ class Spring:
 
 STATE_COL = {"idle": "phosphor", "listening": "soft", "thinking": "amber", "speaking": "phosphor",
              "error": "danger", "sleep": "dim"}
+VOICE_STATES = ("idle", "speaking")       # states that wear the speaking voice's colour
+
+
+def hex_lin(h, k=1.0):
+    h = h.lstrip("#")
+    return np.array([((int(h[i:i + 2], 16) / 255.0) ** 2.2) * k for i in (0, 2, 4)], np.float32)
+
+
+DANGER, RUST, AMBER = hex_lin("#ff766f"), hex_lin("#4a0e0e"), hex_lin("#d4af37")
 
 
 class Avatar:
@@ -182,6 +191,50 @@ class Avatar:
         self.look_at = None       # (yaw, pitch) to hold, e.g. toward an exhibit
         self.look_until = 0.0
         self.flinch = 0.0
+        # colour: the voice tint crossfades (~300 ms) on a voice change; the mood blends over it
+        self.tint = hex_lin("#39ff14")
+        self.tint_to = self.tint.copy()
+        self.glitch = 0.0                    # 1 at a voice switch, gone in ~0.3 s
+        self.mood = {"excited": 0.0, "concerned": 0.0, "alarmed": 0.0}
+        self.mood_to = dict(self.mood)
+        self.crackle = np.ones(32, np.float32)
+        self.next_crackle = 0.0
+
+    def set_voice_colour(self, hexcol, switch=True):
+        self.tint_to = hex_lin(hexcol)
+        if switch:
+            self.glitch = 1.0
+
+    def set_mood(self, mood):
+        """calm | excited | concerned | alarmed: eases in over ~400 ms."""
+        for k in self.mood_to:
+            self.mood_to[k] = 1.0 if k == mood else 0.0
+        if mood == "alarmed":
+            self.flinch = max(self.flinch, 0.6)
+
+    def calm_down(self):
+        for k in self.mood_to:
+            self.mood_to[k] = 0.0
+
+    def mood_name(self):
+        k = max(self.mood, key=self.mood.get)
+        return k if self.mood[k] > 0.25 else "calm"
+
+    def colour(self):
+        """The construct's current colour (linear rgb) and the edge colour."""
+        base = self.tint if self.state in VOICE_STATES else lin(STATE_COL.get(self.state, "phosphor"))
+        c = np.asarray(base, np.float32)
+        e, cn, a = self.mood["excited"], self.mood["concerned"], self.mood["alarmed"]
+        if cn > 0:   # desaturate toward amber, keeping a trace of the voice
+            grey = np.full(3, c.mean(), np.float32)
+            c = c * (1 - 0.5 * cn) + (0.4 * grey + 0.6 * AMBER) * 0.5 * cn
+        edge = c.copy()
+        if a > 0:    # flush toward danger, edges to deep rust; the voice hue stays visible
+            c = c * (1 - 0.8 * a) + DANGER * 0.8 * a      # a fifth of the voice hue survives
+            edge = edge * (1 - 0.85 * a) + (RUST * 4.0) * 0.85 * a
+        c = c * (1 + 0.3 * e)
+        edge = edge * (1 + 0.3 * e)
+        return c, edge
 
     def set_state(self, s):
         if s != self.state:
@@ -225,6 +278,18 @@ class Avatar:
                 self.gaze.t[:] = ((r() - 0.5) * (1.3 if big else 0.5), (r() - 0.5) * (0.6 if big else 0.25))
                 self.next_saccade = t + 0.5 + r() * 2.2
         self.gaze.step(dt)
+        # colour and mood easing: tint ~300 ms, mood in ~400 ms, out slowly (decay set by the scene)
+        self.tint = self.tint_to + (self.tint - self.tint_to) * math.exp(-11.0 * dt)
+        for k in self.mood:
+            rate = 7.5 if self.mood_to[k] > self.mood[k] else 0.22
+            self.mood[k] = self.mood_to[k] + (self.mood[k] - self.mood_to[k]) * math.exp(-rate * dt)
+        self.glitch = max(0.0, self.glitch - dt / 0.3)
+        alarm = self.mood["alarmed"]
+        if alarm > 0.05 and t >= self.next_crackle:   # static crackle: steps at ~4 Hz, never a strobe
+            self.crackle = (1.0 - 0.35 * alarm * np.random.random(32) ** 3).astype(np.float32)
+            self.next_crackle = t + 0.22 + 0.12 * r()
+        elif alarm <= 0.05:
+            self.crackle[:] = 1.0
         # aperture
         if st == "listening":
             ap = 0.95 + 0.05 * self.level
@@ -248,10 +313,14 @@ class Avatar:
                 ap *= abs(2 * b - 1) ** 0.6
             else:
                 self.blink = -1
+        if alarm > 0.05:                       # harder, faster iris
+            ap = ap * (1 - 0.35 * alarm) + 0.08 * alarm * math.sin(t * 9.0)
+        self.aperture.k = 140 * (1 + 1.6 * alarm)
         self.aperture.t[0] = ap
         self.aperture.step(dt)
         # gimbals
         rate = {"thinking": 3.4, "listening": 1.1, "speaking": 1.0 + 2.0 * self.level, "error": 0.2, "sleep": 0.08}.get(st, 0.35)
+        rate *= 1 + 0.6 * self.mood["excited"] + 1.2 * alarm
         self.spin_a += rate * dt
         self.spin_b -= rate * 0.73 * dt
         # whips: idle sway, listening perk, thinking twitch, speaking bob, error shiver
@@ -307,7 +376,12 @@ class Avatar:
             side, up = w.x
             base = np.array([(k - 1) * 0.06, R * 0.62, -0.035], np.float32)
             pm[P_WHIP0 + k] = head @ gl.translate(*base) @ gl.rot_z(-side) @ gl.rot_x(-0.35 - up * 0.6)
-        c = lin(STATE_COL.get(self.state, "phosphor"))
+        c, edge = self.colour()
+        g = self.glitch
+        if g > 0:   # the voice switch: a brief tremor of the iris, timed with the scratch
+            j = 0.06 * g * math.sin(self.t * 60.0)
+            for k in range(NBLADE):
+                pm[P_BLADE0 + k] = pm[P_BLADE0 + k] @ gl.rot_z(j * (1 if k % 2 else -1))
         boost = {"speaking": 1.25 + 0.5 * self.level, "listening": 1.15 + 0.4 * self.level,
                  "thinking": 1.1, "sleep": 0.45}.get(self.state, 1.0)
         pc = np.zeros((n, 4), np.float32)
@@ -329,7 +403,9 @@ class Avatar:
                 pw[p] = 1.1
             else:
                 pw[p] = 1.35
-            pc[p] = (c[0] * k, c[1] * k, c[2] * k, 1.0)
+            col = edge if p in (P_BEZEL, P_GIM_A, P_GIM_B) or p >= P_WHIP0 else c
+            k *= self.crackle[p % 32] * (1.0 - 0.3 * g * (0.5 + 0.5 * math.sin(self.t * 75.0 + p)))
+            pc[p] = (col[0] * k, col[1] * k, col[2] * k, 1.0)
         return pm, pc, pw
 
     def draw(self, holo, base, fade=1.0):
@@ -340,7 +416,7 @@ class Avatar:
         pc[:, 3] *= fade
         holo.draw_model(self.gpu, base, pm, pc, pw, scan=(0, 0.02, 0), fill=0.8, width=1.5, slices=0.0, ghost=0.18)
         # a thin beam from the emitter up to the construct
-        c = lin(STATE_COL.get(self.state, "phosphor"), 0.35 * fade)
+        c = tuple(self.colour()[0] * 0.35 * fade)
         ys = np.linspace(0.02, 0.4, 2)
         holo.draw_lines3d(np.array([[0, ys[0], 0], [0, ys[1], 0]], np.float32),
                           np.array([[*c, 0.6], [*c, 0.0]], np.float32), base, width=2.0)

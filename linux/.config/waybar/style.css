@@ -182,3 +182,12 @@ window#waybar.empty #window {
                             text-shadow: 0 0 8px alpha(@phosphor, 0.6); }
 #custom-vector.error       { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg"); }
 #custom-vector.unread      { text-shadow: 0 0 8px alpha(@amber, 0.6); }
+/* the speaking voice tints the pip; a mood overrides it */
+#custom-vector.voice-robot     { color: #3fe0c5; }
+#custom-vector.voice-scientist { color: @amber; }
+#custom-vector.voice-floor     { color: #f0d36a; }
+#custom-vector.voice-notify    { color: @soft; }
+#custom-vector.mood-excited    { text-shadow: 0 0 10px alpha(@phosphor, 0.8); }
+#custom-vector.mood-concerned  { color: @amber; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
+#custom-vector.mood-alarmed    { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg");
+                                 text-shadow: 0 0 8px alpha(@danger, 0.7); }

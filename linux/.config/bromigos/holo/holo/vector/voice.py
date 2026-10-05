@@ -40,6 +40,8 @@ RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCK = os.path.join(RUNTIME, "bromigos-holo-voice.sock")
 STATE = os.path.expanduser("~/.local/state/bromigos")
 MUTED = os.path.join(STATE, "vector-voice-muted")
+MODE = os.path.join(STATE, "vector-voice-mode")          # auto (default) or a pinned role
+ROLES = ("main", "robot", "scientist", "floor", "notify")
 LOG = os.path.join(STATE, "holo-voice.log")
 SENT_END = re.compile(r"(.+?[.!?…]+)(\s+|$)", re.S)
 
@@ -75,6 +77,11 @@ class Voice:
         self.skip_until = 0.0      # mic audio before this is speaker drain, dropped
         self.said = []             # (monotonic, sentence) VECTOR spoke recently
         self.aec = None            # (module id, sink master, source master)
+        self.roles = tuple(self.cfg.get("voices", {}).keys()) or ROLES
+        self.mode = self._read_mode()
+        from .text import VoiceSplitter
+        self.splitter = VoiceSplitter(self.mode, self.roles)
+        self.voice_now = "main"    # the voice that spoke last (a change plays the dial scratch)
 
     # ------------------------------------------------------------------ server
     def _req(self, obj, timeout=30.0):
@@ -269,47 +276,60 @@ class Voice:
         self.app.pscene.set_state("idle")
 
     # ------------------------------------------------------------------ speaking
+    # ------------------------------------------------------------------ voice mode
+    def _read_mode(self):
+        try:
+            with open(MODE) as f:
+                m = f.read().strip()
+            return m if m == "auto" or m in self.roles else "auto"
+        except OSError:
+            return "auto"
+
+    def set_mode(self, mode):
+        """auto | a role | cycle. Persisted; the next sentence uses it."""
+        order = ["auto"] + [r for r in self.roles if r != "notify"]
+        if mode == "cycle":
+            mode = order[(order.index(self.mode) + 1) % len(order)] if self.mode in order else "auto"
+        if mode != "auto" and mode not in self.roles:
+            raise ValueError(f"voice must be auto or one of {list(self.roles)}")
+        self.mode = mode
+        self.splitter.mode = mode
+        os.makedirs(STATE, exist_ok=True)
+        with open(MODE, "w") as f:
+            f.write(mode + "\n")
+        return mode
+
+    # ------------------------------------------------------------------ speaking
     def feed(self, delta):
-        """Streamed reply text: speak each sentence as soon as it is complete."""
-        if self.muted:
-            return
-        self.pending += delta
-        while True:
-            m = SENT_END.match(self.pending)
-            if not m or (m.end(1) == len(self.pending) and not m.group(2)):
-                break
-            end = m.end()
-            # a "*stage direction*" can span sentence ends; wait for its closing
-            # asterisk so spoken() drops it whole (up to a sane length)
-            while self.pending[:end].count("*") % 2 and len(self.pending) < 600:
-                nxt = SENT_END.match(self.pending, end)
-                if not nxt or (nxt.end(1) == len(self.pending) and not nxt.group(2)):
-                    end = None
-                    break
-                end = nxt.end()
-            if end is None:
-                break
-            self._enqueue(self.pending[:end])
-            self.pending = self.pending[end:]
+        """Streamed reply text: speak each sentence, in its voice, as soon as it is complete."""
+        for unit in self.splitter.feed(delta):
+            self._unit(unit)
 
     def flush(self):
-        if self.pending.strip() and not self.muted:
-            self._enqueue(self.pending)
-        self.pending = ""
+        for unit in self.splitter.flush():
+            self._unit(unit)
+        self.splitter.reset()
 
-    def say(self, text):
+    def _unit(self, unit):
+        role, text, mood = unit
+        if mood and self.app and getattr(self.app, "pscene", None):
+            GLib.idle_add(self.app.pscene.set_mood, mood)
+        if not self.muted:
+            self._enqueue(text, role)
+
+    def say(self, text, role="main"):
         """A whole line (the greeting, a fixed phrase). Never while the mic is open."""
         if not self.muted and not self.rec:
             for m in SENT_END.finditer(text.strip() + " "):
-                self._enqueue(m.group(1))
+                self._enqueue(m.group(1), role)
 
-    def _enqueue(self, sentence):
+    def _enqueue(self, sentence, role="main"):
         from .text import spoken
         s = re.sub(r"\s+", " ", spoken(sentence)).strip()
         if not re.search(r"\w", s):
             return
         with self.qlock:
-            self.queue.append((self.gen, s))
+            self.queue.append((self.gen, role, s))
             if not self.speaking:
                 self.speaking = True
                 threading.Thread(target=self._speak_loop, daemon=True).start()
@@ -320,18 +340,22 @@ class Voice:
                 with self.qlock:
                     if not self.queue:
                         break
-                    gen, sentence = self.queue.pop(0)
+                    gen, role, sentence = self.queue.pop(0)
                 if gen != self.gen or self.muted:
                     continue
-                self._stream(sentence, gen)
+                cue = role != self.voice_now and self.cfg.get("cue", {}).get("enabled", True)
+                self._stream(sentence, gen, role, cue)
+                self.voice_now = role
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             GLib.idle_add(self.app.pscene.note, f"(voice trouble: {str(e)[:80]})")
         finally:
             with self.qlock:
                 self.speaking = False
             GLib.idle_add(self._done_speaking)
 
-    def _open_stream(self, sentence):
+    def _open_stream(self, sentence, role="main", cue=False):
         for attempt in range(2):
             try:
                 s = socket.socket(socket.AF_UNIX)
@@ -342,7 +366,12 @@ class Voice:
                 if attempt:
                     raise
                 self._spawn()
-        s.sendall((json.dumps({"op": "tts_stream", "text": sentence}) + "\n").encode())
+        add = 0.0
+        sc = getattr(self.app, "pscene", None) if self.app else None
+        if sc is not None:
+            add = float(self.cfg.get("mood_shimmer", {}).get(sc.mood_name(), 0.0))
+        s.sendall((json.dumps({"op": "tts_stream", "text": sentence, "role": role, "cue": cue,
+                               "shimmer_add": add}) + "\n").encode())
         f = s.makefile("rb")
         head = json.loads(f.readline().decode() or "{}")
         if head.get("error") or not head.get("sr"):
@@ -350,13 +379,13 @@ class Voice:
             raise RuntimeError(head.get("error", "no audio"))
         return s, f, head
 
-    def _stream(self, sentence, gen):
+    def _stream(self, sentence, gen, role="main", cue=False):
         """Speak one sentence as it is generated: socket -> buffer -> pw-play (raw PCM on stdin).
         The level that drives the iris comes from the audio actually being fed to the player."""
         if self.rec:
             return                                   # never speak into an open mic
         t0 = time.monotonic()
-        s, f, head = self._open_stream(sentence)
+        s, f, head = self._open_stream(sentence, role, cue)
         sr = int(head["sr"])
         self.last_stats.update(tts_engine=head.get("engine"), tts_cached=head.get("cached"))
         sink = self.cfg.get("sink") or ("vector_aec_sink" if self.ensure_aec() else None)
@@ -364,6 +393,7 @@ class Voice:
         self.said = [(t, x) for t, x in self.said if now - t < 30] + [(now, sentence)]
         sc = self.app.pscene
         GLib.idle_add(sc.set_state, "speaking")
+        GLib.idle_add(sc.set_voice, role, cue)      # the tint crossfades with the scratch
         self.player = subprocess.Popen(["pw-play"] + (["--target", sink] if sink else []) +
                                        ["--raw", "--rate", str(sr), "--channels", "1", "--format", "s16", "-"],
                                        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -427,6 +457,8 @@ class Voice:
 
     def _done_speaking(self):
         sc = self.app.pscene
+        self.voice_now = "main"
+        sc.set_voice("main", False)
         sc.audio_level = None
         if sc.avatar.state == "speaking" and not sc.revealing():
             sc.set_state("idle")
@@ -437,6 +469,8 @@ class Voice:
         with self.qlock:
             self.queue.clear()
         self.pending = ""
+        self.splitter.reset()
+        self.voice_now = "main"
         if self.player and self.player.poll() is None:
             self.player.kill()                       # SIGKILL: no fade-out tail into the mic
             try:
@@ -460,6 +494,7 @@ class Voice:
 
     def status(self):
         return {"muted": self.muted, "recording": bool(self.rec), "speaking": self.speaking,
+                "mode": self.mode, "voice": self.voice_now,
                 "engine": self.cfg.get("engine"), **self.last_stats}
 
     @staticmethod

@@ -121,6 +121,28 @@ def main():
         p.render(fbo, W, H)
         save(fbo, out)
 
+    elif kind == "vector-switch":
+        # the voice switch and the mood layer, frame by frame (30 fps): Voss -> Arc -> Voss -> alarmed
+        from holo.vector.scene import VectorScene
+        p = VectorScene(live)
+        p.fade = p.fade_to = 1.0
+        p.left_w = 560
+        os.makedirs(out, exist_ok=True)
+        timeline = {0: ("speaking", "main", None), 30: ("speaking", "scientist", None), 75: ("speaking", "main", None),
+                    105: ("speaking", "robot", "alarmed"), 150: ("speaking", "main", None)}
+        p.set_voice("main", False)
+        for k in range(180):
+            if k in timeline:
+                st, voice, mood = timeline[k]
+                p.set_state(st)
+                p.set_voice(voice, True)
+                if mood:
+                    p.set_mood(mood)
+            p.audio_level = 0.45 + 0.35 * abs(np.sin(k * 0.55))
+            p.last_t = time.monotonic() - 1 / 30
+            p.render(fbo, W, H)
+            save(fbo, os.path.join(out, f"f{k:03d}.png"))
+
 
 if __name__ == "__main__":
     main()

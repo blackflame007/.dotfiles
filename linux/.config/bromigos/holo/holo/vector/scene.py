@@ -50,6 +50,47 @@ class VectorScene:
     def set_state(self, s):
         self.avatar.set_state(s)
 
+    # ------------------------------------------------------------------ voice colour and mood
+    def _voices(self):
+        if getattr(self, "_vcfg", None) is None:
+            import json
+            import os
+            try:
+                with open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "voice.json")) as f:
+                    self._vcfg = json.load(f).get("voices", {})
+            except (OSError, ValueError):
+                self._vcfg = {}
+        return self._vcfg
+
+    def set_voice(self, role, switch=True):
+        """The voice now speaking: its colour crossfades in (with a tremor if it changed)."""
+        col = self._voices().get(role, {}).get("colour", "#39ff14")
+        changed = role != getattr(self, "voice_role", "main")
+        self.voice_role = role
+        self.avatar.set_voice_colour(col, switch and changed)
+
+    def set_mood(self, mood):
+        """calm | excited | concerned | alarmed, from the reply's marker or the facts."""
+        self.mood_at = time.monotonic()
+        order = {"calm": 0, "excited": 1, "concerned": 2, "alarmed": 3}
+        cur = self.mood_name()
+        # the facts win over a cheerful marker: never step down from alarmed/concerned mid-reply
+        if mood in ("excited", "calm") and cur in ("concerned", "alarmed") and time.monotonic() - getattr(self, "fact_at", -99) < 20:
+            return
+        if mood in ("concerned", "alarmed") and order.get(mood, 0) < order.get(cur, 0):
+            return
+        if mood == "calm":
+            self.avatar.calm_down()
+        else:
+            self.avatar.set_mood(mood)
+
+    def set_mood_from_facts(self, mood):
+        self.fact_at = time.monotonic()
+        self.set_mood(mood)
+
+    def mood_name(self):
+        return self.avatar.mood_name()
+
     def add_user(self, text):
         self.msgs.append(Msg("you", text))
         self._trim()
@@ -142,6 +183,10 @@ class VectorScene:
         self.fade = approach(self.fade, self.fade_to, dt, 6.0)
         on = self.stage is not None and time.monotonic() < self.ex_until
         self.ex_amt = approach(self.ex_amt, 1.0 if on else 0.0, dt, 3.5)
+        # moods settle back to calm a few seconds after the reply ends (then fade over ~15 s)
+        if a.state not in ("speaking", "thinking") and not self.revealing() and \
+                time.monotonic() - getattr(self, "mood_at", 0) > 4 and any(a.mood_to.values()):
+            a.calm_down()
         if self.stage:
             self.stage.update(dt)
             self.stage.fade = self.ex_amt
@@ -170,7 +215,7 @@ class VectorScene:
         band = 150 * sc * ex if self.ex_parts else 0.0     # room for the exhibit's readouts
         H.camera(eye, tgt, 32.0, viewport=(0, 40 * sc * ex, lw, h - band - 40 * sc * ex))
         st = self.avatar.state
-        table_col = {"thinking": "amber", "error": "danger"}.get(st, "phosphor")
+        table_col = {"thinking": "amber", "error": "danger"}.get(st) or tuple(self.avatar.colour()[0])
         base = gl.rot_y(-0.18 * ex)
         H.draw_table(base @ gl.rot_y(-t * 0.08), radius=0.3, cone_top=0.26, cone_h=0.55,
                      power=(0.75 + 0.35 * self.avatar.level) * self.fade, colour=table_col)
@@ -224,7 +269,7 @@ class VectorScene:
         rows = []
         for m in reversed(self.msgs):
             if m.role == "vector":
-                text = plain(m.text[:int(m.shown)]).strip()
+                text = plain(m.text[:int(m.shown)], streaming=True).strip()
                 if not text:
                     continue
                 if m.shown < len(m.text) or not m.done:

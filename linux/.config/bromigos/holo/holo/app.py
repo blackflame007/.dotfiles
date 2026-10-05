@@ -348,6 +348,9 @@ class App:
         def tool(self, name, args, label, ex):
             GLib.idle_add(self.app._vector_tool, name, label, ex)
 
+        def mood(self, mood):
+            GLib.idle_add(self.app.pscene.set_mood_from_facts, mood)
+
         def done(self, text, stats):
             GLib.idle_add(self.app._vector_done, text, stats)
 
@@ -424,6 +427,23 @@ class App:
         model = (args or {}).get("model") or "workstation"
         if model not in fmt.available():
             raise ValueError(f"model must be one of {fmt.available()}")
+        if name == "set_voice":
+            mode = (args or {}).get("mode", "auto")
+            box = {}
+            ev = threading.Event()
+
+            def run():
+                try:
+                    box["m"] = self.set_voice_mode(mode)
+                except Exception as e:
+                    box["e"] = e
+                ev.set()
+                return False
+            GLib.idle_add(run)
+            ev.wait(5)
+            if "e" in box:
+                raise box["e"]
+            return {"ok": True, "voice_mode": box.get("m")}
         if name == "show_hologram":
             GLib.idle_add(lambda: (self.pscene.exhibit(model, args.get("parts")), False)[1])
             return {"ok": True, "showing": model}
@@ -525,7 +545,20 @@ class App:
     def _voice_label(self):
         if not self.voice:
             return "TYPED · VOICE NOT SET UP"
-        return "VOICE MUTED · SUPER+SHIFT+V" if self.voice.muted else "HOLD SUPER+V TO TALK · SUPER+SHIFT+V MUTES"
+        if self.voice.muted:
+            return "VOICE MUTED · SUPER+SHIFT+V"
+        mode = "VOICES AUTO" if self.voice.mode == "auto" else f"VOICE PINNED: {self.voice.mode.upper()}"
+        return f"{mode} · HOLD SUPER+V TO TALK"
+
+    def set_voice_mode(self, mode):
+        v = self.ensure_voice()
+        if not v:
+            raise RuntimeError("voice unavailable")
+        m = v.set_mode(mode)
+        self.pscene.voice = self._voice_label()
+        if m != "auto":
+            self.pscene.set_voice(m, True)          # show the pinned voice's colour right away
+        return m
 
     # ------------------------------------------------------------------ gallery
     def ensure_gallery(self):
@@ -608,7 +641,10 @@ class App:
         """The bar module's feed: state, unread count, whether it is minimized."""
         st = {"state": self.vector_state(), "unread": self.unread, "shown": self._vector_shown(),
               "model": self.brain.model if self.brain else None,
-              "muted": bool(self.voice and self.voice.muted)}
+              "muted": bool(self.voice and self.voice.muted),
+              "voice_mode": self.voice.mode if self.voice else "auto",
+              "voice": getattr(self.pscene, "voice_role", "main") if self.vector else "main",
+              "mood": self.pscene.mood_name() if self.vector else "calm"}
         sig = json.dumps(st, sort_keys=True)
         if sig != self._state_sig:
             self._state_sig = sig
@@ -692,6 +728,11 @@ class App:
                 GLib.timeout_add(500, wait)
                 return "stopping after the current turn"
             GLib.idle_add(Gtk.main_quit)
+        elif verb == "voice":
+            try:
+                return "voice " + self.set_voice_mode(arg.strip() or "cycle")
+            except Exception as e:
+                return f"error: {e}"
         elif verb == "release":
             self.release_keyboard()
         else:

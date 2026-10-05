@@ -25,8 +25,10 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 | `holo/live.py`, `bind.py` | Live readings (this machine via psutil and NVML, the Lab, ARBITER read-only), polled only while wanted; part bindings |
 | `holo/gallery.py` | The gallery scene |
 | `holo/vector/` | `avatar.py` (the construct), `scene.py` (console layout and transcript), `persona.py` (system prompt), `brain.py` (LiteLLM streaming with tools and the model fallback chain), `text.py` (markdown out of display and speech), `tools.py` (allowlisted tools and the audit log), `voice.py` (push-to-talk and speech, desktop side) |
-| `holo/voice_server.py`, `voice.json`, `voices/` | Speech in and out, in the venv `~/.local/share/bromigos/venv-tts` (Python 3.12, torch cu130): faster-whisper `large-v3-turbo` on the GPU, Qwen3-TTS speaking VECTOR's designed voice, Kokoro as the fallback, lines cached in `~/.cache/bromigos/vector-tts` |
-| `holo/shimmer.py` | The projector shimmer DSP (band-limit, swept comb, quiet ring mod, tiny room), streamable, one knob |
+| `holo/voice_server.py`, `voice.json`, `voices/` | Speech in and out, in the venv `~/.local/share/bromigos/venv-tts` (Python 3.12, torch cu130): faster-whisper `large-v3-turbo` on the GPU, Qwen3-TTS speaking VECTOR's five voices from local references (`voices/make-refs.py`), Kokoro as the fallback, the dial scratch, lines cached in `~/.cache/bromigos/vector-tts` |
+| `holo/vector/mood.py` | Mood from the facts (tool results that show trouble) |
+| `tools/voice-demo.py` | Render a tagged reply to a wav exactly as the desktop would speak it |
+| `holo/shimmer.py` | The projector shimmer DSP (band-limit, swept comb, quiet ring mod, tiny room), streamable, one knob per voice; and the dial scratch between voices |
 | `holo/pilot/` | Compatibility alias for older callers (`holo.pilot.voice` is `holo.vector.voice`) |
 | `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning |
 
@@ -51,14 +53,44 @@ All enforced in `holo/vector/tools.py`, not by the prompt: no shell (fixed argv 
 
 Push-to-talk only: `pw-record` runs while SUPER+V is held (cut at 30 s if a release is missed), with a red MIC LIVE readout. No hotword. VECTOR never hears itself on speakers: pressing SUPER+V is a barge-in (playback killed, speech queue cleared, the running turn interrupted); nothing is spoken while the mic is open; the first 350 ms after playback is dropped as speaker drain; VECTOR plays and records through a session-only PipeWire webrtc echo-cancel pair (`vector_aec_sink`, `vector_aec_source`, built on the current default speakers and mic, defaults untouched, suspended when idle; `"echo_cancel": false` in `voice.json` turns it off); and a transcript that repeats a verbatim stretch of what VECTOR said in the last 30 s is dropped. The greeting plays once per session on SUPER+E (again only after four quiet hours), never on push-to-talk or `ask`. Replies are spoken sentence by sentence as they stream, and each sentence streams too.
 
-**The voice (chosen 2026-10-04 after a survey and local benchmark; see below).** Everything is local and every voice is original:
+**Voices.** VECTOR has five voices and switches between them himself. Every voice runs locally on Qwen3-TTS 1.7B (Apache-2.0, `faster-qwen3-tts`, CUDA graphs), cloned from a reference clip:
 
-- **Qwen3-TTS 1.7B** (Apache-2.0, via `faster-qwen3-tts`, CUDA graphs) speaks every line from one reference, `voices/vector-ref-A.wav`. That reference was designed from a text description with the VoiceDesign model ("an older English gentleman ... bright, prim and precise ... sing-song"), so the voice is nobody's. `voices/README.md` lists the three designed references and their descriptions. On the RTX 5070: about 0.2 s to first audio, 2.1 to 2.3x realtime, about 4.7 GiB VRAM while loaded. The voice loads when the window opens (about 30 s cold); until it is ready, and if it ever fails, **Kokoro** answers (stock `bm_george` 70% + `bm_fable` 30%, CPU, about 0.8 s for a first sentence).
-- **The projector shimmer** (`holo/shimmer.py`) runs on every engine, set by one knob: `"shimmer"` in `voice.json`, from 0 (dry) to 1 (very machine); the default is 0.35.
+| Role | Voice | When | Colour | Shimmer |
+|------|-------|------|--------|---------|
+| main | Governor Voss | everything else (the default) | phosphor #39ff14 | 0.25 |
+| robot | Sigil | machine readouts: status figures, diagnostics, "running scan" | cyan #3fe0c5 | 0.6 |
+| scientist | Professor Arc | technology: how something works, new tech, a discovery | amber #d4af37 | 0.15 |
+| floor | Revolver Lynx | ARBITER and the Floor: trades, positions, P&L | gold #f0d36a | 0.2 |
+| notify | Lin Yao | notifications and codec calls (chosen by the desktop) | soft #9cff8a | 0.2 |
+
+- **References.** These are the operator's own Brodec cast voices on Fish: four were designed from text descriptions, and Lynx is a generic library narrator. Each is rendered once by `voices/make-refs.py` (about 300 characters each, a few cents) into `~/.local/share/bromigos/voices/` with its transcript. The clips are not committed, and there are no Fish calls at runtime. If a clip is missing, the role falls back to main, and main falls back to the designed `voices/vector-ref-A.wav`.
+- **Fast switching.** At load, every role's voice prompt is computed once and cached, so switching costs nothing. Each voice starts in about 0.25 s. Kokoro (CPU, a stock voice per role) answers if the GPU voice isn't loaded or fails.
+- **Configuration.** `voice.json` `voices` maps each role to `{name, ref, shimmer, colour, marker, use, kokoro}`. The `use` text is what the brain is told, so giving a role a new job (for example floor becoming lore and recaps) is one edit.
+- **Automatic switching.** The brain wraps whole sentences in markers: `‹robot›…‹/robot›`, `‹sci›…‹/sci›`, `‹floor›…‹/floor›` (the prompt is built from `voice.json`). Markers are stripped from the display and from speech (`holo/vector/text.py`).
+  - `VoiceSplitter` gives each sentence the voice that covers most of it, and never switches into another voice for a sentence of one or two words.
+  - If a reply has no markers at all (the Nemotron fallback rarely tags), a light heuristic assigns sentences instead: market words go to floor, a sentence of figures to robot, and technology words to scientist, with hysteresis so the voice doesn't flap.
+  - Broken or unknown markers fall back to main.
+- **The scratch.** On every real voice change, a ~240 ms radio-dial scratch plays first: swept band-passed noise, a heterodyne whistle and crackle, made with local DSP. It runs through the incoming voice's shimmer, in the same stream as the sentence, so there is no gap or overlap. Mute silences it too.
+- **Colour.** The hologram's tint crossfades to the voice's colour over ~300 ms, timed with the scratch, with a brief tremor of the iris.
+- **Manual setting.** `bromigos-holo voice auto|main|robot|scientist|floor|notify|cycle` pins a voice; auto is the default. The choice persists in `~/.local/state/bromigos/vector-voice-mode`. VECTOR has a `set_voice` tool ("use the robot voice", "back to normal"), and right-clicking the bar pip cycles the voice (middle-click mutes). The pip's tooltip shows the current voice and mode.
+- **Codec calls** from the live layer go through `holo.pilot.voice`, which speaks in the notify voice.
+
+**Mood.** A mood layer blends over the voice colour without hiding it:
+
+| Mood | Look | Voice shimmer |
+|------|------|---------------|
+| calm | the voice's colour | +0 |
+| excited | brighter, faster gimbals | +0 |
+| concerned | desaturated toward amber | +0.05 |
+| alarmed | flushed toward danger #ff766f with deep-rust edges, a harder and faster iris, a slow static crackle (steps at ~4 Hz, never a strobe), a flinch | +0.15 |
+
+- **Sources.** The reply can set a mood with a marker (`‹mood:alarmed›`, stripped from display and speech). The facts can set it too: `holo/vector/mood.py` reads tool results for a node down, failed CI, degraded apps, a critical alert or drawdown near its limit, and pushes concerned or alarmed even if the reply forgets. The facts win over a cheerful marker.
+- **Timing.** A mood eases in over ~400 ms and settles back to calm about 4 s after the reply ends, fading over ~15 s. The bar pip takes the mood colour.
+- **Audio.** `~/Music/vector-voices/demo.wav` is a multi-voice reply plus an alarmed one, rendered by `tools/voice-demo.py`; `switch.mp4` is the colour switch, rendered by `tools/offscreen.py vector-switch`.
+
 - **Speech to text** is faster-whisper `large-v3-turbo` on the GPU: about 0.13 s per push-to-talk clip, about 2.3 GiB. Set `"stt": {"model": "small.en"}` for 0.08 s and 0.8 GiB.
-- **VRAM:** with both models loaded the voice server holds about 8.2 GiB of the 12 GiB card. Models unload after 10 idle minutes, and the server exits after 30. To make it lighter, use `"stt": {"model": "small.en"}` (saves about 1.5 GiB) or `"qwen": {"model": "Qwen/Qwen3-TTS-12Hz-0.6B-Base"}` (saves about 2 GiB, slightly plainer). Rendered lines are cached by text hash, so repeats start in about 10 ms.
-- **Other engines:** `breeze` is the homelab's Breeze TTS 2, top of the open-weights arena, but 2.4x slower than realtime on the shared 5090 in eager mode, so it can't talk live. `fish` works only with a `reference_id` the operator owns, made from his own recording; its key is in `~/.local/share/bromigos/fish-audio-key`. VECTOR's production Fish model is a clone of a game character's voice and is not used anywhere here.
-- Set `BROMIGOS_HOLO_SINK` to send the voice to a specific output.
+- **VRAM:** with both models loaded, the voice server holds about 7.7 GiB of the 12 GiB card. Models unload after 10 idle minutes, and the server exits after 30.
+- **Other engines:** `breeze` (the homelab's Breeze TTS 2) is too slow to talk live. `fish` works only with a voice the operator owns. Set `BROMIGOS_HOLO_SINK` to send the voice to a specific output.
 
 **Benchmark (2026-10-04, RTX 5070, typical first sentence):**
 

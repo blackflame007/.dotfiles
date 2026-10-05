@@ -5,9 +5,12 @@ over a unix socket, one JSON request per connection:
     {"op": "warm"}                      load speech-to-text now (on push-to-talk press)
     {"op": "warm_tts"}                  load the voice now (when VECTOR's window opens)
     {"op": "stt", "pcm": path}          16 kHz mono s16 raw -> {"text", "ms"}
-    {"op": "tts", "text": "..."}        -> {"wav": path, "ms", "cached", "engine"}
-    {"op": "tts_stream", "text": "..."} -> one JSON header line {"sr", "engine", "cached"},
-                                           then raw mono s16le PCM until the socket closes
+    {"op": "tts", "text": "...", "role": r}        -> {"wav": path, "ms", "cached", "engine"}
+    {"op": "tts_stream", "text": "...", "role": r, "shimmer_add": x, "cue": bool}
+                                        -> one JSON header line {"sr", "engine", "cached"}, then raw
+                                           mono s16le PCM until the socket closes; with cue, the
+                                           dial-scratch transition comes first in the same stream
+    roles (voice.json "voices"): main, robot, scientist, floor, notify
     {"op": "ping"}
 
 Voice (voice.json "engine"):
@@ -42,7 +45,7 @@ import wave
 
 import numpy as np
 
-from .shimmer import Shimmer
+from .shimmer import Shimmer, dial_scratch
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONF = os.path.join(HERE, "voice.json")
@@ -113,6 +116,23 @@ class Server:
             text = " ".join(s.text for s in segs).strip()
         return {"text": text, "ms": int((time.monotonic() - t0) * 1000), "seconds": round(len(a) / 16000, 2)}
 
+    # ------------------------------------------------------------------ roles
+    def role(self, name):
+        v = self.cfg.get("voices", {})
+        return v.get(name) or v.get("main") or {}
+
+    def ref(self, name):
+        """(reference wav, its transcript) for a role; the designed voice if the reference is missing."""
+        r = self.role(name)
+        p = os.path.expanduser(r.get("ref") or "")
+        if p and os.path.exists(p) and os.path.exists(p[:-4] + ".txt"):
+            with open(p[:-4] + ".txt") as f:
+                return p, f.read().strip()
+        if name != "main":
+            return self.ref("main")
+        d = self.cfg.get("designed_fallback", {})
+        return os.path.join(HERE, d.get("ref", "voices/vector-ref-A.wav")), d.get("text", "")
+
     # ------------------------------------------------------------------ TTS engines (each yields float chunks)
     def _load_qwen(self):
         if self.qwen is not None:
@@ -126,10 +146,12 @@ class Server:
             t0 = time.monotonic()
             m = FasterQwen3TTS.from_pretrained(c["model"])
             m.warmup(prefill_len=100)
-            ref = os.path.join(HERE, c["ref_audio"])
-            for _ in range(2):           # capture the graphs for this reference now
+            # every role's voice prompt (speaker embedding + reference codes) is computed here
+            # once and cached inside the model, so switching voices mid-reply costs nothing
+            for name in self.cfg.get("voices", {"main": {}}):
+                ref, text = self.ref(name)
                 list(m.generate_voice_clone_streaming(text="One moment.", language="English", ref_audio=ref,
-                                                      ref_text=c["ref_text"], chunk_size=c.get("chunk_size", 4)))
+                                                      ref_text=text, chunk_size=c.get("chunk_size", 4)))
             self.qwen = m
             log(f"qwen voice {c['model']} ready in {time.monotonic() - t0:.1f}s")
             return m
@@ -148,28 +170,32 @@ class Server:
         except Exception as e:
             log("qwen voice failed to load:", e)
 
-    def _gen_qwen(self, text):
+    def _gen_qwen(self, text, role):
         m = self.qwen
         if m is None:
             raise RuntimeError("qwen voice not loaded yet")
         c = self.cfg["qwen"]
+        ref, ref_text = self.ref(role)
         for chunk, sr, _ in m.generate_voice_clone_streaming(
-                text=text, language="English", ref_audio=os.path.join(HERE, c["ref_audio"]), ref_text=c["ref_text"],
+                text=text, language="English", ref_audio=ref, ref_text=ref_text,
                 chunk_size=c.get("chunk_size", 4), temperature=c.get("temperature", 0.7)):
             yield np.asarray(chunk, np.float32).squeeze(), sr
 
-    def _gen_kokoro(self, text):
-        c = self.cfg["kokoro"]
+    def _gen_kokoro(self, text, role):
+        c = self.role(role).get("kokoro") or self.role("main").get("kokoro") or {"blend": {"bm_george": 1.0}}
         if self.kokoro is None:
             import onnxruntime as ort
             from kokoro_onnx import Kokoro
             sess = ort.InferenceSession(os.path.join(VOICE_DIR, "kokoro-v1.0.onnx"), providers=["CPUExecutionProvider"])
             self.kokoro = Kokoro.from_session(sess, os.path.join(VOICE_DIR, "voices-v1.0.bin"))
-            self.kstyle = sum(w * self.kokoro.get_voice_style(v) for v, w in c["blend"].items())
-        a, sr = self.kokoro.create(text, voice=self.kstyle, speed=c.get("speed", 1.05), lang=c.get("lang", "en-gb"))
+            self.kstyle = {}
+        key = json.dumps(c["blend"], sort_keys=True)
+        if key not in self.kstyle:
+            self.kstyle[key] = sum(w * self.kokoro.get_voice_style(v) for v, w in c["blend"].items())
+        a, sr = self.kokoro.create(text, voice=self.kstyle[key], speed=c.get("speed", 1.05), lang=c.get("lang", "en-gb"))
         yield np.asarray(a, np.float32), sr
 
-    def _gen_breeze(self, text):
+    def _gen_breeze(self, text, role):
         c = self.cfg["breeze"]
         b = uuid.uuid4().hex
         parts = [f"--{b}\r\nContent-Disposition: form-data; name=\"{n}\"\r\n\r\n{v}\r\n"
@@ -185,7 +211,7 @@ class Server:
                     break
                 yield np.frombuffer(pcm[: len(pcm) // 2 * 2], np.int16).astype(np.float32) / 32768.0, 24000
 
-    def _gen_fish(self, text):
+    def _gen_fish(self, text, role):
         c = self.cfg["fish"]
         if not c.get("reference_id"):
             raise RuntimeError("fish engine needs a reference_id of a voice model the operator owns")
@@ -201,8 +227,9 @@ class Server:
             yield np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768.0, sr
 
     # ------------------------------------------------------------------ TTS front
-    def _key(self, engine, text):
-        conf = [engine, self.cfg.get(engine), self.cfg.get("shimmer", 0)]
+    def _key(self, engine, text, role="main", shimmer=0.0):
+        r = self.role(role)
+        conf = [engine, self.cfg.get(engine), role, r.get("ref"), r.get("kokoro") if engine == "kokoro" else None, round(shimmer, 3)]
         return hashlib.sha1(json.dumps([conf, text], sort_keys=True).encode()).hexdigest()[:24]
 
     def _engines(self):
@@ -216,28 +243,47 @@ class Server:
         out = [main] if (main != "qwen" or self.qwen is not None) else []
         return out + ([fb] if fb and fb != main else [])
 
-    def speak(self, text):
+    def shimmer_for(self, role, add=0.0):
+        return max(0.0, min(1.0, float(self.role(role).get("shimmer", 0.3)) + float(add or 0)))
+
+    def cue(self, role, sr, add=0.0):
+        """The dial scratch into `role`, through that role's shimmer; cached."""
+        key = (role, sr, round(add, 3))
+        if not hasattr(self, "_cues"):
+            self._cues = {}
+        if key not in self._cues:
+            variant = sorted(self.cfg.get("voices", {"main": 0})).index(role) if role in self.cfg.get("voices", {}) else 0
+            a = dial_scratch(sr, variant, self.cfg.get("cue", {}).get("seconds", 0.24))
+            self._cues[key] = Shimmer(sr, self.shimmer_for(role, add)).process(a)
+        return self._cues[key]
+
+    def speak(self, text, role="main", add=0.0, cue=False):
         """Yields (header, chunks...): header {"sr", "engine", "cached"} then float32 chunks."""
         text = text.strip()
+        shim = self.shimmer_for(role, add)
         for engine in self._engines():
-            path = os.path.join(CACHE, self._key(engine, text) + ".wav")
+            path = os.path.join(CACHE, self._key(engine, text, role, shim) + ".wav")
             if os.path.exists(path):
                 with wave.open(path) as w:
                     sr = w.getframerate()
                     a = np.frombuffer(w.readframes(w.getnframes()), np.int16).astype(np.float32) / 32768.0
                 yield {"sr": sr, "engine": engine, "cached": True}
+                if cue:
+                    yield self.cue(role, sr, add)
                 for i in range(0, len(a), sr // 5):
                     yield a[i:i + sr // 5]
                 return
             try:
-                gen = getattr(self, "_gen_" + engine)(text)
+                gen = getattr(self, "_gen_" + engine)(text, role)
                 first = next(gen)
             except Exception as e:
                 log(f"tts engine {engine} failed: {e}")
                 continue
             chunk, sr = first
-            dsp = Shimmer(sr, self.cfg.get("shimmer", 0.35))
+            dsp = Shimmer(sr, shim)
             yield {"sr": sr, "engine": engine, "cached": False}
+            if cue:
+                yield self.cue(role, sr, add)
             done = []
             y = dsp.process(chunk)
             done.append(y)
@@ -253,13 +299,13 @@ class Server:
             return
         raise RuntimeError("no TTS engine answered")
 
-    def tts(self, text):
+    def tts(self, text, role="main"):
         t0 = time.monotonic()
         with self.tts_lock:
-            it = self.speak(text)
+            it = self.speak(text, role)
             head = next(it)
             a = np.concatenate([c for c in it] or [np.zeros(1, np.float32)])
-        path = os.path.join(CACHE, self._key(head["engine"], text.strip()) + ".wav")
+        path = os.path.join(CACHE, self._key(head["engine"], text.strip(), role, self.shimmer_for(role)) + ".wav")
         return {"wav": path, "ms": int((time.monotonic() - t0) * 1000), "cached": head["cached"], "engine": head["engine"]}
 
     # ------------------------------------------------------------------ loop
@@ -276,10 +322,12 @@ class Server:
         if op == "stt":
             return self.stt(req["pcm"])
         if op == "tts":
-            return self.tts(req["text"])
+            return self.tts(req["text"], req.get("role", "main"))
+        if op == "cue":
+            return {"seconds": self.cfg.get("cue", {}).get("seconds", 0.24)}
         if op == "tts_stream":
             with self.tts_lock:
-                it = self.speak(req["text"])
+                it = self.speak(req["text"], req.get("role", "main"), req.get("shimmer_add", 0.0), bool(req.get("cue")))
                 head = next(it)
                 conn.sendall((json.dumps(head) + "\n").encode())
                 for chunk in it:

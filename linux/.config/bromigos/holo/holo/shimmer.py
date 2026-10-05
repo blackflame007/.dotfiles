@@ -93,3 +93,31 @@ class Shimmer:
 
 def apply(audio, sr, amount):
     return Shimmer(sr, amount).process(audio)
+
+
+def dial_scratch(sr, variant=0, seconds=0.24):
+    """The cue between voices: a radio dial swept across a dead band. Band-passed noise whose
+    centre sweeps up and back down, a faint heterodyne whistle gliding the other way, and a
+    few crackles; ~240 ms, peak about -12 dBFS. Made here, from noise; no samples."""
+    rng = np.random.default_rng(1234 + variant)
+    n = int(sr * seconds)
+    t = np.arange(n) / sr
+    x = rng.normal(0, 1, n)
+    # resonant band-pass with a swept centre (2-pole, per sample)
+    f = 700 + 2100 * np.sin(np.pi * np.clip(t / seconds, 0, 1)) ** 1.5 + 120 * variant
+    r = 0.985
+    y = np.zeros(n)
+    y1 = y2 = 0.0
+    for i in range(n):
+        c = 2 * r * np.cos(2 * np.pi * f[i] / sr)
+        v = x[i] * (1 - r) + c * y1 - r * r * y2
+        y2, y1 = y1, v
+        y[i] = v
+    y /= np.abs(y).max() + 1e-9
+    whistle = 0.18 * np.sin(2 * np.pi * np.cumsum(2400 - 1900 * t / seconds) / sr)
+    crackle = np.zeros(n)
+    for k in rng.integers(0, n - 40, 7):
+        crackle[k:k + 40] += rng.normal(0, 0.6, 40) * np.exp(-np.arange(40) / 6)
+    env = np.minimum(1, t / 0.012) * np.minimum(1, (seconds - t) / 0.06)
+    out = (0.75 * y + whistle + crackle) * env
+    return (0.25 * out / (np.abs(out).max() + 1e-9)).astype(np.float32)

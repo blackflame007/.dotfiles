@@ -69,7 +69,8 @@
     "interval": 30,
     "signal": 9,
     "on-click": "~/.config/bromigos/holo/bin/bromigos-holo vector",
-    "on-click-right": "~/.config/bromigos/holo/bin/bromigos-holo mute"
+    "on-click-right": "~/.config/bromigos/holo/bin/bromigos-holo voice cycle",
+    "on-click-middle": "~/.config/bromigos/holo/bin/bromigos-holo mute"
   },
 
   "custom/gpu": {

@@ -87,7 +87,7 @@ class Brain:
 
     def _messages(self):
         now = time.strftime("%A %d %B %Y, %H:%M %Z")
-        sys = persona.SYSTEM + f"\nIt is {now}. The workstation is an Arch Linux desktop (Hyprland) the operator sits at."
+        sys = persona.SYSTEM + persona.voices_block() + f"\nIt is {now}. The workstation is an Arch Linux desktop (Hyprland) the operator sits at."
         return [{"role": "system", "content": sys}] + self.history[-24:]
 
     def _run(self, text):
@@ -120,6 +120,10 @@ class Brain:
                             label = _label(name, args)
                             result, ex = tools.call(name, args, ui=self.ui, live=self.live)
                             stats["tools"] += 1
+                            from .mood import from_tool
+                            mood = from_tool(name, result)
+                            if mood and hasattr(self.cb, "mood"):
+                                self.cb.mood(mood)
                             self.cb.tool(name, args, label, ex)
                             self._log({"role": "tool", "name": name, "args": args, "bytes": len(result)})
                             self.history.append({"role": "tool", "tool_call_id": c["id"], "content": result})

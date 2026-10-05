@@ -21,6 +21,29 @@ _VERBS = re.compile(r"^(?:blinks?|nods?|waves?|smiles?|grins?|laughs?|chuckles?|
                     r"beeps?|whirs?|buzz(?:es)?|static|silence|ahem|ahem\.?)$", re.I)
 
 
+# VECTOR's voice markers (the brain emits them; the voice switches on them; nobody sees them):
+#   ‹robot›…‹/robot›  machine readouts      ‹sci›…‹/sci›  explaining technology
+#   ‹floor›…‹/floor›  ARBITER, markets, trades and P&L (what each role is for: voice.json)
+# Lenient: ‹ › < > « » [ ] all accepted, unknown names ignored, a stray close returns to main.
+ROLE_ALIAS = {"robot": "robot", "sigil": "robot", "sys": "robot", "system": "robot",
+              "sci": "scientist", "scientist": "scientist", "arc": "scientist", "prof": "scientist",
+              "floor": "floor", "market": "floor", "markets": "floor", "lynx": "floor",
+              "main": "main", "voss": "main", "notify": "notify"}
+MARK = re.compile(r"[‹<«\[]\s*(/?)\s*(" + "|".join(ROLE_ALIAS) + r")\s*[›>»\]]", re.I)
+MOODS = ("calm", "excited", "concerned", "alarmed")
+MOOD_ALIAS = {"calm": "calm", "excited": "excited", "happy": "excited", "delighted": "excited",
+              "concerned": "concerned", "worried": "concerned", "alarmed": "alarmed", "angry": "alarmed"}
+MOOD = re.compile(r"[‹<«\[]\s*mood\s*[:=]\s*([a-z]+)\s*[›>»\]]", re.I)
+_PARTIAL_MARK = re.compile(r"[‹<«\[]\s*/?\s*[a-z]{0,10}(?:\s*[:=]\s*[a-z]{0,10})?\s*$", re.I)
+
+
+def strip_markers(text, streaming=False):
+    t = MOOD.sub("", MARK.sub("", text))
+    if streaming:
+        t = _PARTIAL_MARK.sub("", t)          # half a marker at the end of a stream
+    return t
+
+
 def _star(m):
     inner = m.group(1).strip()
     if " " in inner or _VERBS.match(inner):
@@ -28,8 +51,8 @@ def _star(m):
     return inner
 
 
-def plain(text, bullets="· "):
-    t = _SPEAKER.sub("", text)
+def plain(text, bullets="· ", streaming=False):
+    t = _SPEAKER.sub("", strip_markers(text, streaming))
     t = _LINK.sub(r"\1", t)
     t = _CODE.sub(r"\1", t)
     t = _BOLD.sub(r"\2", t)
@@ -50,3 +73,124 @@ def spoken(text):
     t = plain(text, bullets="")
     t = re.sub(r"([.!?:;,…])\s*\n+\s*", r"\1 ", t)       # a line that already ends in punctuation
     return re.sub(r"\s*\n+\s*", ". ", t).strip()
+
+
+# ---------------------------------------------------------------- voice splitting
+_ANYMARK = r"[‹<«\[]\s*/?\s*[a-z]+(?:\s*[:=]\s*[a-z]+)?\s*[›>»\]]"
+# a sentence ends at . ! ? … followed by space, a marker or the end; markers there belong to it
+SENT_END = re.compile(r"(.+?[.!?…]+)((?:\s|" + _ANYMARK + r")+|$)", re.S | re.I)
+# Arc's fallback: words that mean "talking about how technology works"
+_TECH = re.compile(r"\b(?:algorithm|model|models|neural|network|transformer|token|tokens|gpu|gpus|cpu|cuda|kernel|"
+                   r"cache|latency|bandwidth|compiler|graph|graphs|tensor|tensors|quantis|quantiz|weights?|encoder|"
+                   r"decoder|codec|frequenc\w*|signal|signals|protocol stack|relay|relays|circuit|voltage|"
+                   r"inference|training|parameters?|architecture|vector|vectors|embedding|embeddings|speculative|"
+                   r"decoding|attention|stream(?:s|ing)?|pipeline|cluster|replica\w*|shard\w*|scheduler|"
+                   r"clever|elegant|ingenious|invention|discovery|mechanism|engine)\b", re.I)
+_MARKET = re.compile(r"\b(?:arbiter|floor|market|markets|trade|trades|traded|fill|fills|position|positions|"
+                     r"p&l|pnl|equity|drawdown|portfolio|paper|book|lineup|referee|coin|price|prices|shares?|"
+                     r"long|short|rally|sell-?off|volatility|tape|allocator|cash)\b", re.I)
+
+
+_NUM = re.compile(r"\b\d[\d,.]*%?|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|"
+                  r"thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|percent)\b", re.I)
+
+
+def _words(t):
+    return re.findall(r"[A-Za-z0-9']+", t)
+
+
+class VoiceSplitter:
+    """Streamed reply text -> spoken units (role, sentence, mood).
+
+    Roles come from the brain's markers; untagged text is main. A sentence takes the role
+    that covers most of it, so voices change on whole sentences; a short sentence (under
+    three words) never switches voice on its own. If a reply carries no markers at all, a
+    light heuristic gives a sentence dense with technology words to the scientist, with
+    hysteresis so it doesn't flap. mode != "auto" pins every sentence to that role.
+    """
+
+    def __init__(self, mode="auto", roles=("main", "robot", "scientist", "floor", "notify")):
+        self.mode = mode
+        self.roles = set(roles)
+        self.reset()
+
+    def reset(self):
+        self.buf = ""
+        self.role = "main"          # marker state at the end of what has been read
+        self.last = "main"          # the voice of the last unit given out
+        self.tagged = False
+        self.mood = None
+
+    def feed(self, delta, final=False):
+        self.buf += delta
+        out = []
+        while True:
+            m = SENT_END.match(self.buf)
+            if not m:
+                break
+            if m.end(1) == len(self.buf) and not m.group(2) and not final:
+                break                               # "3." may be "3.5" when more arrives
+            end = m.end()
+            # a "*stage direction*" can span sentence ends: wait for its closing asterisk
+            while self.buf[:end].count("*") % 2 and len(self.buf) < 600 and not final:
+                nxt = SENT_END.match(self.buf, end)
+                if not nxt or (nxt.end(1) == len(self.buf) and not nxt.group(2)):
+                    end = None
+                    break
+                end = nxt.end()
+            if end is None:
+                break
+            unit = self._unit(self.buf[:end])
+            self.buf = self.buf[end:]
+            if unit:
+                out.append(unit)
+        if final and self.buf.strip():
+            unit = self._unit(self.buf)
+            self.buf = ""
+            if unit:
+                out.append(unit)
+        return out
+
+    def flush(self):
+        out = self.feed("", final=True)
+        self.role, self.tagged = "main", False
+        return out
+
+    def _unit(self, raw):
+        mood = None
+        for mm in MOOD.finditer(raw):
+            mood = MOOD_ALIAS.get(mm.group(1).lower(), mood)
+        raw = MOOD.sub("", raw)
+        cover, role, pos = {}, self.role, 0
+        for mk in MARK.finditer(raw):
+            cover[role] = cover.get(role, 0) + len(_words(raw[pos:mk.start()]))
+            self.tagged = True
+            name = ROLE_ALIAS.get(mk.group(2).lower(), "main")
+            role = "main" if mk.group(1) else name
+            pos = mk.end()
+        cover[role] = cover.get(role, 0) + len(_words(raw[pos:]))
+        self.role = role
+        text = strip_markers(raw).strip()
+        if not re.search(r"\w", text):
+            return None
+        n = len(_words(text))
+        voice = max(cover, key=lambda r: (cover[r], r == role)) if cover else "main"
+        if self.mode != "auto":
+            voice = self.mode
+        else:
+            if not self.tagged and voice == "main":
+                hits, mk = len(_TECH.findall(text)), len(_MARKET.findall(text))
+                nums = len(_NUM.findall(text))
+                if (mk >= 2 and mk / max(n, 1) >= 0.12) or (self.last == "floor" and mk >= 1):
+                    voice = "floor"
+                elif nums >= 3 or (self.last == "robot" and nums >= 2):
+                    voice = "robot"                     # a readout: a sentence of figures
+                elif (hits >= 2 and hits / max(n, 1) >= 0.12) or (self.last == "scientist" and hits >= 1):
+                    voice = "scientist"
+            voice = voice if voice in self.roles else "main"
+            if voice != self.last and voice != "main" and n < 3:
+                voice = self.last                   # never switch into a voice for a word or two
+        self.last = voice
+        if mood:
+            self.mood = mood
+        return voice, text, mood

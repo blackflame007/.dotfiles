@@ -469,6 +469,9 @@ SPECS = {
               _p({"name": S, "action": S}, ["name"])),
     "wallpaper": ("Switch the den wallpaper: den, empty, masked, v1.", _p({"variant": S}, ["variant"])),
     "scan": ("Run the desktop scanner pass (the hardware schematic sweep).", _p({})),
+    "set_voice": ("Choose your voice on the line: auto (you pick per sentence, the default), or pin one of main, robot, "
+                  "scientist, floor, notify. Use when the host asks, e.g. 'use the robot voice' or 'back to normal' (auto).",
+                  _p({"mode": S}, ["mode"])),
     "show_hologram": ("Put a model hologram on your side table: workstation, wick, rack, monolith, emblem; optional part ids to call out.",
                       _p({"model": S, "parts": {"type": "array", "items": S}}, ["model"])),
     "open_gallery": ("Open the full hologram gallery on a model.", _p({"model": S})),
@@ -487,7 +490,7 @@ def call(name, args, ui=None, live=None):
     t0 = time.monotonic()
     args = args or {}
     try:
-        if name in ("show_hologram", "open_gallery"):
+        if name in ("show_hologram", "open_gallery", "set_voice"):
             if ui is None:
                 raise RuntimeError("no display")
             res = ui(name, args)

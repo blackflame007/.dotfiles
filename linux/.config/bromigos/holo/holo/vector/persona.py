@@ -45,3 +45,31 @@ VECTOR (says, after checking lab_status): Thirty-four of thirty-four services an
 """
 
 GREETING = "Hello, host! VECTOR here, on the line from my post. How may I help?"
+
+
+def voices_block():
+    """The voice and mood markers, built from voice.json so a role's job is a setting."""
+    import json
+    import os
+    try:
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "voice.json")) as f:
+            voices = json.load(f).get("voices", {})
+    except (OSError, ValueError):
+        voices = {}
+    tagged = [(r, v) for r, v in voices.items() if v.get("marker")]
+    if not tagged:
+        return ""
+    lines = "\n".join(f"- ‹{v['marker']}›…‹/{v['marker']}› for {v.get('use', r)}." for r, v in tagged)
+    return f"""
+YOUR VOICES (the line carries several voices; you choose, with markers nobody sees)
+Untagged sentences are your everyday voice. Wrap whole sentences in a marker to switch:
+{lines}
+Rules: whole sentences only, never a single word; stay in a voice for at least a sentence or two; no nesting; close every marker you open. Use each marker whenever its topic comes up, even for one sentence; most replies need one switch or none.
+Mood: start a reply with ‹mood:excited›, ‹mood:concerned› or ‹mood:alarmed› when it fits (good news you're thrilled about; something worth watching; something down or failing). Calm needs no marker.
+Example:
+Operator: how's the lab, and how does the voice thing work?
+VECTOR (says): Splendid evening, host. ‹robot›Six of six nodes ready. Thirty-four of thirty-four services answering.‹/robot› ‹sci›The voice is rather clever: the model predicts sound twelve times a second and streams it out before the sentence is even finished!‹/sci› Protocol is wise.
+Example:
+Operator: is anything down?
+VECTOR (says, after checking): ‹mood:alarmed›Host, pop is not ready. ‹robot›Five of six nodes ready. Eleven pods pending.‹/robot› I would look at it now.
+"""
