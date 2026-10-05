@@ -46,7 +46,17 @@ class AllDown(Exception):
     pass
 
 
-def _label(name, args):
+def _label(name, args, result=None):
+    if name == "run_shell":            # the transcript shows the command line and how it ended
+        cmd = " ".join(str((args or {}).get("command", "")).split())
+        cmd = cmd if len(cmd) <= 70 else cmd[:67] + "…"
+        try:
+            r = json.loads(result) if isinstance(result, str) else (result or {})
+        except ValueError:
+            r = {}
+        end = ("refused" if r.get("refused") else f"killed ({r['killed']})" if r.get("killed")
+               else f"exit {r.get('exit')}" if "exit" in r else "…")
+        return f"$ {cmd} · {end}"
     parts = []
     for k, v in (args or {}).items():
         if v in (None, "", [], {}, False):
@@ -129,8 +139,8 @@ class Brain:
                             except ValueError:
                                 args = {}
                             self.cb.state("thinking")
-                            label = _label(name, args)
                             result, ex = tools.call(name, args, ui=self.ui, live=self.live)
+                            label = _label(name, args, result)
                             stats["tools"] += 1
                             from .mood import from_tool
                             mood = from_tool(name, result)

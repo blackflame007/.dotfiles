@@ -361,6 +361,20 @@ def docs_read(path, start_line=1, lines=120):
     return {"path": path, "total_lines": len(all_), "from": s, "text": "".join(chunk)}
 
 
+def run_shell(command, cwd="~", timeout_s=60):
+    """Full terminal as the operator's user; the limits live in shell.py (no sudo, no secrets,
+    no real money), every command is logged to vector-shell.log."""
+    from .shell import RUNNER
+    return RUNNER.run(command, cwd, timeout_s)
+
+
+def shell_off():
+    from .shell import RUNNER, set_enabled
+    RUNNER.kill("terminal switched off")
+    set_enabled(False)
+    return {"ok": True, "terminal": "off", "note": "only the host can switch it back on (bromigos-holo shell on)"}
+
+
 def notes_read(last_lines=60):
     if not os.path.exists(NOTES):
         return ""
@@ -473,6 +487,13 @@ SPECS = {
     "docs_search": ("Search the lore, AGENTS.md/CLAUDE.md and repo docs (markdown) for a phrase. repo: optional bromigos-org repo name or 'dotfiles'.",
                     _p({"query": S, "repo": S}, ["query"])),
     "docs_read": ("Read part of a doc found by docs_search (path as returned).", _p({"path": S, "start_line": I, "lines": I}, ["path"])),
+    "run_shell": ("Run a bash command on the host's workstation as the host's user (full access, no approval; everything is "
+                  "logged). For anything the read tools don't cover: git, files, builds, systemctl --user, scripts. Say in one "
+                  "short line what you are about to run before anything that changes state. Never sudo; no secrets; no real "
+                  "money (those are refused). cwd defaults to ~; timeout_s up to 600.",
+                  _p({"command": S, "cwd": S, "timeout_s": I}, ["command"])),
+    "shell_off": ("Switch your terminal off (kill switch) when the host asks you to stop using it. You cannot switch it back on.",
+                  _p({})),
     "notes_read": ("Read the end of FIELD NOTES, the operator's notepad.", _p({"last_lines": I})),
     "notes_append": ("Append a line to FIELD NOTES (only when the operator asks to note something).", _p({"text": S}, ["text"])),
     "launch": ("Open an app (terminal, browser, chrome, files, discord, spotify, obs, steam), a switchboard entry (arbiter, lab, grafana, argocd, …) or an http(s) URL.",

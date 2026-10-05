@@ -160,7 +160,7 @@ class PaiBrain:
             if mood and hasattr(self.cb, "mood"):
                 self.cb.mood(mood)
             self.stats["tools"] += 1
-            self.cb.tool(name, args, _label(name, args), ex)
+            self.cb.tool(name, args, _label(name, args, result), ex)
             self._log({"role": "tool", "name": name, "args": args if name not in getattr(tools, "PRIVATE_ARGS", {}) else "(private)",
                        "bytes": len(result)})
             return result
@@ -188,7 +188,10 @@ class PaiBrain:
         self.task = asyncio.run_coroutine_threadsafe(self._run(text), self.loop)
 
     def interrupt(self):
-        """Barge-in: cancel the run (the stream, and any tool not yet started)."""
+        """Barge-in: cancel the run (the stream, and any tool not yet started), and stop a
+        running terminal command (its whole process group)."""
+        from .shell import RUNNER
+        RUNNER.kill("interrupted")
         if self.busy:
             self.cancel.set()
             if self.task:

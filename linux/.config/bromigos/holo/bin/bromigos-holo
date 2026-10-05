@@ -10,6 +10,7 @@
 #   bromigos-holo mute               VECTOR's voice on/off
 #   bromigos-holo voice [auto|main|robot|scientist|floor|notify|cycle]   pin a voice, or auto
 #   bromigos-holo conversation       hands-free conversation mode on/off (SUPER+SHIFT+E)
+#   bromigos-holo shell off|on|stop  VECTOR's terminal: kill switch, or stop the running command
 #   bromigos-holo status | stop | restart | log
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
@@ -61,7 +62,7 @@ case "${1:-}" in
 esac
 
 case "${1:-status}" in
-    vector|gallery|ask|ptt|mute|voice|conversation|vector-show|vector-hide|gallery-hide|gallery-do|snap)
+    vector|gallery|ask|ptt|mute|voice|conversation|shell|vector-show|vector-hide|gallery-hide|gallery-do|snap)
         start && send "$@" ;;
     status) send status || echo "not running" ;;
     stop) send stop >/dev/null 2>&1; sleep 0.3; echo stopped ;;

@@ -347,9 +347,20 @@ class App:
                                       "answers when you pause, and listens again; talk over him to interrupt. "
                                       "Off after two quiet minutes. The mic is closed whenever this is off.")
         self.convbtn.connect("clicked", lambda b: self.toggle_conversation())
+        self.stopbtn = Gtk.Button(label="■ STOP", name="vector-min")
+        self.stopbtn.set_halign(Gtk.Align.END)
+        self.stopbtn.set_valign(Gtk.Align.END)
+        self.stopbtn.set_margin_end(30)
+        self.stopbtn.set_margin_bottom(96)
+        self.stopbtn.set_can_focus(False)
+        self.stopbtn.set_no_show_all(True)
+        self.stopbtn.set_tooltip_text("Stop the command VECTOR is running in the terminal (kills its whole process group).")
+        self.stopbtn.connect("clicked", lambda b: self.shell_stop())
+        from .vector.shell import RUNNER
+        RUNNER.on_change = lambda cur: GLib.idle_add(self._shell_changed, cur)
         self.vector = HoloWindow("bromigos-vector", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
-                                keyboard_exclusive=False, overlay_children=[self.entry, self.minbtn, self.convbtn],
-                                input_widgets=[self.entry, self.minbtn, self.convbtn])
+                                keyboard_exclusive=False, overlay_children=[self.entry, self.minbtn, self.convbtn, self.stopbtn],
+                                input_widgets=[self.entry, self.minbtn, self.convbtn, self.stopbtn])
         self.vector.win.connect("key-press-event", self._vector_key)
         self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
@@ -433,6 +444,19 @@ class App:
             self.unread += 1
             self._notify("VECTOR: trouble", line)
         GLib.timeout_add(2500, lambda: (self.pscene.avatar.state == "error" and self.pscene.set_state("idle"), False)[1])
+
+    def _shell_changed(self, cur):
+        """A terminal command started (cur) or ended (None): live line + STOP button."""
+        self.pscene.shell_cmd = (cur["command"], cur["t0"]) if cur else None
+        self.stopbtn.set_visible(bool(cur))
+        if self.vector:
+            self.vector.update_input_region()
+        self._publish_state()
+        return False
+
+    def shell_stop(self):
+        from .vector.shell import RUNNER
+        return "stopped" if RUNNER.kill("stopped by the host") else "nothing running"
 
     def toggle_conversation(self):
         v = self.ensure_voice()
@@ -810,6 +834,15 @@ class App:
                 GLib.timeout_add(500, wait)
                 return "stopping after the current turn"
             GLib.idle_add(Gtk.main_quit)
+        elif verb == "shell":
+            from .vector.shell import RUNNER, enabled, set_enabled
+            if arg in ("off", "on"):
+                if arg == "off":
+                    RUNNER.kill("terminal switched off")
+                return "terminal " + ("on" if set_enabled(arg == "on") else "off")
+            if arg == "stop":
+                return self.shell_stop()
+            return "terminal " + ("on" if enabled() else "off")
         elif verb == "conversation":
             return self.toggle_conversation()
         elif verb == "voice":

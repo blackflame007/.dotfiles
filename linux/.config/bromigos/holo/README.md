@@ -77,7 +77,35 @@ holo.end(target_fbo, bg=(0, 0.02, 0, 0.9))       # bloom, composite, overlay
 
 ## VECTOR's limits
 
-All enforced in `holo/vector/tools.py`, not by the prompt: no shell (fixed argv only), cluster reads through the `pilot-readonly` ServiceAccount (no secrets, configmaps or exec), Prometheus GETs, `gh` read subcommands for bromigos-org, a fixed table of ARBITER console GETs (nothing that trades or arms), Gnosis search only, docs under the repo roots with secret-looking paths refused. Writes: append to FIELD NOTES; actions: launch an allowlisted app or an http(s) URL, toggle a panel, switch the den wallpaper, run the scanner, show holograms. Every call goes to `~/.local/state/bromigos/vector-audit.log`; the conversation to `vector-chat.log`; both stay local. Keys are read from mode-600 files in `~/.local/share/bromigos/` and never logged.
+The infrastructure tools in `holo/vector/tools.py` stay **read-only**, and they remain the fast path for the lab, the cluster, ARBITER, GitHub, Gnosis and the docs:
+
+- no shell inside them (fixed argv only);
+- cluster reads through the `pilot-readonly` ServiceAccount (no secrets, configmaps or exec);
+- Prometheus GETs, and `gh` read subcommands for bromigos-org;
+- a fixed table of ARBITER console GETs (nothing that trades or arms);
+- Gnosis through the gnosis-gate with narrow tokens;
+- docs under the repo roots, with secret-looking paths refused.
+
+Writes and actions outside the terminal: his own memory, FIELD NOTES, launching an allowlisted app or an http(s) URL, panels, the den wallpaper, the scanner and holograms. Every call goes to `~/.local/state/bromigos/vector-audit.log`, and the conversation to `vector-chat.log`; both stay local. Keys are read from mode-600 files in `~/.local/share/bromigos/` and never logged.
+
+## VECTOR's terminal (full access, not read-only)
+
+`run_shell` (`holo/vector/shell.py`) runs bash on the workstation **as the operator's user, with no approval step**. VECTOR says in one line what he is about to run before anything that changes state, then summarises the result.
+
+**Limits, enforced in code and covered by `tools/test-shell.py`** (45 refusal cases and 7 allowed actions; run it with the brain venv's python):
+
+1. **No privilege escalation.** sudo, su, doas, pkexec, run0, systemd-run, machinectl and polkit helpers are refused anywhere in the command: in pipes, `$(…)`, backticks, `sh -c '…'`, `eval`, and the text of a script the command runs. The command is parsed with bashlex; if it can't be parsed, it's refused.
+2. **No secrets.**
+   - The shell's environment is scrubbed of tokens, keys, secrets, passwords, Vault, cloud, GitHub and the SSH agent.
+   - Refused: `vault`, `pass`, `gpg`, `gcloud secrets`, `kubectl`/`helm` on secrets, and reading `/proc/*/environ`.
+   - Refused paths: `~/.vault-token`, `~/.ssh` (except `.pub`, `known_hosts`, `config`), `~/.local/share/bromigos/`, gcloud, kube, aws, docker and gh credentials, `.env*`, gnupg, password stores, keyrings, browser profiles, solana wallets, and secret-looking files.
+   - Output is redacted (private keys, GitHub, Vault and API tokens, JWTs, `key=value` secrets, Authorization headers) before it reaches the model, the transcript or the log.
+3. **No real money.** Refused: Alpaca live (the paper API is fine), Kalshi, Polymarket and Coinbase order endpoints, ARBITER `/api/live` and arm routes, fund transfers (solana, spl-token, cast) and anything naming wallets or private keys.
+4. **Operation.**
+   - Each command runs in a new session (setsid). The timeout defaults to 60 s; he may ask for up to 600 s. The working directory defaults to `~`. Output is capped at 512 KB, and the model sees at most 6,000 characters (head and tail).
+   - While a command runs, the panel shows the live command line with a ■ STOP button. STOP, a barge-in or interrupting the turn kills the whole process group.
+   - Kill switch: `bromigos-holo shell off` (also the `shell_off` tool, which VECTOR can use but can never reverse). `bromigos-holo shell on` turns it back on, and `bromigos-holo shell stop` stops the running command.
+5. **Audit.** Every command and every refusal goes to `~/.local/state/bromigos/vector-shell.log` (time, cwd, the redacted command, exit code, duration, output size, or the refusal reason). The transcript shows `$ git status · exit 0`.
 
 ## Voice
 

@@ -274,6 +274,12 @@ class VectorScene:
                     H.label("♪", lw * 0.62 + 24 * sc * k + 10 * sc * math.sin(t + k), h * 0.42 - ph_ * 90 * sc,
                             col("soft", 1, a), int((13 + 3 * k) * sc))
         H.label(self.route, w - 28 * sc, 26 * sc, col("static", 1, 0.9 * f), int(12 * sc), anchor="rt")
+        sh = getattr(self, "shell_cmd", None)
+        if sh:   # a terminal command is running: show it, live, with how long it has been going
+            cmd = " ".join(sh[0].split())
+            cmd = cmd if len(cmd) <= 64 else cmd[:61] + "…"
+            H.label(f"$ {cmd}   {time.monotonic() - sh[1]:.0f}s", lw + 14 * sc, h - 100 * sc,
+                    col("amber", 1, f), int(12 * sc), "bold")
         if getattr(self, "conversation", False):   # hands-free: say so, all the time
             pulse = 0.55 + 0.45 * math.sin(time.monotonic() * 3.2)
             H.label("● CONVERSATION · LISTENING", w - 28 * sc, 44 * sc, col("danger", 1, pulse * f), int(12 * sc), "bold",
