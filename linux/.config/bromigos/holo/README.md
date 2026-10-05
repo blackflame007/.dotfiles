@@ -105,6 +105,30 @@ Push-to-talk only: `pw-record` runs while SUPER+V is held (cut at 30 s if a rele
 - **Manual setting.** `bromigos-holo voice auto|main|robot|scientist|floor|notify|cycle` pins a voice; auto is the default. The choice persists in `~/.local/state/bromigos/vector-voice-mode`. VECTOR has a `set_voice` tool ("use the robot voice", "back to normal"), and right-clicking the bar pip cycles the voice (middle-click mutes). The pip's tooltip shows the current voice and mode.
 - **Codec calls** from the live layer go through `holo.pilot.voice`, which speaks in the notify voice.
 
+**Pacing and playback** (fixed 2026-10-04).
+
+- **Root cause.** Every sentence used to get its own `pw-play`, and the next sentence was synthesised only after the previous one finished playing. The result was a 1.7–2.1 s pause after every full stop.
+- **Now:**
+  - One reply plays as one continuous output stream. A producer streams sentence after sentence from the server into a buffer; the next sentence is generating while the current one plays (at about twice realtime). A single `pw-play` is fed from that buffer after a 0.3 s prebuffer, paced to stay about 0.25 s ahead, so barge-in still stops within about 0.25 s.
+  - The server shapes each sentence before it leaves:
+    - `SilenceShaper` drops the model's lead-in silence, caps pauses inside a sentence at `pacing.max_pause_s` (0.08 s), and keeps `pacing.sentence_tail_s` (0.11 s) after the last word.
+    - `TimeStretch` (streaming WSOLA) speeds speech up without changing pitch: `"speed"`, default 1.1, overridable per voice.
+    - Then the shimmer.
+- **Measured** on the same four-sentence reply, recorded at the sink:
+  - The pause after a sentence went from 1.7–2.1 s to about 0.25 s.
+  - Total silence went from 6.8 s to 0.9 s, and the longest pause from 2.0 s to 0.14 s, with no underruns.
+  - Speaking pace is now about 290 wpm over the reply. Qwen's Voss clone is already brisk at 1.0, so lower `speed` if it feels rushed.
+
+**Conversation mode** (SUPER+SHIFT+E, the ◉ CONVERSATION button on the panel, or `bromigos-holo conversation`).
+
+- **How it works.** Hands-free and local. While it's on, VECTOR listens on the echo-cancelled mic. Silero VAD (2 MB ONNX on the CPU, `~/.local/share/bromigos/voice/silero_vad.onnx`) finds where you stop: `conversation.end_of_turn_ms`, 700 ms by default. The utterance goes to the same local speech-to-text, he replies, then he listens again.
+- **Barge-in.** Talking over him stops him and cancels the turn. While he speaks, the bar for a barge-in is higher (probability 0.8, 0.4 s of speech), and the echo canceller keeps his own voice out: tested at a probability of about 0 for his voice alone and 1.0 for a voice over him.
+- **Indicators.** A pulsing "● CONVERSATION · LISTENING" line, the mic-live state and a red CONVERSATION pip on the bar.
+- **Auto-off.** It turns off after `auto_off_s` (120) without speech, with a soft blip.
+- **Privacy and mute.** The mic process exists only while the mode is on. Muted, he still listens and replies in text.
+- **Push-to-talk.** The mic opens in about 0.15 s. Releasing the key keeps listening 0.25 s (`release_tail_ms`) so the last word isn't clipped, and stops pw-record with SIGINT so it flushes. With echo cancellation, a barge-in drops only 0.12 s of speaker drain (was 0.35 s).
+- **Checks.** The echo canceller passes near-end speech intact: identical large-v3-turbo transcripts before and after it, on four test phrases. The CUDA libraries for speech-to-text come from the venv (`nvidia/cublas`, `nvidia/cudnn`). `"mic_source"` in `voice.json` overrides the capture node.
+
 **Mood.** A mood layer blends over the voice colour without hiding it:
 
 | Mood | Look | Voice shimmer |

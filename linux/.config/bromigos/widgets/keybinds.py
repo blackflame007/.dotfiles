@@ -42,6 +42,7 @@ KEYNAMES = {
 EXEC = [
     # VECTOR: the caretaker on the line, and his voice
     (r"bromigos-holo\b.*\b(vector|pilot)\b", "VECTOR: show / minimize", "VECTOR"),
+    (r"bromigos-holo\b.*\bconversation\b", "VECTOR: conversation mode on/off (hands-free)", "VECTOR"),
     (r"bromigos-holo\b.*\bptt\b", "VECTOR: hold to talk", "VECTOR"),
     (r"bromigos-holo\b.*\bmute\b", "VECTOR: voice on/off", "VECTOR"),
     # HOLOGRAMS: the full-screen decks and 3D views

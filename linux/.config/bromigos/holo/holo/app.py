@@ -337,9 +337,19 @@ class App:
         self.minbtn.set_tooltip_text("Minimize VECTOR. It keeps working: replies are spoken and wait here for you. "
                                      "SUPER+E brings it back; the bar's VECTOR pip shows what it is doing.")
         self.minbtn.connect("clicked", lambda b: self.hide_vector())
+        self.convbtn = Gtk.Button(label="◉ CONVERSATION", name="vector-min")
+        self.convbtn.set_halign(Gtk.Align.END)
+        self.convbtn.set_valign(Gtk.Align.START)
+        self.convbtn.set_margin_end(140)
+        self.convbtn.set_margin_top(64)
+        self.convbtn.set_can_focus(False)
+        self.convbtn.set_tooltip_text("Conversation mode (SUPER+SHIFT+E): hands-free. VECTOR listens on the echo-cancelled mic, "
+                                      "answers when you pause, and listens again; talk over him to interrupt. "
+                                      "Off after two quiet minutes. The mic is closed whenever this is off.")
+        self.convbtn.connect("clicked", lambda b: self.toggle_conversation())
         self.vector = HoloWindow("bromigos-vector", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
-                                keyboard_exclusive=False, overlay_children=[self.entry, self.minbtn],
-                                input_widgets=[self.entry, self.minbtn])
+                                keyboard_exclusive=False, overlay_children=[self.entry, self.minbtn, self.convbtn],
+                                input_widgets=[self.entry, self.minbtn, self.convbtn])
         self.vector.win.connect("key-press-event", self._vector_key)
         self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
@@ -423,6 +433,21 @@ class App:
             self.unread += 1
             self._notify("VECTOR: trouble", line)
         GLib.timeout_add(2500, lambda: (self.pscene.avatar.state == "error" and self.pscene.set_state("idle"), False)[1])
+
+    def toggle_conversation(self):
+        v = self.ensure_voice()
+        if not v:
+            return "voice unavailable"
+        if getattr(v, "conv", None) is None:
+            from .vector.conversation import Conversation
+            v.conv = Conversation(v)
+        on = v.conv.toggle()
+        self.convbtn.set_label("◉ END CONVERSATION" if on else "◉ CONVERSATION")
+        self.last_activity = time.monotonic()
+        return "conversation on" if on else "conversation off"
+
+    def conversation_on(self):
+        return bool(self.voice and getattr(self.voice, "conv", None) and self.voice.conv.on)
 
     def _vector_ack(self, text):
         """The voice lane handed the turn to the deep lane: say a short in-character line meanwhile."""
@@ -666,7 +691,8 @@ class App:
     # ------------------------------------------------------------------ housekeeping
     def _idle_check(self):
         # VECTOR steps back after a quiet two minutes once it has finished talking (unless you're typing)
-        if self._vector_shown() and not self.busy() and not self.pscene.revealing() and not self.focused:
+        if self._vector_shown() and not self.busy() and not self.pscene.revealing() and not self.focused \
+                and not self.conversation_on():
             if time.monotonic() - self.last_activity > 120:
                 self.hide_vector()
         if self.vector and time.monotonic() - self.last_activity > 600:
@@ -682,6 +708,8 @@ class App:
             return "off"
         if self.voice and self.voice.rec:
             return "listening"
+        if self.conversation_on() and not (self.brain and self.brain.busy) and not self.voice.speaking:
+            return "listening"
         if self.pscene.avatar.state == "error":
             return "error"
         if self.voice and self.voice.speaking:
@@ -696,6 +724,7 @@ class App:
               "model": self.brain.model if self.brain else None,
               "muted": bool(self.voice and self.voice.muted),
               "voice_mode": self.voice.mode if self.voice else "auto",
+              "conversation": self.conversation_on(),
               "voice": getattr(self.pscene, "voice_role", "main") if self.vector else "main",
               "mood": self.pscene.mood_name() if self.vector else "calm"}
         sig = json.dumps(st, sort_keys=True)
@@ -781,6 +810,8 @@ class App:
                 GLib.timeout_add(500, wait)
                 return "stopping after the current turn"
             GLib.idle_add(Gtk.main_quit)
+        elif verb == "conversation":
+            return self.toggle_conversation()
         elif verb == "voice":
             try:
                 return "voice " + self.set_voice_mode(arg.strip() or "cycle")
@@ -856,6 +887,9 @@ def main():
     log("ready on", SOCK)
     Gtk.main()
     if app.voice:
+        app.voice.stop()                     # no orphaned player keeps talking after the daemon
+        if getattr(app.voice, "conv", None):
+            app.voice.conv.stop()
         app.voice.drop_aec()
     for p in (SOCK, VECTOR_STATE):
         try:

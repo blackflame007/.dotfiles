@@ -45,7 +45,7 @@ import wave
 
 import numpy as np
 
-from .shimmer import Shimmer, dial_scratch
+from .shimmer import SilenceShaper, Shimmer, TimeStretch, dial_scratch
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONF = os.path.join(HERE, "voice.json")
@@ -229,7 +229,8 @@ class Server:
     # ------------------------------------------------------------------ TTS front
     def _key(self, engine, text, role="main", shimmer=0.0):
         r = self.role(role)
-        conf = [engine, self.cfg.get(engine), role, r.get("ref"), r.get("kokoro") if engine == "kokoro" else None, round(shimmer, 3)]
+        conf = [engine, self.cfg.get(engine), role, r.get("ref"), r.get("kokoro") if engine == "kokoro" else None,
+                round(shimmer, 3), round(self.speed_for(role), 3), self.cfg.get("pacing")]
         return hashlib.sha1(json.dumps([conf, text], sort_keys=True).encode()).hexdigest()[:24]
 
     def _engines(self):
@@ -242,6 +243,10 @@ class Server:
                 time.sleep(0.05)
         out = [main] if (main != "qwen" or self.qwen is not None) else []
         return out + ([fb] if fb and fb != main else [])
+
+    def speed_for(self, role):
+        """voice.json "speed" (default 1.12), a role may override; WSOLA keeps the pitch."""
+        return max(0.7, min(1.6, float(self.role(role).get("speed", self.cfg.get("speed", 1.12)))))
 
     def shimmer_for(self, role, add=0.0):
         return max(0.0, min(1.0, float(self.role(role).get("shimmer", 0.3)) + float(add or 0)))
@@ -281,15 +286,23 @@ class Server:
                 continue
             chunk, sr = first
             dsp = Shimmer(sr, shim)
+            ts = TimeStretch(sr, self.speed_for(role))
+            pc = self.cfg.get("pacing", {})
+            sh = SilenceShaper(sr, pc.get("max_pause_s", 0.12), pc.get("sentence_tail_s", 0.09))
             yield {"sr": sr, "engine": engine, "cached": False}
             if cue:
                 yield self.cue(role, sr, add)
             done = []
-            y = dsp.process(chunk)
+            y = dsp.process(ts.process(sh.process(chunk)))
             done.append(y)
             yield y
             for chunk, _ in gen:
-                y = dsp.process(chunk)
+                y = dsp.process(ts.process(sh.process(chunk)))
+                if len(y):
+                    done.append(y)
+                    yield y
+            y = dsp.process(ts.process(sh.process(np.zeros(0, np.float32), final=True), final=True))
+            if len(y):
                 done.append(y)
                 yield y
             tmp = path + ".part"

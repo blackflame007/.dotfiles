@@ -33,9 +33,14 @@ tip += "\nvoice: " + ("auto, now " + VOICES.get(st.get("voice") or "main", "main
                      else "pinned to " + VOICES.get(mode, mode))
 tip += f"\nmood: {mood}" + (f"\nmodel: {st.get('model')}" if st.get("model") else "") + ("\nvoice muted" if st.get("muted") else "")
 tip += "\nclick: show or minimize (SUPER+E)\nright-click: cycle the voice (auto, main, robot, scientist, floor)\nmiddle-click: mute"
+if st.get("conversation"):
+    text = "CONVERSATION" + (f" <span color='#d4af37'>{unread}</span>" if unread else "")
+    tip = "Conversation mode: VECTOR is listening hands-free (mic open)\n" + tip.split("\n", 1)[-1]
+    tip += "\nSUPER+SHIFT+E ends conversation mode"
 if mode != "auto":
     text += f" <span color='#7e927e'>·{mode.upper()}</span>"
 cls = [state] + (["unread"] if unread else []) + ([] if st.get("shown") else ["minimized"])
+cls += ["listening", "conversation"] if st.get("conversation") else []
 cls += [f"voice-{st.get('voice') or 'main'}"] if state == "speaking" else []
 cls += [f"mood-{mood}"] if mood != "calm" else []
 print(json.dumps({"text": text, "tooltip": tip, "class": cls}))

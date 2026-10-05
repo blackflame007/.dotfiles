@@ -25,6 +25,7 @@ import re
 import site
 import socket
 import subprocess
+import signal
 import tempfile
 import threading
 import time
@@ -82,6 +83,8 @@ class Voice:
         from .text import VoiceSplitter
         self.splitter = VoiceSplitter(self.mode, self.roles)
         self.voice_now = "main"    # the voice that spoke last (a change plays the dial scratch)
+        if app is not None:
+            threading.Thread(target=self._aec_keeper, daemon=True, name="vector-aec").start()
 
     # ------------------------------------------------------------------ server
     def _req(self, obj, timeout=30.0):
@@ -165,6 +168,19 @@ class Voice:
             self.aec = None
         return self.aec
 
+    def _aec_fresh(self):
+        return bool(self.aec) and time.monotonic() - getattr(self, "_aec_checked", 0) < 60
+
+    def _aec_keeper(self):
+        """Keep the echo-cancel pair ready (and on the current default devices) off the hot path."""
+        while True:
+            try:
+                self.ensure_aec()
+                self._aec_checked = time.monotonic()
+            except Exception:
+                pass
+            time.sleep(30)
+
     def drop_aec(self):
         if self.aec:
             try:
@@ -174,6 +190,30 @@ class Voice:
             self.aec = None
 
     # ------------------------------------------------------------------ listening
+    def mic_source(self):
+        """The capture node: voice.json "mic_source" if set, else the echo-cancelled mic."""
+        if self.cfg.get("mic_source"):
+            return self.cfg["mic_source"]
+        aec = self.aec if self._aec_fresh() else self.ensure_aec()
+        return "vector_aec_source" if aec else None
+
+    def open_mic(self):
+        src = self.mic_source()
+        return subprocess.Popen(["pw-record", "--raw", "--rate", "16000", "--channels", "1", "--format", "s16",
+                                 "--latency", "20ms"] + (["--target", src] if src else []) + ["-"],
+                                stdout=subprocess.PIPE, stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    @staticmethod
+    def close_mic(proc, reader=None):
+        """SIGINT so pw-record flushes what it holds, then wait for the reader to drain."""
+        try:
+            proc.send_signal(signal.SIGINT)
+            proc.wait(1.0)
+        except (subprocess.TimeoutExpired, OSError):
+            proc.kill()
+        if reader is not None:
+            reader.join(1.0)
+
     def ptt_down(self):
         if self.rec:
             return
@@ -184,8 +224,11 @@ class Voice:
         if getattr(self.app, "memory", None):
             self.app.memory.warm()                    # recall will be ready when the transcript is
         self.app.pscene.end_reply()
-        # speaker drain: drop the first part of the recording if VECTOR was just talking
+        # speaker drain: VECTOR's last syllable is still in the air for a moment after the
+        # player stops. With echo cancellation that tail is cancelled too, so drop far less.
         drain = self.cfg.get("drain_ms", 350) / 1000
+        if self.mic_source() == "vector_aec_source":
+            drain = min(drain, 0.12)
         self.skip_until = time.monotonic() + drain if (was_speaking or time.monotonic() - self.play_end < drain) else 0.0
         self.app.show_vector(focus=False, greet=False)
         sc = self.app.pscene
@@ -193,11 +236,9 @@ class Voice:
         sc.mic_live = True
         self.rec_buf = bytearray()
         self.rec_t0 = time.monotonic()
-        aec = self.ensure_aec()
-        self.rec = subprocess.Popen(["pw-record", "--raw", "--rate", "16000", "--channels", "1", "--format", "s16"]
-                                    + (["--target", "vector_aec_source"] if aec else []) + ["-"],
-                                    stdout=subprocess.PIPE, stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        threading.Thread(target=self._read_mic, args=(self.rec,), daemon=True).start()
+        self.rec = self.open_mic()
+        self.rec_reader = threading.Thread(target=self._read_mic, args=(self.rec,), daemon=True)
+        self.rec_reader.start()
         threading.Thread(target=lambda: self._safe(lambda: self._req({"op": "warm"}, 60)), daemon=True).start()
         GLib.timeout_add(int(self.cfg.get("max_record_seconds", 30) * 1000), self._watchdog, self.rec)
 
@@ -208,10 +249,14 @@ class Voice:
 
     def _read_mic(self, proc):
         sc = self.app.pscene
+        first = True
         while True:
             chunk = proc.stdout.read(800)           # 25 ms
             if not chunk:
                 break
+            if first:
+                self.last_stats["mic_start_ms"] = int((time.monotonic() - self.rec_t0) * 1000)
+                first = False
             if time.monotonic() < self.skip_until:
                 continue                            # VECTOR's voice still leaving the speakers
             self.rec_buf += chunk
@@ -224,22 +269,25 @@ class Voice:
         proc, self.rec = self.rec, None
         if not proc:
             return
-        proc.terminate()
-        try:
-            proc.wait(1.0)
-        except subprocess.TimeoutExpired:
-            proc.kill()
         sc = self.app.pscene
         sc.mic_live = False
-        secs = time.monotonic() - self.rec_t0
-        data = bytes(self.rec_buf)
-        self.rec_buf = bytearray()
-        if secs < 0.35 or len(data) < 16000 * 2 * 0.3:
-            sc.set_state("idle")
-            return
-        sc.set_state("thinking")
-        sc.subtitle = "HEARING YOU"
-        threading.Thread(target=self._transcribe, args=(data,), daemon=True).start()
+        # people let go of the key on their last syllable: keep listening a beat longer
+        tail = self.cfg.get("release_tail_ms", 250) / 1000
+        reader = getattr(self, "rec_reader", None)
+
+        def finish():
+            self.close_mic(proc, reader)
+            secs = time.monotonic() - self.rec_t0
+            data = bytes(self.rec_buf)
+            self.rec_buf = bytearray()
+            if secs < 0.35 or len(data) < 16000 * 2 * 0.3:
+                GLib.idle_add(sc.set_state, "idle")
+                return
+            GLib.idle_add(sc.set_state, "thinking")
+            sc.subtitle = "HEARING YOU"
+            self.last_stats["ptt_release_t"] = time.monotonic()
+            self._transcribe(data)
+        threading.Timer(tail, lambda: threading.Thread(target=finish, daemon=True).start()).start()
 
     def _transcribe(self, data):
         fd, path = tempfile.mkstemp(prefix="vector-ptt-", suffix=".pcm", dir=RUNTIME)
@@ -248,8 +296,8 @@ class Voice:
                 f.write(data)
             t0 = time.monotonic()
             out = self._req({"op": "stt", "pcm": path}, 60)
-            self.last_stats = {"stt_ms": out.get("ms"), "stt_roundtrip_ms": int((time.monotonic() - t0) * 1000),
-                               "audio_s": out.get("seconds")}
+            self.last_stats.update(stt_ms=out.get("ms"), stt_roundtrip_ms=int((time.monotonic() - t0) * 1000),
+                                   audio_s=out.get("seconds"), heard=(out.get("text") or "")[:60])
             text = (out.get("text") or "").strip()
             if len(re.sub(r"\W", "", text)) < 2:
                 GLib.idle_add(self._heard_nothing)
@@ -349,7 +397,19 @@ class Voice:
                 self.speaking = True
                 threading.Thread(target=self._speak_loop, daemon=True).start()
 
+    # ------------------------------------------------------------------ playback
+    # One reply plays as ONE continuous output stream. A producer streams each sentence's
+    # PCM from the server, back to back (the next sentence starts generating the moment the
+    # last one finishes, ~2x faster than it plays), into a buffer; a player feeds a single
+    # pw-play from that buffer after a small prebuffer, paced to stay ~0.25 s ahead, so
+    # there is no gap between chunks or sentences and barge-in stops within ~0.25 s.
+    PREBUFFER_S = 0.3
+    AHEAD_S = 0.25
+
     def _speak_loop(self):
+        buf = _PcmBuffer()
+        player = threading.Thread(target=self._player, args=(buf, self.gen), daemon=True, name="vector-player")
+        started = False
         try:
             while True:
                 with self.qlock:
@@ -359,13 +419,25 @@ class Voice:
                 if gen != self.gen or self.muted:
                     continue
                 cue = role != self.voice_now and self.cfg.get("cue", {}).get("enabled", True)
-                self._stream(sentence, gen, role, cue)
+                if not self.rec:                      # never speak into an open mic
+                    sr = self._produce(sentence, gen, role, cue, buf)
+                    if sr and not started:
+                        buf.sr = sr
+                        player.start()
+                        started = True
                 self.voice_now = role
+                for _ in range(60):                   # the next sentence of this reply is usually close behind
+                    if self.queue or gen != self.gen:
+                        break
+                    time.sleep(0.01)
         except Exception as e:
             import traceback
             traceback.print_exc()
             GLib.idle_add(self.app.pscene.note, f"(voice trouble: {str(e)[:80]})")
         finally:
+            buf.close()
+            if started:
+                player.join(30)
             with self.qlock:
                 self.speaking = False
             GLib.idle_add(self._done_speaking)
@@ -394,64 +466,75 @@ class Voice:
             raise RuntimeError(head.get("error", "no audio"))
         return s, f, head
 
-    def _stream(self, sentence, gen, role="main", cue=False):
-        """Speak one sentence as it is generated: socket -> buffer -> pw-play (raw PCM on stdin).
-        The level that drives the iris comes from the audio actually being fed to the player."""
-        if self.rec:
-            return                                   # never speak into an open mic
+    def _produce(self, sentence, gen, role, cue, buf):
+        """Stream one sentence's PCM into the playback buffer; returns its sample rate."""
         t0 = time.monotonic()
         s, f, head = self._open_stream(sentence, role, cue)
         sr = int(head["sr"])
         self.last_stats.update(tts_engine=head.get("engine"), tts_cached=head.get("cached"))
-        sink = self.cfg.get("sink") or ("vector_aec_sink" if self.ensure_aec() else None)
         now = time.monotonic()
         self.said = [(t, x) for t, x in self.said if now - t < 30] + [(now, sentence)]
-        sc = self.app.pscene
-        GLib.idle_add(sc.set_state, "speaking")
-        GLib.idle_add(sc.set_voice, role, cue)      # the tint crossfades with the scratch
-        self.player = subprocess.Popen(["pw-play"] + (["--target", sink] if sink else []) +
-                                       ["--raw", "--rate", str(sr), "--channels", "1", "--format", "s16", "-"],
-                                       stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        first = True
         try:
-            import fcntl
-            fcntl.fcntl(self.player.stdin.fileno(), 1031, 8192)     # F_SETPIPE_SZ: ~0.17 s ahead, so the iris keeps time
-        except OSError:
-            pass
-        chunks, done = [], threading.Event()
-
-        def reader():                                # drain the socket at generation speed
-            try:
-                while True:
-                    b = f.read1(8192) if hasattr(f, "read1") else f.read(8192)
-                    if not b:
-                        break
-                    chunks.append(b)
-            except OSError:
-                pass
-            done.set()
-        threading.Thread(target=reader, daemon=True).start()
-        first, pend = True, b""
-        try:
-            while not (done.is_set() and not chunks and not pend):
-                if gen != self.gen:
+            while gen == self.gen:
+                b = f.read1(9600) if hasattr(f, "read1") else f.read(9600)
+                if not b:
                     break
-                if not chunks and not pend:
-                    time.sleep(0.01)
-                    continue
-                pend += b"".join(chunks[:]); del chunks[:len(chunks)]
-                piece, pend = pend[:2400], pend[2400:]          # 50 ms at 24 kHz
-                if len(piece) % 2:
-                    pend, piece = piece[-1:] + pend, piece[:-1]
                 if first:
                     self.last_stats["tts_first_audio_ms"] = int((time.monotonic() - t0) * 1000)
                     first = False
-                a = np.frombuffer(piece, np.int16).astype(np.float32) / 32768.0
+                buf.put(b, role)
+        except OSError:
+            pass
+        finally:
+            s.close()
+        return sr
+
+    def _player(self, buf, gen):
+        """Feed one pw-play for the whole reply, paced against a playback clock."""
+        sr = buf.sr
+        bps = sr * 2
+        if not buf.wait(int(self.PREBUFFER_S * bps), timeout=10):    # prebuffer (or the whole reply if shorter)
+            if not buf.size():
+                return
+        sink = self.cfg.get("sink") or ("vector_aec_sink" if self.aec else None)
+        sc = self.app.pscene
+        GLib.idle_add(sc.set_state, "speaking")
+        self.player = subprocess.Popen(["pw-play"] + (["--target", sink] if sink else []) +
+                                       ["--raw", "--rate", str(sr), "--channels", "1", "--format", "s16",
+                                        "--latency", "60ms", "-"],
+                                       stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        t_start = time.monotonic()
+        sent = 0                     # bytes written
+        underrun = 0.0
+        piece = int(0.04 * bps) // 2 * 2
+        shown = None
+        try:
+            while gen == self.gen:
+                played = (time.monotonic() - t_start - underrun) * bps
+                if sent - played > self.AHEAD_S * bps:
+                    time.sleep(0.01)
+                    continue
+                data, role = buf.take(piece, timeout=0.05)
+                if not data:
+                    if buf.closed and not buf.size():
+                        break
+                    if sent < played:                 # we fell behind: the clock pauses with the sound
+                        underrun += 0.05
+                        self.last_stats["underruns"] = self.last_stats.get("underruns", 0) + 1
+                    continue
+                if role != shown:                     # the tint follows what is actually playing
+                    GLib.idle_add(sc.set_voice, role, shown is not None)
+                    shown = role
+                a = np.frombuffer(data, np.int16).astype(np.float32) / 32768.0
                 rms = float(np.sqrt(np.mean(a * a))) if len(a) else 0.0
                 sc.audio_level = float(np.clip((20 * np.log10(max(rms, 1e-5)) + 50) / 38, 0, 1))
                 try:
-                    self.player.stdin.write(piece)
-                except (BrokenPipeError, ValueError):
+                    self.player.stdin.write(data)
+                    self.player.stdin.flush()
+                except (BrokenPipeError, ValueError, OSError):
                     break
+                sent += len(data)
             if gen == self.gen:
                 try:
                     self.player.stdin.close()
@@ -462,9 +545,9 @@ class Voice:
             if self.player.poll() is None:
                 self.player.kill()
         finally:
-            s.close()
             sc.audio_level = None
             self.play_end = time.monotonic()
+            self.last_stats["played_s"] = round(sent / bps, 2)
 
     def warm_tts(self):
         """Load the voice in the background (when the window opens), so the first reply is quick;
@@ -533,3 +616,63 @@ class Voice:
             fn()
         except Exception:
             pass
+
+
+class _PcmBuffer:
+    """Bytes handed from the producer to the player, with the role that spoke them."""
+
+    def __init__(self):
+        self.parts = []          # [(bytes, role)]
+        self.n = 0
+        self.closed = False
+        self.sr = 24000
+        self.cv = threading.Condition()
+
+    def put(self, b, role):
+        with self.cv:
+            if len(b) % 2 and self.parts:                  # keep samples whole across reads
+                pb, pr = self.parts[-1]
+                self.parts[-1] = (pb + b[:1], pr)
+                b = b[1:]
+            self.parts.append((b, role))
+            self.n += len(b)
+            self.cv.notify_all()
+
+    def size(self):
+        with self.cv:
+            return self.n
+
+    def wait(self, nbytes, timeout):
+        end = time.monotonic() + timeout
+        with self.cv:
+            while self.n < nbytes and not self.closed:
+                left = end - time.monotonic()
+                if left <= 0:
+                    return False
+                self.cv.wait(left)
+            return self.n >= nbytes or self.closed
+
+    def take(self, nbytes, timeout=0.05):
+        with self.cv:
+            if not self.parts:
+                self.cv.wait(timeout)
+            out, role = bytearray(), None
+            while self.parts and len(out) < nbytes:
+                b, r = self.parts[0]
+                role = role or r
+                k = nbytes - len(out)
+                out += b[:k]
+                if len(b) > k:
+                    self.parts[0] = (b[k:], r)
+                else:
+                    self.parts.pop(0)
+            if len(out) % 2:                               # never split a sample
+                self.parts.insert(0, (bytes(out[-1:]), role))
+                out = out[:-1]
+            self.n -= len(out)
+            return bytes(out), role
+
+    def close(self):
+        with self.cv:
+            self.closed = True
+            self.cv.notify_all()

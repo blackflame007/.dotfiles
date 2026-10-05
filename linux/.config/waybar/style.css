@@ -187,6 +187,7 @@ window#waybar.empty #window {
 #custom-vector.voice-scientist { color: @amber; }
 #custom-vector.voice-floor     { color: #f0d36a; }
 #custom-vector.voice-notify    { color: @soft; }
+#custom-vector.conversation   { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg"); }
 #custom-vector.mood-excited    { text-shadow: 0 0 10px alpha(@phosphor, 0.8); }
 #custom-vector.mood-concerned  { color: @amber; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
 #custom-vector.mood-alarmed    { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg");

@@ -134,5 +134,19 @@
       "qwen3.8-flash-next"
     ]
   },
-  "_comment_brain": "brain: pai (Pydantic AI, holo/vector/brain_pai.py, runs in ~/.local/share/bromigos/venv-brain) or classic (holo/vector/brain.py). lanes: voice answers first; if deep differs, the voice lane can hand a turn to it (think_harder). Measured 2026-10-04 with VECTOR's full prompt and tools: hive 0.4-0.5 s to first token, nemotron-lightning-30b 0.8-0.9 s (and it rarely tags voices), so hive leads both lanes."
+  "_comment_brain": "brain: pai (Pydantic AI, holo/vector/brain_pai.py, runs in ~/.local/share/bromigos/venv-brain) or classic (holo/vector/brain.py). lanes: voice answers first; if deep differs, the voice lane can hand a turn to it (think_harder). Measured 2026-10-04 with VECTOR's full prompt and tools: hive 0.4-0.5 s to first token, nemotron-lightning-30b 0.8-0.9 s (and it rarely tags voices), so hive leads both lanes.",
+  "speed": 1.1,
+  "conversation": {
+    "end_of_turn_ms": 700,
+    "vad_threshold": 0.5,
+    "min_speech_ms": 250,
+    "auto_off_s": 120,
+    "max_turn_s": 30
+  },
+  "pacing": {
+    "max_pause_s": 0.08,
+    "sentence_tail_s": 0.11
+  },
+  "mic_source": null,
+  "release_tail_ms": 250
 }

@@ -121,3 +121,105 @@ def dial_scratch(sr, variant=0, seconds=0.24):
     env = np.minimum(1, t / 0.012) * np.minimum(1, (seconds - t) / 0.06)
     out = (0.75 * y + whistle + crackle) * env
     return (0.25 * out / (np.abs(out).max() + 1e-9)).astype(np.float32)
+
+
+class TimeStretch:
+    """Streaming WSOLA: speed > 1 talks faster at the same pitch. Stateful across chunks,
+    so a streamed sentence stays seamless. ~25 ms frames, 50% overlap, ±10 ms search."""
+
+    def __init__(self, sr, speed=1.0):
+        self.speed = float(speed)
+        self.n = int(0.025 * sr) // 2 * 2          # frame
+        self.hs = self.n // 2                       # synthesis hop
+        self.ha = self.hs * self.speed              # analysis hop
+        self.tol = int(0.010 * sr)
+        self.win = np.hanning(self.n).astype(np.float32)
+        self.buf = np.zeros(0, np.float32)          # input not yet consumed
+        self.base = 0.0                             # analysis position of the next frame, in buf
+        self.tail = np.zeros(self.hs, np.float32)   # overlap carried to the next output
+        self.prev = None                            # the natural continuation of the last frame
+        self.started = False
+
+    def process(self, x, final=False):
+        x = np.asarray(x, np.float32)
+        if abs(self.speed - 1.0) < 1e-3:
+            return x
+        self.buf = np.concatenate([self.buf, x])
+        out = []
+        n, hs, tol = self.n, self.hs, self.tol
+        while True:
+            pos = int(round(self.base))
+            lo, hi = max(0, pos - tol), pos + tol
+            if hi + n + hs > len(self.buf):
+                break
+            if self.prev is None:
+                best = pos
+            else:   # the offset whose frame lines up best with the natural continuation
+                seg = self.buf[lo:hi + n]
+                ref = self.prev
+                c = np.correlate(seg, ref, mode="valid")
+                best = lo + int(np.argmax(c))
+            frame = self.buf[best:best + n] * self.win
+            out.append(self.tail + frame[:hs])
+            self.tail = frame[hs:].copy()
+            self.prev = self.buf[best + hs:best + hs + n]
+            self.base += self.ha
+            if self.base > n + tol * 2:             # drop consumed input, keep positions consistent
+                cut = int(self.base) - tol - 1
+                self.buf = self.buf[cut:]
+                self.base -= cut
+        if final:   # the overlap tail, then every remaining input sample (the last word must not be lost)
+            rest = self.buf[int(round(self.base)):]
+            k = min(hs, len(rest))
+            ramp = np.linspace(0.0, 1.0, k, dtype=np.float32) if k else np.zeros(0, np.float32)
+            head = self.tail.copy()
+            head[:k] = self.tail[:k] * (1 - ramp) + rest[:k] * ramp
+            out.append(head[:max(k, 1)] if k < hs else head)
+            out.append(rest[k:])
+            self.buf = np.zeros(0, np.float32)
+        return np.concatenate(out) if out else np.zeros(0, np.float32)
+
+
+class SilenceShaper:
+    """Tighten a streamed sentence's pacing without touching the speech: drop the silence
+    the model puts before the first word, cap every pause inside the sentence at `max_gap`
+    (keeping its two edges so onsets and releases stay soft), and keep `tail` after the
+    last word. Works on 10 ms frames; holds only silent frames, so speech is never delayed
+    more than the pause it is shortening."""
+
+    def __init__(self, sr, max_gap=0.12, tail=0.09, lead=0.015, floor_db=-46.0):
+        self.f = sr // 100
+        self.max_gap, self.tail, self.lead = int(max_gap * 100), int(tail * 100), int(lead * 100)
+        self.thr = 10 ** (floor_db / 20)
+        self.rest = np.zeros(0, np.float32)
+        self.held = []              # silent frames waiting
+        self.spoken = False         # has the first word started?
+
+    def _flush_gap(self, keep):
+        k = min(len(self.held), keep)
+        out = self.held[:k // 2 + k % 2] + (self.held[len(self.held) - k // 2:] if k // 2 else [])
+        self.held = []
+        return out
+
+    def process(self, x, final=False):
+        x = np.concatenate([self.rest, np.asarray(x, np.float32)])
+        n = len(x) // self.f
+        self.rest = x[n * self.f:]
+        out = []
+        for i in range(n):
+            fr = x[i * self.f:(i + 1) * self.f]
+            if float(np.sqrt(np.mean(fr * fr))) < self.thr:
+                self.held.append(fr)
+                continue
+            if self.held:
+                out += self._flush_gap(self.max_gap if self.spoken else self.lead)
+            self.spoken = True
+            out.append(fr)
+        if final:
+            if self.spoken:
+                out += self.held[:self.tail]
+            self.held = []
+            if len(self.rest) and self.spoken:
+                out.append(self.rest)
+            self.rest = np.zeros(0, np.float32)
+        return np.concatenate(out) if out else np.zeros(0, np.float32)

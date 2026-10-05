@@ -274,7 +274,11 @@ class VectorScene:
                     H.label("♪", lw * 0.62 + 24 * sc * k + 10 * sc * math.sin(t + k), h * 0.42 - ph_ * 90 * sc,
                             col("soft", 1, a), int((13 + 3 * k) * sc))
         H.label(self.route, w - 28 * sc, 26 * sc, col("static", 1, 0.9 * f), int(12 * sc), anchor="rt")
-        if self.mic_live:   # the microphone is open only while SUPER+V is held, and it says so
+        if getattr(self, "conversation", False):   # hands-free: say so, all the time
+            pulse = 0.55 + 0.45 * math.sin(time.monotonic() * 3.2)
+            H.label("● CONVERSATION · LISTENING", w - 28 * sc, 44 * sc, col("danger", 1, pulse * f), int(12 * sc), "bold",
+                    anchor="rt", spacing=1.5)
+        elif self.mic_live:   # the microphone is open only while SUPER+V is held, and it says so
             blink = 0.65 + 0.35 * math.sin(time.monotonic() * 6)
             H.label("● MIC LIVE · RELEASE SUPER+V TO SEND", w - 28 * sc, 44 * sc, col("danger", 1, blink * f), int(12 * sc), "bold", anchor="rt", spacing=1.5)
         else:

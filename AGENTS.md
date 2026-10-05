@@ -134,6 +134,7 @@ Key binds (ALT is `$mainMod`):
 | SUPER A | Radial launcher |
 | SUPER E | VECTOR: show (takes the keyboard) or minimize; he keeps working minimized. Enter sends, Esc hands the keyboard back, Shift+Esc minimizes; clicks outside the entry pass through to your windows |
 | SUPER O | Hologram gallery, the full model viewer (drag rotate, scroll or Space explode, click a part to isolate, ←/→ or 1–5 model, S scan, Esc) |
+| SUPER SHIFT E | VECTOR conversation mode: hands-free; he listens, answers when you pause, listens again; talk over him to interrupt; off after two quiet minutes (the mic is closed whenever it's off) |
 | SUPER V (hold) | Talk to VECTOR (barge-in: stops him mid-sentence): the mic is open only while held; release to send |
 | SUPER SHIFT V | Mute or unmute VECTOR's voice |
 | SUPER SHIFT B | Live layer on or off |
