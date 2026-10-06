@@ -72,10 +72,24 @@ Real readings only; when one is missing, say so on the panel. Sources (`sources.
 
 - `S.System()` → `.sample()` then `.total` (CPU %), `.per` (per thread), `.mem`
   (psutil), `.g` (GPU dict), `.temps` (`{"CPU": °C, "NVME": …}`), `.load`, `.cores`.
-- `S.GPU()` → `.read()`; `.name`; for anything else NVML has, call it directly:
-  `g.lib.nvmlDeviceGetFanSpeed(g.h, ctypes.byref(c_uint))` (fan %, 0-100; this RTX 5070
-  has 2 fans: `nvmlDeviceGetNumFans`, `nvmlDeviceGetFanSpeed_v2(g.h, i, byref)`),
-  `nvmlDeviceGetClockInfo(g.h, 0, byref)` (graphics MHz). Check the return code (0 = ok).
+- `S.GPU()` → `.read()`; `.name`; `.ok`. For anything else NVML has, use its already
+  initialised `g.lib` and `g.h` **in `tick()`** (never re-load or re-initialise NVML, never
+  in `draw()`), and check the return code (0 = ok):
+
+  ```python
+  import ctypes
+
+  def tick(self):
+      self.r = self.gpu.read()
+      self.fan = None
+      if self.gpu.ok:
+          v = ctypes.c_uint()
+          if self.gpu.lib.nvmlDeviceGetFanSpeed_v2(self.gpu.h, 0, ctypes.byref(v)) == 0:
+              self.fan = v.value                 # % of max; this RTX 5070 has 2 fans (0 and 1)
+  ```
+
+  Other calls: `nvmlDeviceGetNumFans(g.h, ctypes.byref(n))`,
+  `nvmlDeviceGetClockInfo(g.h, 0, ctypes.byref(v))` (graphics MHz).
 - `S.Net()` → `.sample()`: rates and history; `S.storage()`: mounts; `S.Lab(every,
   on_update)`: the homelab's `/api/status` (thread).
 - More (the lab, ARBITER, Prometheus, git, herdr): `data-sources.md`.
@@ -83,11 +97,14 @@ Real readings only; when one is missing, say so on the panel. Sources (`sources.
 ## Rules (checked by the build loop)
 
 - Every element shows real data or does something; no decorative labels.
-- **Every** element gets a hover region: `self.region(x, y, w, h, "what it is, what it
+- Every gauge shows its number too (a ring alone is not a reading): a `D.seg7` or
+  `D.text` value with its unit next to or inside it.
+- **Every** element gets a hover region, inside the panel's bounds: `self.region(x, y, w, h, "what it is, what it
   shows (thresholds)", action=None)`; with `action` (a callable) a click does something,
   and the tip says what. The build loop fails a panel with no regions.
 - Draw in under 40 ms (aim for 5): sample in `tick()`, never in `draw()`; no network or
-  disk I/O in `draw()`. Slow I/O goes in a thread (see `WorkbenchPanel`).
+  disk I/O, no NVML or psutil calls in `draw()` (the build loop's lint refuses them).
+  Slow I/O goes in a thread (see `WorkbenchPanel`). No bare `except:`.
 - Size: width 300-470 (the core column is 470); keep text off the brackets (16 px in).
 - Original design in the house language (see `desktop-style-guide.md`); no CRT effects.
 

@@ -277,6 +277,9 @@ def validate(look=True):
                     problems.append(f"{f}: no hover regions (every element explains itself: self.region(...))")
                 if m.get("regions_without_hint"):
                     problems.append(f"{f}: {m['regions_without_hint']} hover regions without text")
+                if m.get("regions_out_of_bounds"):
+                    problems.append(f"{f}: {m['regions_out_of_bounds']} hover regions reach outside the panel")
+                problems += [f"{f}: {x}" for x in lint_panel(p)]
                 if m.get("draw_ms", 0) > 40:
                     problems.append(f"{f}: draw takes {m['draw_ms']} ms (budget 40 ms)")
                 renders.append({"file": f, "png": out, **m})
@@ -319,6 +322,38 @@ def validate(look=True):
                 note="passed" if not problems else f"{len(problems)} problems", state="running", pct=70)
     return {"ok": not problems, "files": names, "problems": problems, "checks": checks, "renders": renders,
             "next": "apply (trial)" if not problems else "fix the problems, then validate again"}
+
+
+DRAW_IO = ("CDLL", "nvmlInit", "nvmlDeviceGetHandle", "open", "urlopen", "Popen", "run", "check_output", "sleep",
+           "get_json", "connect", "read_text", "System", "GPU", "Net", "storage", "cpu_percent", "virtual_memory")
+
+
+def lint_panel(path):
+    """House rules a plugin's source can be checked for without running it."""
+    import ast
+    probs = []
+    try:
+        tree = ast.parse(open(path).read())
+    except SyntaxError as e:
+        return [f"syntax error: {e}"]
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name in ("draw", "render"):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Call):
+                    f = sub.func
+                    name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+                    if name in DRAW_IO or name.startswith("nvml"):
+                        probs.append(f"draw() calls {name}(): sample in tick() (or __init__), draw only what tick() read")
+        if isinstance(node, ast.FunctionDef) and node.name not in ("__init__",):
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.Call):
+                    f = sub.func
+                    name = f.attr if isinstance(f, ast.Attribute) else getattr(f, "id", "")
+                    if name in ("CDLL", "nvmlInit_v2", "nvmlInit") and node.name != "__init__":
+                        probs.append(f"{node.name}() loads/initialises NVML every call; do it once in __init__ (or use S.GPU())")
+        if isinstance(node, ast.ExceptHandler) and node.type is None:
+            probs.append(f"line {node.lineno}: bare except: hides failures; catch the specific error")
+    return sorted(set(probs))
 
 
 # ------------------------------------------------------------------ trial

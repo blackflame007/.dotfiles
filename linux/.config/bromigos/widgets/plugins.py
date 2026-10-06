@@ -228,4 +228,6 @@ def render(target, out, ticks=3, w=None, h=None, background=(0, 0.02, 0, 1)):
     regions = getattr(panel, "regions", [])
     return {"out": out, "size": [W, Hh], "draw_ms": round(draw_ms, 1), "ticks": ticks,
             "seconds": round(time.perf_counter() - t0, 2), "regions": len(regions),
-            "regions_without_hint": sum(1 for r in regions if not (r[4] or "").strip())}
+            "regions_without_hint": sum(1 for r in regions if not (r[4] or "").strip()),
+            "regions_out_of_bounds": sum(1 for r in regions if r[0] < -1 or r[1] < -1 or r[0] + r[2] > W + 1
+                                         or r[1] + r[3] > Hh + 1)}
