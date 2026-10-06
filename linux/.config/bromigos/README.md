@@ -147,7 +147,16 @@ the Lab token, so `snapshot.py` writes `data.js` every minute from
 
 openrazer (the operator is in the `openrazer` group) puts the BlackWidow V4 Pro in
 driver mode, so M1–M5 send F13–F17, the side buttons F18–F20 and the dial press F24.
-`hypr/razer-blackwidow.xkb` keeps those as plain F-keys for the binds.
+`hypr/razer-blackwidow.xkb` keeps those as plain F-keys for the binds (`hypr/hyprland.conf`):
+
+| Key | Action |
+|-----|--------|
+| M1 | show or hide VECTOR (`bromigos-holo vector`) |
+| M2 (hold) | push to talk |
+| M3 | open VECTOR and toggle conversation mode (`bin/vector-converse`) |
+| M4 | holo deck |
+| M5 | screenshot a region (`bromigos-shot region`) |
+| Shift + M5 | start or stop recording a region (`bromigos-rec region`) |
 `bromigos-knob` (service `bromigos-knob`) grabs the dial and steps VECTOR's voice;
 `bromigos-rgb` (service `bromigos-rgb`) lights the keyboard and the Naga in VECTOR's
 voice colour, amber when he is concerned, red breathing when alarmed, green at rest.
