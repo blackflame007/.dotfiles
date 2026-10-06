@@ -143,7 +143,7 @@ What the operator's software is and how it works lives in Gnosis, in five knowle
 | `kb-bromigos` | `~/github.com/bromigos-org/*` (except homelab) and platform `agents/LORE.md` | 2,955 |
 | `kb-nolgia` | `~/github.com/nolgiainc/*` (Nolgia, the operator's other company) | 5,755 |
 | `kb-personal` | `~/github.com/blackflame007/*` | 513 |
-| `kb-desktop` | `~/.dotfiles`: AGENTS.md, the holo/live/brand READMEs, the live keybind table, and the docstrings of the desktop's own Python (widgets, holo, waybar scripts; panels are headed by their on-screen title, e.g. "WORKBENCH panel") | 188 |
+| `kb-desktop` | `~/.dotfiles`: AGENTS.md, every tracked `.md` under `bromigos/` and `bromigos-live/` (the desktop map, the shared skills, each component's README, the live layer's docs; new ones join by themselves), the live keybind table, and the docstrings of the desktop's own Python (widgets, holo, waybar scripts; panels are headed by their on-screen title, e.g. "WORKBENCH panel") | 188 |
 | `kb-homelab` | `~/github.com/bromigos-org/homelab` | 213 |
 
 - **Sources.** Per repo, the `README*`, `AGENTS.md`, `CLAUDE.md` and `docs/**/*.md` that git tracks (so ignored files never go), minus vendored and generated directories and anything secret-looking, up to 300 KB a file. New clones are picked up on the next run.

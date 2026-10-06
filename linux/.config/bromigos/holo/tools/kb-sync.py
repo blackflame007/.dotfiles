@@ -8,7 +8,8 @@ the kb_ingest_token, which can write nothing else):
   kb-bromigos  ~/github.com/bromigos-org/* (except homelab) + platform agents/LORE.md (canon lore)
   kb-nolgia    ~/github.com/nolgiainc/*   (Nolgia, the operator's other company)
   kb-personal  ~/github.com/blackflame007/*
-  kb-desktop   ~/.dotfiles: AGENTS.md, the holo/live/brand READMEs, the keybind table, and the
+  kb-desktop   ~/.dotfiles: AGENTS.md, every tracked .md under bromigos/ and bromigos-live/ (the desktop
+               map, the shared skills, component READMEs, docs), the keybind table, and the
                docstrings of the desktop's own Python (widgets, holo, waybar scripts)
   kb-homelab   ~/github.com/bromigos-org/homelab
 New clones under those directories are picked up on the next run.
@@ -131,9 +132,13 @@ def sources():
                 "linux/.config/bromigos/brand/3d/README.md", "linux/.config/bromigos/holo/voices/README.md"):
         if os.path.exists(os.path.join(dot, rel)):
             add("kb-desktop", dot, rel, "dotfiles")
-    for rel in git(dot, "ls-files", "linux/.config/bromigos-live").splitlines():
-        if rel.endswith(".md"):
+    seen = {r for _, _, r, _ in spaces["kb-desktop"]}
+    # every tracked markdown file of the desktop: the desktop map (bromigos/README.md), the
+    # shared skills, each component's README, the live layer's docs; new ones join by themselves
+    for rel in git(dot, "ls-files", "linux/.config/bromigos", "linux/.config/bromigos-live").splitlines():
+        if rel.endswith(".md") and rel not in seen and not SKIP.search(rel) and not SECRETISH.search(rel):
             add("kb-desktop", dot, rel, "dotfiles")
+            seen.add(rel)
     for rel in git(dot, "ls-files", "linux/.config/bromigos", "linux/.config/waybar/scripts").splitlines():
         if rel.endswith(".py") and not SKIP.search(rel) and not SECRETISH.search(rel):
             doc = py_docs(os.path.join(dot, rel), rel)
