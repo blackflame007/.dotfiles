@@ -52,7 +52,7 @@ sources.git_state(rs[0])                           # branch, dirty, ahead, behin
 sources.pushes(rs, since=time.time() - 1800)       # [(t, repo, branch, sha)]
 sources.check_runs("bromigos-org/homelab", sha)    # CI checks for a commit
 sources.herdr()                                    # agents with status and cwd
-sources.ping("10.0.0.x")                        # ms or None
+sources.ping(host)                                 # ms or None
 ```
 
 `bromigos-live/live/arbiter.py` `Feed(cfg).get(path)` is the read-only ARBITER
