@@ -51,7 +51,17 @@ def _star(m):
     return inner
 
 
+CALLSIGN = re.compile(r"\bblack[\s-]*flame\b", re.I)
+
+
+def scrub(text):
+    """The host is never named on the line: his callsign becomes "the host" (a hard rule,
+    enforced here for display, speech and the transcript, whatever the model wrote)."""
+    return CALLSIGN.sub("the host", text) if text else text
+
+
 def plain(text, bullets="· ", streaming=False):
+    text = scrub(text)
     t = _SPEAKER.sub("", strip_markers(text, streaming))
     t = _LINK.sub(r"\1", t)
     t = _CODE.sub(r"\1", t)
@@ -70,6 +80,7 @@ def plain(text, bullets="· ", streaming=False):
 
 def spoken(text):
     """For the voice: no markup, no bullet glyphs, newlines become pauses."""
+    text = scrub(text)
     t = plain(text, bullets="")
     t = re.sub(r"([.!?:;,…])\s*\n+\s*", r"\1 ", t)       # a line that already ends in punctuation
     return re.sub(r"\s*\n+\s*", ". ", t).strip()
@@ -160,7 +171,7 @@ class VoiceSplitter:
         mood = None
         for mm in MOOD.finditer(raw):
             mood = MOOD_ALIAS.get(mm.group(1).lower(), mood)
-        raw = MOOD.sub("", raw)
+        raw = scrub(MOOD.sub("", raw))
         cover, role, pos = {}, self.role, 0
         for mk in MARK.finditer(raw):
             cover[role] = cover.get(role, 0) + len(_words(raw[pos:mk.start()]))

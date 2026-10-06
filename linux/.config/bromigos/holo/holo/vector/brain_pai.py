@@ -264,7 +264,7 @@ class PaiBrain:
                 elif isinstance(ev, PartDeltaEvent) and isinstance(ev.delta, TextPartDelta):
                     delta = ev.delta.content_delta
                 if delta:
-                    delta = delta.replace("*", "")     # spoken and shown as plain text: no markdown emphasis
+                    delta = delta.replace("*", "")     # (the callsign is scrubbed where text is shown and spoken)     # spoken and shown as plain text: no markdown emphasis
                 elif isinstance(ev, FunctionToolCallEvent) and ev.part.tool_name == "think_harder":
                     return text, None, True
                 elif isinstance(ev, FunctionToolCallEvent) and ev.part.tool_name == "load_capability":
@@ -328,8 +328,8 @@ class PaiBrain:
                 return
             if msgs:
                 self.messages = msgs[-40:]
-            from .text import MOOD, tag_untagged
-            out = tag_untagged(out)                  # the transcript and log say what the voice did
+            from .text import MOOD, scrub, tag_untagged
+            out = scrub(tag_untagged(out))           # never the host's callsign, whatever the model wrote                  # the transcript and log say what the voice did
             tm = getattr(self, "turn_mood", None)
             if tm in ("concerned", "alarmed") and not MOOD.search(out):
                 out = f"‹mood:{tm}›" + out           # the facts' mood, when he didn't set one
