@@ -44,6 +44,15 @@ def step(direction):
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def volume(clicks):
+    """The keyboard's volume roller: it arrives as vertical scroll on the same mouse
+    interface as the dial, so the grab that keeps the dial from scrolling windows also
+    swallowed it. Each click is 2% on the default output, capped at 100%."""
+    pct = f"{2 * abs(clicks)}%{'+' if clicks > 0 else '-'}"
+    subprocess.run(["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", pct],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+
+
 def run(dev):
     dev.grab()
     last = 0.0
@@ -54,6 +63,8 @@ def run(dev):
                 if now - last >= STEP_GAP:
                     last = now
                     step(1 if ev.value > 0 else -1)
+            elif ev.type == evdev.ecodes.EV_REL and ev.code == evdev.ecodes.REL_WHEEL and ev.value:
+                volume(ev.value)            # the volume roller shares this grabbed interface
     finally:
         try:
             dev.ungrab()
