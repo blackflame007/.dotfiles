@@ -334,8 +334,10 @@ class PaiBrain:
             from .text import MOOD, scrub, tag_untagged
             out = scrub(tag_untagged(out))           # never the host's callsign, whatever the model wrote                  # the transcript and log say what the voice did
             tm = getattr(self, "turn_mood", None)
-            if tm in ("concerned", "alarmed") and not MOOD.search(out):
-                out = f"‹mood:{tm}›" + out           # the facts' mood, when he didn't set one
+            rank = {"calm": 0, "excited": 1, "concerned": 2, "alarmed": 3}
+            said = [m.group(1).lower() for m in MOOD.finditer(out)]
+            if tm in ("concerned", "alarmed") and all(rank.get(x, 0) < rank[tm] for x in said):
+                out = f"‹mood:{tm}›" + MOOD.sub("", out)  # the facts' mood, when he set none or a milder one
             self.history.append({"role": "assistant", "content": out})
             self.stats["model"] = self.model
             self.stats["total_s"] = round(time.monotonic() - t0, 2)
