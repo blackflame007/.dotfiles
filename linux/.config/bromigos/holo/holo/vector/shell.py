@@ -194,6 +194,17 @@ def _script_words(w, cwd, depth):
     if depth > 1:
         return []
     p = os.path.realpath(os.path.join(cwd, os.path.expanduser(w)))
+    dot = os.path.realpath(os.path.join(HOME, ".dotfiles"))
+    if p.startswith(dot + os.sep) and os.path.isfile(p):      # the desktop's own scripts, committed and unmodified
+        rel = os.path.relpath(p, dot)
+        try:
+            tracked = subprocess.run(["git", "-C", dot, "ls-files", "--error-unmatch", rel], capture_output=True,
+                                     timeout=5).returncode == 0
+            clean = subprocess.run(["git", "-C", dot, "diff", "--quiet", "HEAD", "--", rel], timeout=5).returncode == 0
+            if tracked and clean:
+                return []
+        except (OSError, subprocess.TimeoutExpired):
+            pass
     try:
         if os.path.isfile(p) and os.path.getsize(p) < 256 * 1024:
             with open(p, "rb") as f:
@@ -240,6 +251,7 @@ def check(command, cwd=HOME):
     if reason:
         raise Refused(f"working directory is {reason}")
     words = words_of(command)
+    own = [os.path.basename(w).lower() for w in words]          # the command itself
     for w in list(words):
         words += _script_words(w, cw, 0)
     lowered = [os.path.basename(w).lower() for w in words]
@@ -248,7 +260,7 @@ def check(command, cwd=HOME):
             part = os.path.basename(part)
             if part in PRIV or part.startswith("pkexec") or part.endswith("polkit-agent-helper-1"):
                 raise Refused(f"privilege escalation ({part}) is not allowed")
-    for w in lowered:
+    for w in own:                 # not the text of a script it runs: "pass" is also a Python keyword
         if w in SECRET_CMDS:
             raise Refused(f"the {w} CLI reads secrets; not allowed")
     joined = " ".join(words)
@@ -295,7 +307,7 @@ def check(command, cwd=HOME):
         if rx.search(command) or rx.search(joined):
             raise Refused(f"no real money: {what} is off limits")
     from .guard import check_command
-    why = check_command(words, joined)
+    why = check_command(words, joined + " " + command)
     if why:
         raise Refused(why)
     return None

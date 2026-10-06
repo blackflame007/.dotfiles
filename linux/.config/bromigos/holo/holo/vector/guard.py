@@ -74,8 +74,59 @@ def _abs_protected():
     return out
 
 
+def _writes(joined):
+    """A redirection to a file (not /dev/null, not fd duplication), tee, or in-place editing."""
+    for m in re.finditer(r"(?<![0-9&])>{1,2}\s*([^\s&|;]+)", joined):
+        if m.group(1) not in ("/dev/null",) and not m.group(1).startswith("&"):
+            return True
+    return bool(re.search(r"\btee\b|\s-i\b|--in-place|\bdd\b.*\bof=", joined))
+
+
+VISUAL = ["linux/.config/bromigos/widgets/", "linux/.config/bromigos-live/", "linux/.config/bromigos/brand/3d/",
+          "linux/.config/bromigos/holo/holo/"]
+GIT_WRITES = {"checkout", "restore", "reset", "stash", "clean", "rm", "mv", "apply", "am", "cherry-pick", "revert",
+              "merge", "rebase", "pull"}
+
+
+def _visual_write(words, joined):
+    """Desktop visuals change only through the build loop (worktree, validation, trial)."""
+    named = False
+    for p in VISUAL:
+        full = os.path.join(DOT, p)
+        stow = full.replace(os.path.join(DOT, "linux"), HOME)
+        if full in joined or stow in joined or full.rstrip("/") in joined or stow.rstrip("/") in joined:
+            named = True
+    if not named:
+        return None
+    first = os.path.basename(words[0]) if words else ""
+    if first in READ_ONLY and not _writes(joined):
+        return None
+    if first == "git":
+        rest = list(words[1:])
+        while rest and rest[0] in ("-C", "-c", "--git-dir", "--work-tree"):
+            rest = rest[2:]
+        if rest and rest[0] not in GIT_WRITES and not _writes(joined):
+            return None
+    if first == "sed" and "-n" in words and not re.search(r"\s-i", joined):
+        return None
+    if re.match(r"(python3?|\S*/python3?)$", first) and "-m" in words and "py_compile" in words:
+        return None
+    if first in ("bromigos-widgets", "bromigos-live", "bromigos-holo") or words[0].endswith(
+            ("/bromigos-widgets", "/bromigos-live", "/bromigos-holo")):
+        return None                                   # running the desktop's own commands is fine
+    return ("the desktop's widgets, live layer, models and console change only through build_start "
+            "(a worktree, validation and a trial the host keeps or reverts)")
+
+
 def check_command(words, joined):
-    """-> a refusal reason when a terminal command could write a protected file."""
+    """-> a refusal reason when a terminal command could write a protected file, or write
+    the desktop's visuals outside the build loop."""
+    joined = joined.replace("${HOME}", HOME).replace("$HOME", HOME)
+    joined = " ".join(HOME + w[1:] if w.startswith("~/") else w for w in joined.split(" "))
+    words = [os.path.expanduser(w) if w.startswith("~/") else w for w in words]
+    why = _visual_write(words, joined)
+    if why:
+        return why
     hits = []
     for p in PROTECTED:
         full = os.path.join(DOT, p)
@@ -89,13 +140,13 @@ def check_command(words, joined):
     if not hits:
         return None
     first = os.path.basename(words[0]) if words else ""
-    if first in READ_ONLY and not re.search(r"[>|]\s*\S|\btee\b|-i\b|--in-place", joined):
+    if first in READ_ONLY and not _writes(joined):
         return None
     if first == "git":
         rest = list(words[1:])
         while rest and rest[0] in ("-C", "-c", "--git-dir", "--work-tree"):
             rest = rest[2:]
-        if rest and rest[0] in ("diff", "log", "show", "status", "blame", "ls-files") and not re.search(r"[>|]\s*\S", joined):
+        if rest and rest[0] in ("diff", "log", "show", "status", "blame", "ls-files") and not _writes(joined):
             return None
     if first == "sed" and "-n" in words and not re.search(r"\s-i", joined):
         return None

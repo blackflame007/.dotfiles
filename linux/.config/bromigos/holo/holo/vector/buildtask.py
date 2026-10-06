@@ -154,6 +154,7 @@ class BuildTask:
             key = f.read().strip()
         ctx = ssl.create_default_context(cafile=CA) if os.path.exists(CA) else ssl.create_default_context()
         http = httpx.AsyncClient(verify=ctx, timeout=httpx.Timeout(connect=10.0, read=180.0, write=30.0, pool=10.0))
+        from .brain_pai import BASE, lanes
         prov = OpenAIProvider(base_url=BASE, api_key=key, http_client=http)
         deep = [m for m in lanes()[1] if m != "nemotron-lightning-30b"] or ["hive"]
         return FallbackModel(*[OpenAIChatModel(m, provider=prov) for m in deep])

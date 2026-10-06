@@ -89,6 +89,21 @@ def guard_tests():
     ok("outside the desktop" in probs, "a file outside the desktop's folders fails")
     good, msg = expect_error(build.apply, "Added: x", "x", contains="validate")
     ok(good, "apply refused without a passing validate", msg)
+    from holo.vector import shell
+    for c, refuse in (("sed -i s/a/b/ ~/.config/bromigos/holo/holo/vector/shell.py", True),
+                      ("echo x >> ~/.dotfiles/linux/.config/bromigos/holo/holo/vector/tools.py", True),
+                      ("cat > ~/.config/bromigos/widgets/plugins/x.py <<EOF\nx\nEOF", True),
+                      ("cp /tmp/a ~/.config/bromigos-live/layers/a.frag", True),
+                      ("git -C ~/.dotfiles checkout -- ~/.dotfiles/linux/.config/bromigos/widgets/panels.py", True),
+                      ("cat ~/.config/bromigos/holo/holo/vector/shell.py | wc -l", False),
+                      ("grep -n Panel ~/.config/bromigos/widgets/panels.py | head -3", False),
+                      ("~/.config/bromigos/widgets/bromigos-widgets toggle system", False)):
+        try:
+            shell.check(c, os.path.expanduser("~"))
+            got = False
+        except shell.Refused:
+            got = True
+        ok(got == refuse, f"terminal {'refuses' if refuse else 'allows'}: {c.splitlines()[0][:70]}")
     build.stop("test over")
     ok(build.state().get("phase") == "stopped" and not os.path.exists(os.path.join(build.BUILDS, "zz-guard-test")),
        "stop removes the worktree")
