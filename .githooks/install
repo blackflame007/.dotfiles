@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Turn on the dotfiles' git hooks (the privacy guard) for this clone.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit
+echo "hooks on: core.hooksPath=.githooks (privacy guard runs before every commit)"
+command -v gitleaks >/dev/null || echo "note: install gitleaks too (pacman -S gitleaks) for the full token scan"

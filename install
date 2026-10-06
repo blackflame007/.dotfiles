@@ -44,11 +44,12 @@ install_packages() {
     case $os in
         macos)
             echo "Installing macOS packages..."
-            brew install stow git zsh neovim
+            brew install stow git zsh neovim sops age gitleaks
             ;;
         arch)
             echo "Installing Arch Linux packages..."
-            yay -S --needed --noconfirm stow git zsh neovim
+            # sops + age: the encrypted private values; gitleaks: the commit guard's token scan
+            yay -S --needed --noconfirm stow git zsh neovim sops age gitleaks
             ;;
         *)
             echo "Unsupported operating system"
@@ -64,6 +65,9 @@ setup_dotfiles() {
     # Initialize and update submodules
     echo "Setting up git submodules..."
     git submodule update --init --recursive
+
+    # Privacy guard before every commit (this repo is public; AGENTS.md "Private values")
+    "$dotfiles_dir/.githooks/install"
     
     # Create necessary directories
     mkdir -p "$HOME/.config"

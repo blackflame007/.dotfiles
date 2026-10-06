@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Privacy guard: this repo is PUBLIC. Blocks commits that add private infrastructure
+# details (LAN addresses, internal hostnames, Vault paths, the lab's own names) or
+# token-shaped strings, and checks every *.sops.* file is really encrypted.
+# Patterns and the fix: linux/.config/bromigos/lib/privacy_guard.py; AGENTS.md "Private values".
+# Install: .githooks/install (sets core.hooksPath). Bypass only for a reviewed false
+# positive: end the line with `privacy: allow` (never --no-verify for real details).
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+exec python3 "$root/linux/.config/bromigos/lib/privacy_guard.py" check-staged
