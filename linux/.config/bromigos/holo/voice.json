@@ -125,13 +125,13 @@
   "lanes": {
     "voice": [
       "hive",
-      "nemotron-lightning-30b",
-      "qwen3.8-flash-next"
+      "qwen3.8-flash-next",
+      "nemotron-lightning-30b"
     ],
     "deep": [
       "hive",
-      "nemotron-lightning-30b",
-      "qwen3.8-flash-next"
+      "qwen3.8-flash-next",
+      "nemotron-lightning-30b"
     ]
   },
   "_comment_brain": "brain: pai (Pydantic AI, holo/vector/brain_pai.py, runs in ~/.local/share/bromigos/venv-brain) or classic (holo/vector/brain.py). lanes: voice answers first; if deep differs, the voice lane can hand a turn to it (think_harder). Measured 2026-10-04 with VECTOR's full prompt and tools: hive 0.4-0.5 s to first token, nemotron-lightning-30b 0.8-0.9 s (and it rarely tags voices), so hive leads both lanes.",
