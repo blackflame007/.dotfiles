@@ -322,6 +322,11 @@ def clean_env():
     env = {k: v for k, v in os.environ.items() if not ENV_DROP.search(k)}
     env.setdefault("HOME", HOME)
     env["PATH"] = env.get("PATH") or "/usr/local/bin:/usr/bin:/bin"
+    # the desktop's own commands by name (bromigos-live status, bromigos-holo, bromigos-widgets, …)
+    extra = [os.path.join(HOME, p) for p in (".config/bromigos/bin", ".config/bromigos-live/bin", ".config/bromigos/holo/bin",
+                                             ".config/bromigos/widgets", ".local/bin", ".cargo/bin")]
+    have = env["PATH"].split(":")
+    env["PATH"] = ":".join([p for p in extra if os.path.isdir(p) and p not in have] + have)
     env["TERM"] = "dumb"
     env["PAGER"] = env["GIT_PAGER"] = "cat"
     env["SYSTEMD_PAGER"] = ""

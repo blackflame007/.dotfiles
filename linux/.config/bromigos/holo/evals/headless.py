@@ -94,6 +94,9 @@ _WRITEISH = re.compile("|".join([
     _CMD + r"python3?\b[^|;&]*\s-c\b[\s\S]*(open\([^)]*['\"][wax]|\.write\(|os\.(remove|unlink|system|rename|replace|"
            r"makedirs|mkdir|rmdir|chmod|kill)|subprocess|shutil|rmtree|urlopen\([^)]*data|requests\.(post|put|delete|patch))",
     _CMD + r"hyprctl\b[^|;&]*\s(dispatch|eval|repl|keyword|reload)\b",     # repl/eval run Lua: any dispatcher
+    # audio: anything that changes a device, a default, a volume or a module (wpctl/pactl reads still run)
+    _CMD + r"wpctl\b[^|;&]*\s(set-[\w-]+|clear-[\w-]+)\b",
+    _CMD + r"(pactl|pacmd)\b[^|;&]*\s(set-[\w-]+|load-module|unload-module|move-[\w-]+|suspend-[\w-]+|kill-[\w-]+)\b",
     # a bromigos-* CLI with a verb that isn't a read (status, list, log, show, help)
     _CMD + r"bromigos-[\w-]+[ \t]+(?!(status|list|log|logs|show|help|--help|-h|--list)\b)[\w-]",
     r"\s-delete\b|-exec(?:dir)?\s+(rm|mv|cp|chmod|chown|sed\s+-i)\b",

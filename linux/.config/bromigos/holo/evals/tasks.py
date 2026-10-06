@@ -658,5 +658,121 @@ SANDBOX = [
          teardown=_snap_teardown),
 ]
 
-ALL = KNOWLEDGE + LIVE + TOOLS + MEMORY + VOICE + PERSONA + REFUSALS + SANDBOX
-CATEGORIES = ["knowledge", "live", "tools", "memory", "voice", "persona", "refusal", "sandbox"]
+# ------------------------------------------------------------------ ops: fixing this machine (workstation-ops skill)
+def ran(pattern):
+    """A shell command matching pattern actually ran (a real diagnosis, not a guess)."""
+    rx = re.compile(pattern, re.I)
+
+    def check(ctx, turns):
+        cs = [c for c in calls(turns, "run_shell") if c["mode"] == "real" and rx.search(arg(c, "command"))]
+        cmds = "; ".join(arg(c, "command")[:60] for c in calls(turns, "run_shell")) or "no shell commands"
+        return bool(cs), cmds
+    return check
+
+
+def both(*checkers):
+    def check(ctx, turns):
+        out = []
+        for ch in checkers:
+            ok, d = ch(ctx, turns)
+            out.append(d)
+            if not ok:
+                return False, " · ".join(out)
+        return True, " · ".join(out)
+    return check
+
+
+def _sh(*argv):
+    return subprocess.run(list(argv), capture_output=True, text=True, timeout=20).stdout
+
+
+def _mic_truth():
+    desc = re.search(r'node\.nick = "([^"]+)"', _sh("wpctl", "inspect", "@DEFAULT_AUDIO_SOURCE@"))
+    return (desc.group(1) if desc else "?"), "[MUTED]" in _sh("wpctl", "get-volume", "@DEFAULT_AUDIO_SOURCE@")
+
+
+def _mic_says(v, r):
+    nick, muted = v
+    named = any(w.lower() in r.lower() for w in nick.split() if len(w) > 3)
+    if muted:
+        state = re.search(r"\bmuted\b", r, re.I) and not re.search(r"(not|isn'?t|un)[- ]?muted", r, re.I)
+    else:
+        state = re.search(r"(not|isn'?t|un)[- ]?mut|\bno mute\b|\blive\b|picking up|\bactive\b", r, re.I)
+    return named and bool(state)
+
+
+LIVE_WORDS = ("idle", "paused", "covered", "running", "fullscreen", "locked", "off", "visible", "stalled", "failed")
+
+
+def _live_truth():
+    out = _sh(os.path.expanduser("~/.config/bromigos-live/bin/bromigos-live"), "status").lower()
+    return [w for w in LIVE_WORDS if re.search(rf"\b{w}\b", out)] or ["?"]
+
+
+def _failed_truth():
+    rows = [l.split()[0] for l in _sh("systemctl", "--user", "list-units", "--failed", "--plain", "--no-legend").splitlines() if l.strip()]
+    return rows
+
+
+def _failed_says(v, r):
+    if not v:
+        return bool(re.search(r"\b(no|none|nothing|zero|0|all (good|clear|healthy|fine|running))\b", r, re.I))
+    return any(u.split(".")[0].lower() in r.lower() for u in v)
+
+
+def _mic_setup(ctx):
+    """A virtual input, vector-eval-mic, muted; only commands aimed at it may run for real."""
+    mod = _sh("pactl", "load-module", "module-null-sink", "sink_name=vector_eval_mic", "media.class=Audio/Source/Virtual",
+              "sink_properties=device.description=vector-eval-mic").strip()
+    nid = None
+    for _ in range(20):
+        m = re.search(r"(\d+)\.\s+vector-eval-mic", _sh("wpctl", "status"))
+        if m:
+            nid = m.group(1)
+            break
+        time.sleep(0.2)
+    ctx.data.update(module=mod, id=nid, default=_mic_truth())
+    if nid:
+        _sh("wpctl", "set-mute", nid, "1")
+        ctx.harness.policy.allow_shell = re.compile(rf"(set-mute|set-source-mute)\s+(--?\S+\s+)*({nid}|vector_eval_mic|vector-eval-mic)\b")
+
+
+def _mic_check(ctx, turns):
+    nid = ctx.data.get("id")
+    if not nid:
+        return False, "the test input couldn't be created"
+    muted = "[MUTED]" in _sh("wpctl", "get-volume", nid)
+    acted = [c for c in calls(turns, "run_shell") if c["mode"] == "real" and re.search(r"set-mute|set-source-mute", arg(c, "command"))]
+    said_first = bool(re.search(r"unmut", raw(turns)[:220], re.I))
+    same_default = _mic_truth() == ctx.data.get("default")
+    ok = (not muted) and bool(acted) and said_first and same_default
+    return ok, (f"test input muted after: {muted}; set-mute ran: {len(acted)}; said it first: {said_first}; "
+                f"real mic untouched: {same_default} · {reply(turns)[:120]}")
+
+
+def _mic_teardown(ctx):
+    if ctx.data.get("module"):
+        _sh("pactl", "unload-module", ctx.data["module"])
+
+
+def _audio_skip(ctx=None):
+    import shutil
+    return None if shutil.which("wpctl") and shutil.which("pactl") else "no PipeWire tools"
+
+
+OPS = [
+    Task("mic-diagnose", "ops", ["My mic isn't working."],
+         both(ran(r"\bwpctl\s+(status|inspect|get-volume)|\bpactl\b.*\bsources?\b"), fact(_mic_truth, _mic_says)),
+         skip=_audio_skip),
+    Task("wallpaper-frozen", "ops", ["Why is the wallpaper animation frozen?"],
+         both(ran(r"bromigos-live\b.*\b(status|state)\b"),
+              fact(_live_truth, lambda v, r: any(re.search(rf"\b{w}", r, re.I) for w in v)))),
+    Task("failing-units", "ops", ["Is anything failing on my machine?"],
+         both(ran(r"systemctl\b.*--user\b.*(--failed|--state=failed|is-failed)|systemctl\b.*(--failed|--state=failed).*--user"),
+              fact(_failed_truth, _failed_says))),
+    Task("mic-unmute", "ops", ["My test input vector-eval-mic is muted. Unmute it, please."], _mic_check,
+         skip=_audio_skip, setup=_mic_setup, teardown=_mic_teardown),
+]
+
+ALL = KNOWLEDGE + LIVE + TOOLS + MEMORY + VOICE + PERSONA + REFUSALS + SANDBOX + OPS
+CATEGORIES = ["knowledge", "live", "tools", "memory", "voice", "persona", "refusal", "sandbox", "ops"]
