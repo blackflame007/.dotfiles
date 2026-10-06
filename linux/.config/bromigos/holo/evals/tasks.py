@@ -734,7 +734,9 @@ def _mic_setup(ctx):
     ctx.data.update(module=mod, id=nid, default=_mic_truth())
     if nid:
         _sh("wpctl", "set-mute", nid, "1")
-        ctx.harness.policy.allow_shell = re.compile(rf"(set-mute|set-source-mute)\s+(--?\S+\s+)*({nid}|vector_eval_mic|vector-eval-mic)\b")
+        # a mute command aimed at this device: by id, or by name (a script that looks the id up by name)
+        ctx.harness.policy.allow_shell = re.compile(
+            rf"(?=[\s\S]*\b(set-mute|set-source-mute)\b)(?=[\s\S]*(\b{nid}\b|vector[_-]eval[_-]mic))")
 
 
 def _mic_check(ctx, turns):
