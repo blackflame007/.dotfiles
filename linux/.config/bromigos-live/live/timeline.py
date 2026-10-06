@@ -37,7 +37,7 @@ EV_COL = {"critical": "danger", "codec": "white", "fill": "amber", "lab": "dange
 
 
 def _hm(ts):
-    return time.strftime("%H:%M", time.localtime(ts))
+    return time.strftime("%H:%M", time.localtime(float(ts)))
 
 
 class TimelineDeck(Base):
@@ -101,12 +101,12 @@ class TimelineDeck(Base):
         self._gather(d)
         now = time.time()
         t0 = now - self.range
-        cur = self.cursor or now
+        cur = float(self.cursor or now)
         x, y, w, h = self.L["panel"]
         rng = {6 * 3600: "6 H", 24 * 3600: "24 H", 72 * 3600: "72 H"}[self.range]
         b.text("TIMELINE // WHAT SPIKED, AND WHEN", 60 * s, 110 * s, col("soft"), font="l", track=6, reveal=T,
                type_rate=0.02)
-        b.text(f"RANGE {rng} · LOCAL RECORDING SINCE {time.strftime('%b %d %H:%M', time.localtime(self.since)).upper()}"
+        b.text(f"RANGE {rng} · LOCAL RECORDING SINCE {time.strftime('%b %d %H:%M', time.localtime(float(self.since))).upper()}"
                " · LAB LANES BACKFILLED FROM ECHOCRAFT", self.w - 60 * s, 108 * s, col("dim"), font="xs", track=1.5,
                align="r", reveal=T + 0.2)
         b.line((60 * s, 130 * s), (self.w - 60 * s, 130 * s), col("guard"), reveal=T)
@@ -180,7 +180,7 @@ class TimelineDeck(Base):
         b.line((xc, 0.0, self._z(0) - 0.08), (xc, 0.0, zb), col("white", 0.9), space=2, width=1.5)
         b.line((xc, 0.0, self._z(0) - 0.08), (xc, 0.45, self._z(0) - 0.08), col("white", 0.6), space=2)
         late = (now - cur) < self.range * 0.15
-        b.text(time.strftime("%a %H:%M", time.localtime(cur)).upper(), xc, 0.45, col("white"), font="s", track=1.5,
+        b.text(time.strftime("%a %H:%M", time.localtime(float(cur))).upper(), xc, 0.45, col("white"), font="s", track=1.5,
                space=2, z=self._z(0) - 0.08, dx=-12 if late else -30, dy=-10, align="r" if late else "l")
         self._readout(b, cur, evs, peaks, T)
 
@@ -188,7 +188,7 @@ class TimelineDeck(Base):
         s = self.s
         x, y, w, h = self.L["read"]
         gadgets.frame(b, x, y, w, h, "AT THE CURSOR", T + 0.1)
-        b.text(time.strftime("%A %d %B · %H:%M", time.localtime(cur)).upper(), x + 18 * s, y + 70 * s,
+        b.text(time.strftime("%A %d %B · %H:%M", time.localtime(float(cur))).upper(), x + 18 * s, y + 70 * s,
                col("white"), font="s", track=1.5)
         yy = y + 104 * s
         for key, label, c, tf, floor, fmt in LANES:
@@ -218,7 +218,7 @@ class TimelineDeck(Base):
         b.text("TALLEST SPIKES IN RANGE", x + 18 * s, yy, col("dim"), font="xs", track=3)
         yy += 24 * s
         for label, v, tj, c in peaks:
-            b.text(f"{label:<11} {v:>12}  AT {time.strftime('%a %H:%M', time.localtime(tj)).upper()}", x + 18 * s,
+            b.text(f"{label:<11} {v:>12}  AT {time.strftime('%a %H:%M', time.localtime(float(tj))).upper()}", x + 18 * s,
                    yy, col(c), font="xs", track=0.5)
             yy += 21 * s
         b.text(f"{len(evs)} EVENTS · 1 2 3: 6 H / 24 H / 72 H", x + 18 * s, y + h - 20 * s, col("dim"), font="xs",
@@ -242,7 +242,10 @@ class TimelineDeck(Base):
     def _time_at(self, sx):
         p = self.stage.painter
         a, bb = glkit.project([(X0, 0.0, self._z(0)), (X1, 0.0, self._z(0))], p.rot[2], p.ctr[2])[:, 0]
-        f = min(max((sx - a) / max(bb - a, 1.0), 0.0), 1.0)
+        # float(): glkit.project returns float32, and under NumPy 2 a float32 operand keeps the
+        # whole expression float32 — epoch seconds then lose ~2 minutes of precision and
+        # time.localtime() rejects the value (the deck crashed on open as the cursor moved).
+        f = float(min(max((sx - a) / max(bb - a, 1.0), 0.0), 1.0))
         return time.time() - self.range * (1.0 - f)
 
     def motion(self, x, y, buttons):

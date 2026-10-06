@@ -346,7 +346,7 @@ class OpsDeck(Deck3D):
             yy += (24 if big else 19) * s
         row("PUSHES (30 MIN)", "dim")
         for p in reversed(self.pushes[-4:]):
-            row(f"{time.strftime('%H:%M', time.localtime(p['t']))} {p['repo']} {p['branch']} {p['sha'][:8]}", "white")
+            row(f"{time.strftime('%H:%M', time.localtime(float(p['t'])))} {p['repo']} {p['branch']} {p['sha'][:8]}", "white")
         if not self.pushes:
             row("NONE", "dim")
         yy += 8 * s

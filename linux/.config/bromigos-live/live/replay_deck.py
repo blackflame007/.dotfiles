@@ -241,7 +241,7 @@ class ReplayDeck(Deck3D):
             gx = X0 + (X1 - X0) * k / 8
             b.line((gx, -0.36, -0.12), (gx, -0.36, 0.12), col("guard"), space=2)
             ta = self.window[0] + (self.window[1] - self.window[0]) * k / 8
-            b.text(time.strftime("%m-%d %H:%M", time.localtime(ta)), gx, -0.36, col("dim"), font="xs", track=0.6,
+            b.text(time.strftime("%m-%d %H:%M", time.localtime(float(ta))), gx, -0.36, col("dim"), font="xs", track=0.6,
                    space=2, z=0.12, dx=-36, dy=22)
         b.line((X0, -0.36, -0.12), (X1, -0.36, -0.12), col("guard"), space=2)
         # the ribbon: two rails and struts, the held span lit in the trade's colour
@@ -268,7 +268,7 @@ class ReplayDeck(Deck3D):
             b.line((mx, -0.36, 0), (mx, my + 0.18, 0), c, width=1.6, space=2)
             b.arc((mx, my, 0), 0, 6 * s, 0, TAU, c, kind=2, space=2)
             b.arc((mx, my, 0), 12 * s, 13.4 * s, 0, TAU, c, segs=8, gap=0.4, spin=0.5, space=2)
-            head = f"{label} {time.strftime('%m-%d %H:%M', time.localtime(when))} @ {px:,.6g}"
+            head = f"{label} {time.strftime('%m-%d %H:%M', time.localtime(float(when)))} @ {px:,.6g}"
             if label == "ENTRY" and tr.get("entry_from_bars"):
                 head += " (FROM HELD TIME)"
             b.text(head.upper(), mx, my + 0.18, c, font="s", track=1.2, space=2, z=0, dx=8, dy=-6)
@@ -281,7 +281,7 @@ class ReplayDeck(Deck3D):
         if self.cur > 0:
             b.line((cx_, -0.36, 0), (cx_, 0.42, 0), col("white", 0.7), space=2)
             b.arc((cx_, cy_, 0), 0, 5 * s, 0, TAU, col("white"), kind=2, space=2)
-            b.text(f"{time.strftime('%a %H:%M', time.localtime(cur_t))} · {float(np.interp(cur_t, tt, cc)):,.6g}".upper(),
+            b.text(f"{time.strftime('%a %H:%M', time.localtime(float(cur_t)))} · {float(np.interp(cur_t, tt, cc)):,.6g}".upper(),
                    cx_, 0.42, col("white"), font="xs", track=1, space=2, z=0, dx=8, dy=-6)
         # caption: what happens at the cursor
         cap = None
@@ -312,7 +312,7 @@ class ReplayDeck(Deck3D):
                 b.plate(x + 10 * s, yy - 18 * s, w - 20 * s, 38 * s, 0.9)
                 b.rect(x + 10 * s, yy - 18 * s, w - 20 * s, 38 * s, col("soft"))
             c = "phosphor" if (tr["realized"] or 0) >= 0 else "danger"
-            b.text(f"{time.strftime('%H:%M', time.localtime(tr['exit_t']))} {ascii_(tr['label'], 22)}".upper(),
+            b.text(f"{time.strftime('%H:%M', time.localtime(float(tr['exit_t'])))} {ascii_(tr['label'], 22)}".upper(),
                    x + 20 * s, yy, col("white" if on else "soft"), font="xs", track=0.8)
             b.text(money(tr["realized"]), x + w - 20 * s, yy, col(c), font="xs", track=0.8, align="r")
             b.text(ascii_(tr["agent"], 50).upper(), x + 20 * s, yy + 15 * s, col("dim"), font="xs", track=0.4)

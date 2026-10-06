@@ -450,7 +450,7 @@ class MindDeck(Deck3D):
         yy += 24 * s
         evs = self.log[-6:] or [(None, "", "NO RECALL, FILE OR FORGET YET")]
         for tt, kind, txt in reversed(evs):
-            stamp = time.strftime("%H:%M:%S", time.localtime(tt)) if tt else ""
+            stamp = time.strftime("%H:%M:%S", time.localtime(float(tt))) if tt else ""
             c = {"RECALL": "white", "FILE": "soft", "FORGET": "danger"}.get(kind, "dim")
             b.text(f"{stamp} {kind}", x + 18 * s, yy, col(c), font="xs", track=1)
             for ln in wrap(ascii_(txt).upper(), 52)[:2]:
