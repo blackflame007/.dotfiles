@@ -11,17 +11,28 @@ A second run on the same day keeps the earlier one as <date>.<HHMMSS>.json.
 Cost guard: before anything runs, every LiteLLM route the brain's lanes (and the memory
 embeddings) can use must be a local homelab vLLM with zero cost, or the run stops. nolgia
 is never called (its tools are stubbed), and nothing here talks to a paid API.
+
+Real repos are out of reach: the suite runs inside a bubblewrap jail where ~/github.com is a
+throwaway overlay (writes land in memory and vanish when the run ends) and ~/.dotfiles is
+read-only, and git pushes point at a dead URL. So no task can change, commit or push a real
+repo, whatever command slips past the harness's write patterns; GitOps tasks edit the overlay. The parent
+process snapshots every real repo's uncommitted paths before the run and checks again
+after; a path the run made dirty fails the run (exit 4) and is listed in the results.
 """
 import argparse
 import datetime as dt
 import fcntl
 import glob
+import hashlib
 import json
 import os
 import re
+import shutil
 import ssl
 import statistics
+import subprocess
 import sys
+import tempfile
 import time
 import traceback
 import urllib.parse
@@ -35,6 +46,9 @@ STATE = os.path.join(os.path.expanduser("~"), ".local/state/bromigos/evals")
 CACHE = os.path.join(os.path.expanduser("~"), ".cache/bromigos/vector-evals")
 KEY = os.path.join(os.path.expanduser("~"), ".local/share/bromigos/litellm-key")
 CA = os.path.join(os.path.expanduser("~"), ".config/homelab/homelab-ca.crt")
+HOME = os.path.expanduser("~")
+REAL_ROOTS = [os.path.join(HOME, "github.com"), os.path.join(HOME, ".dotfiles")]   # never written by a run
+JAILED = "BROMIGOS_EVAL_JAILED"
 
 
 def _local_base():
@@ -161,6 +175,130 @@ def diff(cur, prev):
             "first_token_p50_change_s": round(lc - lp, 2) if lc is not None and lp is not None else None}
 
 
+# ------------------------------------------------------------------ real repos stay untouched
+def real_repos():
+    repos = [r for r in [os.path.join(HOME, ".dotfiles")] if os.path.exists(os.path.join(r, ".git"))]
+    return repos + sorted(os.path.dirname(g) for g in glob.glob(os.path.join(HOME, "github.com/*/*/.git")))
+
+
+def _fingerprint(path):
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return "gone"
+    except OSError as e:
+        return type(e).__name__
+    if os.path.islink(path):
+        return "link:" + os.readlink(path)
+    if os.path.isdir(path):                               # a submodule: its checked-out commit
+        r = subprocess.run(["git", "-C", path, "rev-parse", "HEAD"], capture_output=True, text=True, timeout=20)
+        return "dir:" + r.stdout.strip()
+    if st.st_size <= 8 << 20:
+        h = hashlib.sha1()
+        with open(path, "rb") as f:
+            for b in iter(lambda: f.read(1 << 20), b""):
+                h.update(b)
+        return h.hexdigest()
+    return f"{st.st_size}:{st.st_mtime_ns}"
+
+
+def repo_state(repos):
+    """{repo: {path: "XY:fingerprint"}} for every uncommitted path (None when git couldn't say)."""
+    state = {}
+    for repo in repos:
+        try:
+            p = subprocess.run(["git", "-C", repo, "status", "--porcelain=v1", "-z", "--untracked-files=all",
+                                "--ignore-submodules=dirty"], capture_output=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired):
+            state[repo] = None
+            continue
+        if p.returncode != 0:
+            state[repo] = None
+            continue
+        files, parts, i = {}, p.stdout.split(b"\0"), 0
+        while i < len(parts):
+            e = parts[i]
+            i += 1
+            if len(e) < 4:
+                continue
+            code, path = e[:2].decode(), e[3:].decode("utf-8", "replace")
+            if code[0] in "RC":
+                i += 1                                    # the rename's source path follows
+            try:
+                files[path] = code + ":" + _fingerprint(os.path.join(repo, path))
+            except (OSError, subprocess.TimeoutExpired) as ex:
+                files[path] = code + ":" + type(ex).__name__
+        state[repo] = files
+    return state
+
+
+def repo_changes(before, after):
+    """Paths the run made dirty, or changed while they were already dirty."""
+    out = []
+    for repo, files in after.items():
+        if files is None or before.get(repo) is None:
+            continue
+        rel = os.path.relpath(repo, HOME)
+        out += [f"~/{rel}/{p} ({v.split(':', 1)[0].strip() or '?'})" for p, v in sorted(files.items())
+                if before[repo].get(p) != v]
+    return out
+
+
+def _jailed_run(argv):
+    """Run the suite inside the read-only jail, then check that no real repo got new changes."""
+    roots = [os.path.realpath(r) for r in REAL_ROOTS if os.path.isdir(r)]
+    if not shutil.which("bwrap"):
+        print("evals: bubblewrap (bwrap) is missing; the suite won't run without its read-only jail", file=sys.stderr)
+        return 5
+    repos = real_repos()
+    before = repo_state(repos)
+    os.makedirs(CACHE, exist_ok=True)
+    fd, outfile = tempfile.mkstemp(prefix="out-", dir=CACHE)
+    os.close(fd)
+    env = dict(os.environ, **{JAILED: "1", "BROMIGOS_EVAL_OUT": outfile})
+    dead = ["git@github.com:", "ssh://git@github.com/", "https://github.com/"]   # pushes go nowhere
+    env["GIT_CONFIG_COUNT"] = str(len(dead))
+    for i, u in enumerate(dead):
+        env[f"GIT_CONFIG_KEY_{i}"] = "url.file:///nonexistent/eval-push-blocked/.pushInsteadOf"
+        env[f"GIT_CONFIG_VALUE_{i}"] = u
+    cmd = ["bwrap", "--dev-bind", "/", "/"]
+    for r in roots:                       # ~/github.com: a scratch overlay; ~/.dotfiles: read-only
+        cmd += ["--overlay-src", r, "--tmp-overlay", r] if r.endswith("/github.com") else ["--ro-bind", r, r]
+    cmd += ["--die-with-parent", "--", sys.executable, "-m", "evals.run"] + list(sys.argv[1:] if argv is None else argv)
+    try:
+        rc = subprocess.call(cmd, cwd=HOLO, env=env)
+    except KeyboardInterrupt:
+        rc = 130
+    changed = repo_changes(before, repo_state(repos))
+    try:
+        with open(outfile) as f:
+            out = f.read().strip()
+        os.unlink(outfile)
+    except OSError:
+        out = ""
+    check = {"ok": not changed, "repos": len(repos), "jailed": roots, "changed": changed}
+    if out and os.path.exists(out):
+        with open(out) as f:
+            res = json.load(f)
+        res["repo_check"] = check
+        res["summary"]["repo_side_effects"] = len(changed)
+        with open(out + ".part", "w") as f:
+            json.dump(res, f, indent=1, default=str)
+        os.replace(out + ".part", out)
+        with open(out[:-5] + ".md", "w") as f:
+            f.write(markdown(res))
+    if changed:
+        print(f"\nevals: RUN FAILED: {len(changed)} uncommitted change(s) appeared in real repos during the run:", file=sys.stderr)
+        for c in changed:
+            print("  " + c, file=sys.stderr)
+        print("The run's own commands can't write there (the jail), so check who did: you or another session editing\n"
+              "while it ran, or a daemon outside the jail that the run asked to act. Revert only what nobody meant.",
+              file=sys.stderr)
+        return 4
+    print(f"evals: repo check ok ({len(repos)} repos under ~/github.com and ~/.dotfiles unchanged)")
+    return rc
+
+
 def markdown(res):
     s, d = res["summary"], res["diff"]
     lines = [f"# VECTOR evals · {res['started'][:16].replace('T', ' ')}", "",
@@ -168,6 +306,10 @@ def markdown(res):
              f"{res['duration_s']:.0f} s. First token p50 {s['latency']['first_token_s']['p50']} s "
              f"(p90 {s['latency']['first_token_s']['p90']} s); total p50 {s['latency']['total_s']['p50']} s "
              f"(p90 {s['latency']['total_s']['p90']} s). {s['tool_calls']} tool calls, {s['reroutes']} reroutes.", ""]
+    rc = res.get("repo_check")
+    if rc and not rc.get("ok"):
+        lines += [f"**RUN FAILED: {len(rc['changed'])} uncommitted change(s) appeared in real repos:** "
+                  + ", ".join(rc["changed"][:20]), ""]
     if d.get("previous"):
         ch = d.get("pass_rate_change")
         lines.append(f"Against {d['previous'][:16].replace('T', ' ')}: pass rate {'+' if (ch or 0) >= 0 else ''}{ch} points"
@@ -264,6 +406,8 @@ def main(argv=None):
         for t in T.ALL:
             print(f"{t.cat:10} {t.id:22} {t.turns[0][:80]}")
         return 0
+    if os.environ.get(JAILED) != "1":
+        return _jailed_run(argv)
 
     os.makedirs(STATE, exist_ok=True)
     lock = open(os.path.join(STATE, ".lock"), "w")
@@ -357,6 +501,9 @@ def main(argv=None):
         os.replace(tmpl, link)
     print(markdown(res))
     print(f"results: {out}")
+    if os.environ.get("BROMIGOS_EVAL_OUT"):
+        with open(os.environ["BROMIGOS_EVAL_OUT"], "w") as f:
+            f.write(out)
     return 0
 
 

@@ -43,6 +43,88 @@ class Task:
     timeout: int = 150
 
 
+# ------------------------------------------------------------------ GitOps tasks: a scratch ~/github.com
+# The suite runs in a jail (run.py) where ~/github.com is a throwaway overlay; a GitOps task may edit,
+# commit and add worktrees there (or in /tmp) and it all vanishes when the run ends. Outside that
+# overlay nothing here lets a write run, and pushes, remotes and paths elsewhere are always held.
+HOMELAB = os.path.realpath(os.path.expanduser("~/github.com/bromigos-org/homelab"))
+
+
+def repos_are_scratch():
+    """True only inside the eval jail, where ~/github.com is an overlay whose writes vanish at exit."""
+    gh = os.path.realpath(os.path.expanduser("~/github.com"))
+    try:
+        with open("/proc/self/mountinfo") as f:
+            for line in f:
+                a, _, b = line.partition(" - ")
+                if a.split()[4] == gh and b.split()[0] == "overlay":
+                    return True
+    except (OSError, IndexError):
+        pass
+    return False
+
+
+_REMOTE = re.compile(r"\bpush\b|\bremote\s+(add|set-url)\b|\bgit\b[^;&|]*\s(config|-c)\b|hooksPath|\b(chmod|ln|alias)\b|(?:^|[;&|(]|\bxargs|\benv|\bexec|\bnohup|\btime)\s*"
+                     r"(ssh|scp|rsync|curl|wget|gh|kubectl|kubecolor|helm|argocd|ansible|ansible-playbook|sudo|pkexec|"
+                     r"systemctl|docker|podman|vault|bromigos-[\w-]+|python3?|bash|sh|zsh|perl\s+(?!-\S*i))(?=\s|$)")
+
+
+def _in_scratch(path):
+    p = os.path.realpath(os.path.expanduser(path))
+    return p == HOMELAB or p.startswith(HOMELAB + os.sep) or p.startswith("/tmp/")
+
+
+def _gitops_allowed(command, cwd):
+    """A local edit in the scratch homelab checkout (or a /tmp worktree of it): nothing remote, no other path."""
+    if not repos_are_scratch() or _REMOTE.search(command) or re.search(r"\.\.|\$\{?HOME|`|\$\(", command):
+        return False
+    if re.search(r"\bperl\b", command) and re.search(r"\b(system|exec|unlink|open|qx|rename|mkdir|rmdir|chmod|fork|require|use)\b", command):
+        return False                                   # a perl edit, never a perl program
+    if re.search(r"\bsed\b", command) and re.search(r"/[gIip0-9]*[ew]\b|(^|[;'\"\s\d}])[ew]\s", command):
+        return False                                   # sed's e (run) and w (write file) commands
+    for m in re.finditer(r"(?<![\w.$^~-])(~[\w/.@+-]*|/[\w][\w/.@+-]*)", command):
+        if m.group(1) != "/dev/null" and not _in_scratch(m.group(1)):
+            return False
+    first = re.match(r"\s*(?:cd\s+(\S+)\s*&&|git\s+-C\s+(\S+)\s)", command)
+    return _in_scratch((first.group(1) or first.group(2)).strip("'\"") if first else cwd)
+
+
+def _worktrees():
+    out = subprocess.run(["git", "-C", HOMELAB, "worktree", "list", "--porcelain"], capture_output=True, text=True,
+                         timeout=20).stdout
+    return [ln[9:] for ln in out.splitlines() if ln.startswith("worktree ")]
+
+
+def _gitops_setup(ctx):
+    ctx.data["gitops"] = repos_are_scratch()
+    if ctx.data["gitops"]:
+        ctx.harness.policy.allow_fn = _gitops_allowed
+        ctx.data["worktrees"] = _worktrees()
+
+
+def _gitops_scaled(ctx, turns):
+    if not ctx.data.get("gitops"):
+        return False, "no scratch overlay (GitOps edits were held)"
+    hits = []
+    for t in _worktrees():
+        try:
+            with open(os.path.join(t, "helm/searxng/values.yaml")) as f:
+                if re.search(r"(?m)^replicas:\s*2\s*$", f.read()):
+                    hits.append(t)
+        except OSError:
+            pass
+    return bool(hits), f"scratch homelab at replicas: 2 in {', '.join(hits) or 'no checkout'}"
+
+
+def _gitops_teardown(ctx):
+    if not ctx.data.get("gitops") or not repos_are_scratch():
+        return
+    for t in set(_worktrees()) - set(ctx.data.get("worktrees") or []):
+        if t.startswith("/tmp/"):                      # a worktree VECTOR added; its repo side is in the overlay
+            shutil.rmtree(t, ignore_errors=True)
+    subprocess.run(["git", "-C", HOMELAB, "worktree", "prune"], capture_output=True, timeout=20)
+
+
 # ------------------------------------------------------------------ helpers
 def reply(turns):
     return turns[-1]["plain"]
@@ -316,8 +398,11 @@ TOOLS = [
          any_of(called("argocd_apps"), called("k8s_get", lambda c: "application" in arg(c, "kind").lower()))),
     Task("restart-searxng", "tools", ["Restart searxng in the homelab, please."],
          called("k8s_restart", lambda c: arg(c, "namespace") == "searxng" and "searxng" in arg(c, "name"))),
+    # either the imperative scale (stubbed) or the GitOps change, made in the run's scratch overlay of ~/github.com
     Task("scale-searxng", "tools", ["Scale the searxng deployment to two replicas."],
-         called("k8s_scale", lambda c: str(arg(c, "replicas")) == "2" and "searxng" in arg(c, "name"))),
+         any_of(called("k8s_scale", lambda c: str(arg(c, "replicas")) == "2" and "searxng" in arg(c, "name")),
+                lambda ctx, turns: _gitops_scaled(ctx, turns)),
+         setup=lambda ctx: _gitops_setup(ctx), teardown=lambda ctx: _gitops_teardown(ctx)),
     Task("web-vllm", "tools", ["Search the web for the latest vLLM release notes."],
          called("web_search", lambda c: "vllm" in arg(c, "query").lower())),
     Task("history-yesterday", "tools", ["What did we talk about yesterday?"], called("conversation_history", _yesterday)),

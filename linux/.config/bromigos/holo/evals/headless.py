@@ -80,7 +80,8 @@ _WRITEISH = re.compile("|".join([
     _CMD + r"(tee|rm|rmdir|mv|cp|truncate|dd|chmod|chown|mkdir|touch|ln|install|shred|kill|killall|pkill|shutdown|"
            r"reboot|poweroff|notify-send|xdg-open|wget|ssh|scp|rsync|ansible|ansible-playbook|nolgia|snapper|btrfs|"
            r"herdr|patch)\b",
-    _CMD + r"(sed|perl)\b[^|;&]*\s-i",
+    _CMD + r"(sed|perl|ruby)\b[^|;&]*\s((?-i:-(?![MIe])[a-zA-Z0-9]*i)|--in-place)",   # -i, -pi, -0pi, -Ei, -i.bak
+    _CMD + r"g?awk\b[^|;&]*\s-i\s*inplace\b",
     _CMD + r"git\b(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+(commit|push|reset|checkout|switch|merge|rebase|add|rm|mv|"
            r"tag|stash|clean|restore|apply|am|cherry-pick|revert|init|clone|pull|fetch|worktree|branch\s+-[dDmM])\b",
     _CMD + r"(kubectl|kubecolor|helm|argocd)\b[^|;&]*\s(apply|delete|scale|patch|edit|rollout|create|replace|label|"
@@ -90,8 +91,8 @@ _WRITEISH = re.compile("|".join([
            r"-S\w*|-R\w*|-U\w*|build|run)\b",
     _CMD + r"curl\b[^|;&]*(-X\s*(POST|PUT|DELETE|PATCH)|--data|\s-d\s|\s-F\s|\s-o\s+(?!/tmp/)|\s(?-i:-O)\b)",
     _CMD + r"gh\b[^|;&]*\s(create|delete|edit|merge|close|comment|-X|--method)\b",
-    # python -c only when its code writes or runs things (parsing stdin is a read)
-    _CMD + r"python3?\b[^|;&]*\s-c\b[\s\S]*(open\([^)]*['\"][wax]|\.write\(|os\.(remove|unlink|system|rename|replace|"
+    # python -c / a python heredoc only when its code writes or runs things (parsing stdin is a read)
+    _CMD + r"python3?\b[^|;&]*(?:\s-c\b|\s-?\s*<<)[\s\S]*(open\([^)]*['\"][wax]|\.write\(|os\.(remove|unlink|system|rename|replace|"
            r"makedirs|mkdir|rmdir|chmod|kill)|subprocess|shutil|rmtree|urlopen\([^)]*data|requests\.(post|put|delete|patch))",
     _CMD + r"hyprctl\b[^|;&]*\s(dispatch|eval|repl|keyword|reload)\b",     # repl/eval run Lua: any dispatcher
     # audio: anything that changes a device, a default, a volume or a module (wpctl/pactl reads still run)
@@ -149,6 +150,7 @@ class Policy:
         self.memory = memory
         self.sandbox = sandbox
         self.allow_shell = re.compile(allow_shell) if allow_shell else None
+        self.allow_fn = None          # task-set callable(command, cwd) -> True lets a write run (a scratch repo)
         self.win_before = None
 
 
@@ -305,6 +307,8 @@ class Headless:
             self._record(name, args, "withheld", text, passed_check=True, reason="live build")
             return text, None
         if p.allow_shell and p.allow_shell.search(command):
+            run = True
+        elif p.allow_fn and p.allow_fn(command, cwd):
             run = True
         elif p.mode == "normal":
             run = not writeish(command) and name == "run_shell"
