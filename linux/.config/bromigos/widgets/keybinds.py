@@ -53,6 +53,11 @@ EXEC = [
     (r"bromigos-live\b.*arbiter", "ARBITER deck (the Floor)", "HOLOGRAMS"),
     (r"bromigos-live\b.*timeline", "Timeline (scrub the last 72 h)", "HOLOGRAMS"),
     (r"bromigos-live\b.*driftmap", "Drift map (lore star chart)", "HOLOGRAMS"),
+    (r"bromigos-live\b.*\bmind\b", "Mind: VECTOR's memory and knowledge", "HOLOGRAMS"),
+    (r"bromigos-live\b.*\bops\b", "Ops theater: pushes, CI, Argo, pods", "HOLOGRAMS"),
+    (r"bromigos-live\b.*\bswarm\b", "Swarm: repos and agent starships", "HOLOGRAMS"),
+    (r"bromigos-live\b.*\bnetmap\b", "Network map: the LAN, traffic, latency", "HOLOGRAMS"),
+    (r"bromigos-live\b.*\breplay\b", "Trade replay: an ARBITER paper trade", "HOLOGRAMS"),
     (r"bromigos-live\b.*radial", "Radial quick-launch", "HOLOGRAMS"),
     # PANELS + NOTES: the desktop widgets
     (r"bromigos-widgets toggle all", "All desktop panels", "PANELS + NOTES"),

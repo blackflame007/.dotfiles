@@ -64,9 +64,9 @@ class Feed:
     def _parse(line):
         try:
             e = json.loads(line)
-            return e if isinstance(e, dict) and e.get("type") else None
         except ValueError:
             return None
+        return normalise(e) if isinstance(e, dict) and e.get("type") else None
 
     def _push(self, e):
         with self.lock:
@@ -121,6 +121,49 @@ class Feed:
         e = dict(e, source=e.get("source", "desktop"))
         e.setdefault("t", time.time())
         self._push(e)
+
+
+def normalise(e):
+    """VECTOR's emitter (holo/vector/events.py, schema v1: dotted types, "ts" epoch,
+    "t" ISO) mapped onto the names the decks handle. Unknown types pass through and
+    are ignored by every deck; nothing here ever carries memory text or secrets."""
+    e = dict(e)
+    if isinstance(e.get("ts"), (int, float)):
+        e["t"] = float(e["ts"])
+    elif not isinstance(e.get("t"), (int, float)):
+        e["t"] = time.time()
+    ty = e.get("type")
+    if ty == "memory.recall":
+        sp = e.get("space") or "vector"
+        e.update(type="recall", query=f"{sp} · {e.get('n', len(e.get('ids') or []))} hits")
+        if sp.startswith("kb-"):
+            e["chunks"], e["ids"] = e.get("ids") or [], []
+    elif ty == "memory.file":
+        e.update(type="file", text=f"new {e.get('category') or 'note'} in {e.get('space') or 'vector'}",
+                 kind=e.get("category") or "note")
+        e.setdefault("id", f"filed-{e['t']:.3f}")
+    elif ty == "memory.forget":
+        e.update(type="forget", text=f"{e.get('n', 1)} forgotten in {e.get('space') or 'vector'}")
+    elif ty == "tool.start":
+        e.update(type="tool_start")
+    elif ty == "tool.end":
+        e.update(type="tool_end")
+    elif ty == "task.progress":
+        pct = e.get("pct")
+        prog = (pct / 100.0 if pct is not None and pct > 1 else pct) if pct is not None else None
+        state = e.get("state") or "running"
+        e.update(type="task", id=e.get("task"), label=e.get("title") or e.get("task") or "task",
+                 progress=prog if prog is not None else (1.0 if state == "done" else 0.5),
+                 state={"stopped": "failed"}.get(state, state), note=e.get("note") or e.get("step"))
+    elif ty == "git.push":
+        e.update(type="git_push")
+    elif ty == "ci.result":
+        e.update(type="ci")
+    elif ty == "argo.sync":
+        e.update(type="deploy", status=f"{e.get('action', 'sync')} {e.get('sync') or ''}/{e.get('health') or ''}")
+    elif ty == "k8s.action":
+        e.update(type="restart" if e.get("action") == "restart" else "k8s", note=e.get("action"))
+    return e
 
 
 def vector_state():

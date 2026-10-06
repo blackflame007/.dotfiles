@@ -236,3 +236,40 @@ Push-to-talk only: `pw-record` runs while SUPER+V is held (cut at 30 s if a rele
 | Parakeet TDT 0.6B v3 (ONNX, CPU) | 3.7% | 0.36 s | 0 |
 
 The clips are clean synthetic speech, so small.en ties turbo here. On the public Open ASR Leaderboard turbo is clearly more accurate on real-world audio, and that is why it is the default.
+
+## Event feed
+
+VECTOR tells the desktop what he is doing through an append-only feed, and the live layer's holograms (`bromigos-live`: Mind, Ops theater, Swarm, Network map, Trade replay) draw it.
+
+- **File:** `$XDG_RUNTIME_DIR/bromigos-vector-events.jsonl` (tmpfs), one JSON object per line, rotated to `.1` at about 5 MB. Written by `holo/vector/events.py` (`emit(type, **fields)`); his state stays in `bromigos-vector.json` beside it.
+- **Every line:** `{"v": 1, "t": "<ISO-8601 local, ms>", "ts": <epoch seconds>, "type": "...", ...}`. Readers ignore unknown types and fields. No line ever carries memory text, file contents or secret values.
+
+| type | fields | drawn by |
+|------|--------|----------|
+| `memory.recall` | `space`, `ids[]` (Gnosis memory or kb chunk ids), `n`, `ms`, `source` (mirror, gnosis, none) | Mind: the recalled lights flare and pull toward VECTOR's core |
+| `memory.file` | `space`, `category` | Mind: a new memory settles in from the dark |
+| `memory.forget` | `space`, `n` | Mind: logged; the node burns out when its id is known |
+| `tool.start` / `tool.end` | `id`, `name`, `args` (short summary) / `ok`, `ms`, `outcome` (one line) | Ops theater: a packet runs from VECTOR to the station the tool touches |
+| `task.progress` | `task`, `title`, `step`, `note`, `state` (running, done, failed, stopped), `pct` | Ops theater: a progress arc around VECTOR |
+| `git.push` | `repo`, `branch`, `sha`, `ok` | Ops theater: the push beam, then that commit's CI checks |
+| `ci.result` | `repo`, `sha`, `workflow`, `status`, `conclusion`, `url` | Ops theater: the check lights |
+| `argo.sync` | `app`, `action`, `sync`, `health`, `revision` | Ops theater: a pulse from Argo into the cluster |
+| `k8s.action` | `action` (restart, scale, delete_pod, run_job), `namespace`, `kind`, `name`, `replicas`, `ok` | Ops theater: the pod flagged beside the rack |
+| `vault.op` | `op`, `path`, `key` (never a value) | not drawn |
+
+The reader is `bromigos-live/live/vfeed.py`: it tails the file only while a hologram is open (a stat every 0.25 s), keeps the last 400 events so a hologram opened a moment later still sees them, and maps these names onto what each deck handles (`normalise`). The decks also watch the same things for themselves (push reflogs, check runs, Argo and pod state from Prometheus), so they work when the feed is quiet.
+
+### Driving the holograms
+
+VECTOR (his shell, or a tool) drives them with `bromigos-live <deck> <verb> [args]`. A closed deck opens and then runs the verb; the result line is printed and shown on the deck.
+
+| Deck (key) | Verbs |
+|------|-------|
+| `mind` (SUPER+I) | `focus <text>` (a memory or document), `space <kb-name>`, `clear` |
+| `ops` (SUPER+SHIFT+O) | `focus <repo>` (that repo's latest push and checks), `clear` |
+| `swarm` (SUPER+SHIFT+S) | `point <repo or agent>` (a beam from VECTOR), `focus <repo or agent>`, `clear` |
+| `netmap` (SUPER+SHIFT+N) | `trace <host or ip>` (hop by hop, the slowest lit), `clear` |
+| `replay` (SUPER+R) | `pick <latest, biggest, instrument, agent or fill id>`, `play [pick]`, `pause`, `seek <0..1>` |
+| any | `open`, `close` |
+
+How these are built, and how to build another, is in `../skills/hologram-build.md`.
