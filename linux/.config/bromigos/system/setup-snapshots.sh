@@ -130,8 +130,17 @@ if [ -n "$NAS_EXPORT" ]; then
   fi
 fi
 systemctl daemon-reload
-ls /mnt/btrfs-top >/dev/null            # trigger the automount
-install -d /mnt/btrfs-top/@btrbk_snaps  # btrbk's snapshot dir, outside @ so it isn't nested
+# daemon-reload only defines the automount units; start them (they also come up at
+# every boot). If an earlier run wrote @btrbk_snaps into the bare mountpoint on @
+# because the automount wasn't running, remove that stray empty dir first.
+if ! mountpoint -q /mnt/btrfs-top && [ -d /mnt/btrfs-top/@btrbk_snaps ]; then
+  rmdir /mnt/btrfs-top/@btrbk_snaps 2>/dev/null || true
+fi
+systemctl start 'mnt-btrfs\x2dtop.automount'
+ls /mnt/btrfs-top >/dev/null            # trigger it
+mountpoint -q /mnt/btrfs-top || mount /mnt/btrfs-top
+mountpoint -q /mnt/btrfs-top || { echo "!!! /mnt/btrfs-top (btrfs top level) didn't mount"; exit 1; }
+install -d /mnt/btrfs-top/@btrbk_snaps  # btrbk's snapshot dir, at the top level beside @, not inside it
 install -d /etc/btrbk /usr/local/lib/bromigos /etc/systemd/system/btrbk.service.d
 install -m 644 "$HERE/btrbk.conf" /etc/btrbk/btrbk.conf
 install -m 755 "$HERE/btrbk-nas" /usr/local/lib/bromigos/btrbk-nas
