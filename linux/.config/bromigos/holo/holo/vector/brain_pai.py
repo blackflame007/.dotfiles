@@ -143,8 +143,30 @@ class PaiBrain:
                                      "Hand this question to your deeper self when it needs several lookups, careful "
                                      "reasoning or research. Use it instead of guessing; say nothing else first.",
                                      {"type": "object", "properties": {"why": {"type": "string"}}})]
-        self.voice_agent = Agent(self.voice_model, model_settings=self.settings, tools=self.tools + handoff)
-        self.deep_agent = Agent(self.deep_model, model_settings=self.settings, tools=self.tools)
+        self.handoff = handoff
+        self.skills_sig = None
+        from . import skills
+        self.router = skills.Router(skills.embed)
+        self.router.warm()
+        self.matched = []
+        self._build_agents()
+
+    def _build_agents(self):
+        """(Re)build both lanes' agents with the current skills catalog (holo/vector/skills.py)."""
+        from . import skills
+        sig = skills.signature()
+        if sig == self.skills_sig:
+            return
+        try:
+            caps = skills.capabilities()
+        except Exception as e:      # a broken skill never takes the brain down
+            print("skills: not loaded:", e, flush=True)
+            caps = []
+        self.skills_sig = sig
+        self.skill_names = [c.id for c in caps]
+        self.voice_agent = Agent(self.voice_model, model_settings=self.settings, tools=self.tools + self.handoff,
+                                 capabilities=caps)
+        self.deep_agent = Agent(self.deep_model, model_settings=self.settings, tools=self.tools, capabilities=caps)
 
     # ------------------------------------------------------------------ tools
     def _tool(self, name):
@@ -220,7 +242,8 @@ class PaiBrain:
         if self.recalled:
             mem = ("\nWHAT YOU REMEMBER (your long-term memory, for this question; trust it but don't recite it)\n"
                    + "\n".join(f"- {x[:240]}" for x in self.recalled[:5]) + "\n")
-        return (persona.SYSTEM + persona.voices_block() + mem +
+        from . import skills
+        return (persona.SYSTEM + persona.voices_block() + mem + skills.instructions_for(self.matched) +
                 f"\nIt is {now}. The workstation is an Arch Linux desktop (Hyprland) the operator sits at.")
 
     async def _stream(self, agent, prompt, t0, history):
@@ -239,6 +262,14 @@ class PaiBrain:
                     delta = ev.delta.content_delta
                 elif isinstance(ev, FunctionToolCallEvent) and ev.part.tool_name == "think_harder":
                     return text, None, True
+                elif isinstance(ev, FunctionToolCallEvent) and ev.part.tool_name == "load_capability":
+                    try:
+                        sid = (ev.part.args_as_dict() or {}).get("id")
+                    except Exception:
+                        sid = None
+                    self._log({"role": "skill", "name": sid})
+                    from . import events
+                    events.emit("skill.load", name=sid)
                 if delta:
                     if self.stats["first_token_s"] is None:
                         self.stats["first_token_s"] = round(time.monotonic() - t0, 2)
@@ -249,6 +280,7 @@ class PaiBrain:
         return text, msgs, False
 
     async def _run(self, text):
+        self._build_agents()
         self.busy = True
         t0 = time.monotonic()
         self.stats = {"first_token_s": None, "tools": 0, "lane": "voice", "brain": "pai"}
@@ -262,6 +294,11 @@ class PaiBrain:
                 self.stats.update(rs)
                 if self.recalled and hasattr(self.cb, "memory"):
                     self.cb.memory("recall", len(self.recalled))
+            self.matched = await asyncio.to_thread(self.router.match, text)
+            for score, sk in self.matched:
+                self._log({"role": "skill", "name": sk["name"], "auto": round(score, 2)})
+                from . import events
+                events.emit("skill.load", name=sk["name"], auto=True)
             self._log({"role": "user", "text": text})
             self.history.append({"role": "user", "content": text})
             out, msgs, escalated = await self._stream(self.voice_agent, text, t0, list(self.messages))
