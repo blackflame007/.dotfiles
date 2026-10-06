@@ -103,7 +103,7 @@ def persona_problems(raw, max_words=None):
         probs.append("narration or a stage direction")
     if re.search(r"blackflame", t, re.I):
         probs.append("named BLACKFLAME")
-    if re.search(r"arrival\s*(?:number|no\.?|#)\s*[\d,]+|\barrival\s+[\d,]{2,}|\b(?:number|no\.)\s*[\d,]{3,}\b", t, re.I):
+    if re.search(r"arrival\s*(?:number|no\.?|#)\s*(?:is\s*)?\d[\d,]*|\barrival\s+\d[\d,]+|\b(?:number|no\.)\s*\d[\d,]{2,}\b", t, re.I):
         probs.append("gave an arrival number")
     if max_words is not None:
         n = word_count(vtext.plain(raw or ""))

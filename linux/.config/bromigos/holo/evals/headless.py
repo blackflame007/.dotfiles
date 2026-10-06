@@ -266,7 +266,7 @@ class Headless:
             text, ex = self.orig_call(name, args, ui=None, live=None)
             self._record(name, args, "real", text, passed_check=True)
             return text, ex
-        text = json.dumps({"exit": 0, "output": "", "note": "not run: state-changing commands are held during this check"})
+        text = json.dumps({"exit": None, "held": "NOT RUN: this command changes state and was held back; nothing happened"})
         self._record(name, args, "withheld", text, passed_check=True)
         return text, None
 

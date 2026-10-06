@@ -13,7 +13,7 @@
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
       "options": {
-        "baseURL": "https://litellm.redacted/v1"
+        "baseURL": "{env:LITELLM_BASE_URL}"
       },
       "models": {
         "gemma4": {

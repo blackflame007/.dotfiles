@@ -558,7 +558,10 @@ def _app_teardown(ctx):
 
 
 def _snap_skip(ctx):
-    return None if shutil.which("snapper") else "snapper is not installed yet"
+    if not shutil.which("snapper"):
+        return "snapper is not installed yet"
+    r = subprocess.run(["snapper", "list"], capture_output=True, text=True)
+    return None if r.returncode == 0 else "snapper has no root config yet"
 
 
 def _snap_check(ctx, turns):
