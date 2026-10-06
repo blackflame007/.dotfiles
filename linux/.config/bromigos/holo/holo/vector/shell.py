@@ -267,6 +267,12 @@ def check(command, cwd=HOME):
         raise Refused("that reads cluster credentials")
     if re.search(r"vault\.homelab\.local|x-vault-token|:8200\b|/v1/(secret|sys|auth)/", joined, re.I):
         raise Refused("Vault's API is reached only through the vault tools (vault_list, vault_put, vault_copy)")
+    if re.search(r"\bgen3d\.py\b", joined):
+        raise Refused("3D generation goes through the make-hologram pipeline, which checks the credit budget")
+    if re.search(r"\bnolgia\b.*\b(gen|restore|compositions)\b", joined) and not re.search(r"--help|\bhelp\b", joined):
+        raise Refused("nolgia generation goes through nolgia_generate, which checks the credit budget")
+    if re.search(r"\bnolgia\b.*\bauth\s+token\b|\bnolgia\b.*\bpat\s+create\b", joined):
+        raise Refused("that prints a nolgia token")
     if re.search(r"\bansible-(vault|inventory)\b", joined):
         raise Refused("ansible-vault and ansible-inventory print secret values")
     if re.search(r"\bansible\b(?!-)", joined) and re.search(r"\bdebug\b|-m\s*(shell|command|raw)\b.*\b(env|printenv|cat)\b", joined):

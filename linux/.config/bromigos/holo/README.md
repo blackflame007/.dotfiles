@@ -30,7 +30,7 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 | `tools/voice-demo.py` | Render a tagged reply to a wav exactly as the desktop would speak it |
 | `holo/shimmer.py` | The projector shimmer DSP (band-limit, swept comb, quiet ring mod, tiny room), streamable, one knob per voice; and the dial scratch between voices |
 | `holo/pilot/` | Compatibility alias for older callers (`holo.pilot.voice` is `holo.vector.voice`) |
-| `holo/vector/act.py`, `vault.py`, `events.py`, `skills.py`, `desk.py`, `track.py` | Act tools (cluster, Argo, CI, kb notes), Vault wiring, the event feed, the skills loader and router, programs and windows, change tracking and new repos |
+| `holo/vector/act.py`, `vault.py`, `events.py`, `skills.py`, `desk.py`, `track.py`, `nolgia.py` | Act tools (cluster, Argo, CI, kb notes), Vault wiring, the event feed, the skills loader and router, programs and windows, change tracking and new repos, nolgia media under a credit budget |
 | `holo/vector/history.py` | Conversation history from `vector-chat.log`: sessions, titles, search, the `conversation_history` tool |
 | `tools/kb-sync.py` | Syncs the operator's docs into the Gnosis knowledge base (`kb-*` spaces); nightly via `bromigos-kb-sync.timer` |
 | `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning (`HISTORY_OPEN=1` renders the console as it looks under the history panel) |
@@ -113,6 +113,13 @@ Cluster actions run as the ServiceAccount **`vector-operator`** (homelab `helm/v
 - `changes_check`, which he calls before reporting a task done, lists his own uncommitted files and unpushed commits per repo, and outside changes newer than the changelog. He clears it.
 - `github_repo_create` makes a repo under `bromigos-org`, `nolgiainc` or `blackflame007` (private unless the operator says public), clones it to `~/github.com/<owner>/<name>`, seeds README, AGENTS.md and .gitignore, and pushes. It joins the knowledge-base sync by itself.
 
+**Media with nolgia** (`holo/vector/nolgia.py`, skill `nolgia`). The operator's nolgia CLI, always `--json`:
+
+- `nolgia_catalog` (models and credit prices, from the live catalog), `nolgia_credits` (balance, today's spend, the cap), `nolgia_read` (read-only commands: models, characters, assets, projects, jobs).
+- `nolgia_generate` makes one image, video or audio clip. It estimates first (the catalog price; video asks the API with `--cost-only`). Over the daily cap (`daily_credits` in `holo/nolgia.json`, 20 to start) it returns `needs_approval`, and an approval counts only if the operator answered in a turn after VECTOR asked (the brain marks each operator turn). Each job's spend (the balance before and after) goes to `~/.local/state/bromigos/nolgia-spend.jsonl`, and the answer gives the credits left.
+- Images and videos come back with a review from the vision model (`qwen3.8-flash-next` through LiteLLM; a video's middle frame), and `nolgia_review` looks at any file. He doesn't present an asset he hasn't checked.
+- `nolgia gen/restore/compositions`, `nolgia auth token` and `gen3d.py` are refused in his terminal, so the budget can't be skipped.
+
 ARBITER stays read only: there is no paper-side write API, and nudges are the operator's, behind his sign-in.
 
 **Tests.** `tools/test-shell.py` (the terminal's original limits) and `tools/test-act.py` (everything above; `--live` also proves the cluster and Vault deny on their own, bypassing his code, does a real restart of searxng, an Argo refresh and a scratch-branch push, and shows a stored Vault value is absent from the tool results, the chat, shell, audit and sensitive logs and the event feed). `tools/test-desk.py` launches a program by fuzzy name and closes it, makes a throwaway private repo, writes, commits and pushes a script to a branch through his terminal, checks the done-check before and after, and deletes the repo. Run them with the brain venv's python.
@@ -193,7 +200,7 @@ His know-how for kinds of work lives in **`~/.config/bromigos/skills/`** (dotfil
 - `holo/vector/skills.py` turns each into a deferred Pydantic AI capability: the model sees the catalog and can load one with `load_capability`.
 - The models rarely do that by themselves, so a **router** also attaches what a question needs. The question and each skill's description are embedded with the local model; a skill's score is taken against its own baseline (its mean over a few neutral questions, since hub skills like data-sources resemble everything); up to two that clear the margin (0.12, or a clear single winner at 0.08) go into that turn's instructions. Small talk attaches nothing.
 - The catalog is re-read when the directory changes, so a new skill is live on the next question. Loads are in the chat log (`role: skill`) and on the event feed (`skill.load`).
-- Skills today: `homelab-ops`, `software-work`, and the live layer's `hologram-build`, `live-layer-animation`, `desktop-style-guide` and `data-sources`.
+- Skills today: `homelab-ops`, `software-work`, `nolgia`, and the live layer's `hologram-build`, `live-layer-animation`, `desktop-style-guide` and `data-sources`.
 
 ## Voice
 

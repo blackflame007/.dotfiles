@@ -493,6 +493,7 @@ from .act import (argocd_refresh, argocd_sync, argocd_wait, ci_watch, k8s_delete
 from .vault import vault_copy, vault_list, vault_put  # noqa: E402
 from .desk import app_search, launch_app, open_path, run_detached, window, windows  # noqa: E402
 from .track import changes_check, github_repo_create  # noqa: E402
+from .nolgia import nolgia_catalog, nolgia_credits, nolgia_generate, nolgia_read, nolgia_review  # noqa: E402
 
 
 def notes_read(last_lines=60):
@@ -726,6 +727,20 @@ SPECS = {
                            "blackflame007 (personal); ask when unclear. Private unless the host said public. Cloned to "
                            "~/github.com/<owner>/<name>, seeded with README, AGENTS.md and .gitignore, pushed.",
                            _p({"owner": S, "name": S, "description": S, "public": B}, ["owner", "name", "description"])),
+    "nolgia_catalog": ("The host's nolgia models for a modality (image, video, audio, 3d) with credit prices, cheapest first.",
+                       _p({"modality": S, "limit": I})),
+    "nolgia_credits": ("nolgia credits: the balance, what you've spent today, and the daily cap.", _p({})),
+    "nolgia_read": ("Read-only nolgia CLI: 'models get <id>', 'characters list', 'characters get <id>', 'assets list', "
+                    "'assets get <id>', 'projects list', 'status <job>', 'wait <job>', 'skills list'.", _p({"command": S}, ["command"])),
+    "nolgia_generate": ("Generate one image, video or audio clip with nolgia. Say the estimated cost first (nolgia_catalog); "
+                        "over the daily cap it returns needs_approval: ask the host, and only after he says yes call again "
+                        "with approved=true. Images and videos come back with a vision review: check it before presenting. "
+                        "out: where the file goes (brand kit, a repo, ~/Pictures); omit for a scratch folder. Report credits left.",
+                        _p({"kind": S, "prompt": S, "model": S, "out": S, "input": S, "aspect_ratio": S, "quality": S,
+                            "character_id": S, "voice": S, "duration_seconds": I, "project_id": S, "approved": B},
+                           ["kind", "prompt"])),
+    "nolgia_review": ("Look at an image (or a video's middle frame) with the vision model and answer a question about it.",
+                      _p({"path": S, "question": S}, ["path"])),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
