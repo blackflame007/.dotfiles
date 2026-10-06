@@ -1,0 +1,7 @@
+{
+  "_comment": "VECTOR's eyes (holo/vector/eyes.py). The model is the lab's own multimodal model through LiteLLM; captures stay in memory. block adds to the built-in blocklist (password managers; banking, trading and wallet sites; Vault; private browsing): any visible window whose app class or title matches means no capture at all.",
+  "model": "hive",
+  "max_side": 1920,
+  "text_max_side": 2560,
+  "block": {"classes": [], "titles": []}
+}

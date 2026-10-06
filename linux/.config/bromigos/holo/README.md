@@ -203,6 +203,20 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
    - Kill switch: `bromigos-holo shell off` (also the `shell_off` tool, which VECTOR can use but can never reverse). `bromigos-holo shell on` turns it back on, and `bromigos-holo shell stop` stops the running command.
 7. **Audit.** Every command and every refusal goes to `~/.local/state/bromigos/vector-shell.log` (time, cwd, the redacted command, exit code, duration, output size, or the refusal reason). The transcript shows `$ git status · exit 0`. A successful `git push` also goes on the event feed (`git.push`).
 
+## Eyes (read-only sight of the screen)
+
+`holo/vector/eyes.py`, config `holo/eyes.json`, tests `tools/test-eyes.py`. VECTOR looks only when the operator asks ("look at this", "what's on my screen", "check this error") or to verify his own build; he says he's looking first and describes what he sees briefly, quoting errors exactly. He never clicks or types into apps.
+
+- **Tools.** `look(question, target)`: `monitor` (default), `window` (the focused one, "this"), `screen` (every monitor) or a region `x,y wxh`. `read_screen_text(target)` transcribes exact text (errors, logs). `active_window()` names the focused app, title and workspace without a capture. `watch(on|off)` (below).
+- **The model** is the lab's own multimodal Qwen3.8-Flash-Next (`hive`, local vLLM through LiteLLM). Measured: a focused-window look 1.8 s, a whole 2560×1440 monitor 4.5 s (scaled to 1920 wide with Lanczos so UI text stays legible), a full terminal transcription (about 3,000 characters) 19 s; a terminal error is read back exactly. The planned dedicated vision model (Qwen3.8-27B) isn't needed for this; if it lands, set `model` in `eyes.json`.
+- **Privacy, in code.** grim writes the capture to stdout; it's scaled in memory, sent in one request (with LiteLLM's `no-log` flag; LiteLLM doesn't store prompt bodies here anyway), and dropped. Nothing is written to disk or logged, and nothing leaves the LAN. **The blocklist**: if any window inside the capture area is a password manager, a banking, trading or wallet site, Vault, or a private browsing window, nothing is captured at all and he says why (`eyes.json` `block` adds classes and title patterns).
+- **Watch mode** is opt-in (`watch on`, "follow along while I debug"): a glance at the focused window every 10-120 s (20 by default), kept only as a few lines of text for his next answers, never pixels. While it's on, the bar pip shows **◉ WATCHING** (with the time left) and his console shows "◉ WATCHING YOUR SCREEN"; it pauses while a blocked window is in view and turns itself off after 15 minutes.
+- **On MCP** for his brain on Hermes: `look`, `read_screen_text` and `active_window` (not watch, which lives in the desktop daemon).
+
+## MCP: his tools for the brain on Hermes
+
+`holo/vector/mcp_server.py` builds the server; `mcp_lan.py` serves it on the LAN behind a token. The local stdio server publishes the 18 read tools; the LAN server adds `ACT`, his desktop actions (cluster actions as vector-operator, Argo, CI, kb notes, Vault wiring, programs and windows, the done-check and new repos, nolgia, eyes, `my_setup`, `load_skill`, `conversation_history`, `hologram_deck`), 50 in all. Every call goes through `tools.call()`, so the limits are inside the tools: an approval that needs the operator's answer (a nolgia spend over the cap, keeping a build trial) only counts an answer on the desktop line, so over MCP it fails closed. Not published: the terminal (`run_shell`), the desktop's UI and voice tools, memory writes, the build loop.
+
 ## Skills
 
 His know-how for kinds of work lives in **`~/.config/bromigos/skills/`** (dotfiles `linux/.config/bromigos/skills/`), one shared directory for everyone who writes them. A skill is Markdown with frontmatter (`name`, `description`, `when_to_use`), flat (`<name>.md`) or `<name>/SKILL.md`.

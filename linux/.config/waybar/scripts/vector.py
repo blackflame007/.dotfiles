@@ -39,8 +39,16 @@ if st.get("conversation"):
     tip += "\nSUPER+SHIFT+E ends conversation mode"
 if mode != "auto":
     text += f" <span color='#7e927e'>·{mode.upper()}</span>"
+w = st.get("watching") or {}
+if w.get("on"):                      # watch mode: say so for as long as it's on
+    text = f"<span color='#ff766f'>◉ WATCHING</span> " + text
+    left = int(w.get("seconds_left") or 0)
+    tip = (f"VECTOR is watching the focused window (a glance every {w.get('every_s')} s, words only, no images kept); "
+           f"off in {left // 60} min {left % 60} s, or say 'stop watching'"
+           + (f"\npaused: {w['paused']}" if w.get("paused") else "") + "\n" + tip)
 cls = [state] + (["unread"] if unread else []) + ([] if st.get("shown") else ["minimized"])
 cls += ["listening", "conversation"] if st.get("conversation") else []
 cls += [f"voice-{st.get('voice') or 'main'}"] if state == "speaking" else []
 cls += [f"mood-{mood}"] if mood != "calm" else []
+cls += ["watching"] if w.get("on") else []
 print(json.dumps({"text": text, "tooltip": tip, "class": cls}))

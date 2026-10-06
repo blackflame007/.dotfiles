@@ -286,6 +286,11 @@ class VectorScene:
             txt = f"BUILDING · {note}" + (f" · {pct}%" if pct else "") + f" · {time.time() - t0:.0f}s"
             H.label(txt if len(txt) <= 90 else txt[:89] + "…", lw + 14 * sc, h - 118 * sc,
                     col("phosphor", 1, (0.75 + 0.25 * math.sin(time.monotonic() * 2.0)) * f), int(12 * sc), "bold")
+        wt = getattr(self, "watching", None)
+        if wt:   # watch mode: always visible while it's on
+            left = int(wt.get("seconds_left") or 0)
+            H.label(f"◉ WATCHING YOUR SCREEN · {left // 60}:{left % 60:02d}" + (" · PAUSED" if wt.get("paused") else ""),
+                    w - 28 * sc, 62 * sc, col("danger", 1, f), int(12 * sc), "bold", anchor="rt", spacing=1.5)
         if getattr(self, "conversation", False):   # hands-free: say so, all the time
             pulse = 0.55 + 0.45 * math.sin(time.monotonic() * 3.2)
             H.label("● CONVERSATION · LISTENING", w - 28 * sc, 44 * sc, col("danger", 1, pulse * f), int(12 * sc), "bold",

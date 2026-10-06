@@ -397,6 +397,8 @@ class App:
             self.memory = None
         self.summarized_at = 0               # history length at the last end-of-conversation summary
         try:                                 # herdr agents waiting on the host / finishing -> a spoken notice
+            from .vector.eyes import WATCH
+            WATCH.on_change = lambda st: GLib.idle_add(self._watch_changed, st)
             from .vector.guard import Sentinel
             self.sentinel = Sentinel(lambda paths: GLib.idle_add(
                 self._herdr_notice, "My safety code changed on disk, so I've switched my terminal off until I'm restarted."))
@@ -555,6 +557,16 @@ class App:
         st = build.state()
         if st.get("phase") == "trial" and time.time() < st.get("deadline", 0):
             self._herdr_notice(f"{st.get('say') or 'The build is up.'} Keep it?")
+        return False
+
+    def _watch_changed(self, st):
+        """Watch mode on the console and the bar for as long as it's on."""
+        was = getattr(self, "watching", {}).get("on")
+        self.watching = st
+        self.pscene.watching = st if st.get("on") else None
+        if was and not st.get("on"):
+            self._herdr_notice("I've stopped watching your screen.")
+        self._publish_state()
         return False
 
     def _herdr_notice(self, msg):
@@ -1036,7 +1048,8 @@ class App:
               "voice_mode": self.voice.mode if self.voice else "auto",
               "conversation": self.conversation_on(),
               "voice": getattr(self.pscene, "voice_role", "main") if self.vector else "main",
-              "mood": self.pscene.mood_name() if self.vector else "calm"}
+              "mood": self.pscene.mood_name() if self.vector else "calm",
+              "watching": getattr(self, "watching", None) if (getattr(self, "watching", None) or {}).get("on") else None}
         sig = json.dumps(st, sort_keys=True)
         if sig != self._state_sig:
             self._state_sig = sig

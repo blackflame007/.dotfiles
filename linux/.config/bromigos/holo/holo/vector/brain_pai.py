@@ -246,7 +246,8 @@ class PaiBrain:
             mem = ("\nWHAT YOU REMEMBER (your long-term memory, for this question; trust it but don't recite it)\n"
                    + "\n".join(f"- {x[:240]}" for x in self.recalled[:5]) + "\n")
         from . import skills
-        return (persona.SYSTEM + persona.voices_block() + mem + skills.catalog_text() + skills.instructions_for(self.matched) +
+        from .eyes import WATCH
+        return (persona.SYSTEM + persona.voices_block() + mem + WATCH.context() + skills.catalog_text() + skills.instructions_for(self.matched) +
                 f"\nIt is {now}. The workstation is an Arch Linux desktop (Hyprland) the operator sits at.")
 
     async def _stream(self, agent, prompt, t0, history):

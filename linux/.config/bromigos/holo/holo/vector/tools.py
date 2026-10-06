@@ -504,6 +504,7 @@ from .vault import vault_copy, vault_list, vault_put  # noqa: E402
 from .desk import app_search, launch_app, open_path, run_detached, window, windows  # noqa: E402
 from .track import changes_check, github_repo_create  # noqa: E402
 from .skills import load_skill  # noqa: E402
+from .eyes import active_window, look, read_screen_text, watch  # noqa: E402
 from .nolgia import nolgia_catalog, nolgia_credits, nolgia_generate, nolgia_read, nolgia_review  # noqa: E402
 
 
@@ -802,6 +803,19 @@ SPECS = {
     "my_setup": ("Your own configuration, read live: your models and lanes, the first-byte and silence timeouts, "
                  "speech-to-text and voice engines, your voices, memory, knowledge spaces and sync time, the nolgia "
                  "credit cap, the build trial length, your skills. Call it for any question about how you work.", _p({})),
+    "look": ("Look at the host's screen and answer a question about it (read only: you never click or type into "
+             "apps). Only when the host asks ('look at this', 'what's on my screen', 'check this error') or to check "
+             "your own build; never on your own. target: monitor (default), window (the focused one: 'this'), screen "
+             "(every monitor) or a region 'x,y wxh'. Say 'let me take a look' first.",
+             _p({"question": S, "target": S}, ["question"])),
+    "read_screen_text": ("Transcribe the exact text on screen (an error, a log, a dialog) when the wording matters; "
+                         "target as for look (default: the focused window). Slower than look.", _p({"target": S})),
+    "active_window": ("What the host is looking at: the focused window's app, title and workspace ('this' in his "
+                      "question). No screenshot.", _p({})),
+    "watch": ("Watch mode, only when the host turns it on: glance at the focused window every every_s seconds "
+              "(10-120) and keep a few lines of notes to follow along (e.g. while debugging); an indicator shows the "
+              "whole time and it turns itself off after 15 minutes. mode: on, off or status.",
+              _p({"mode": S, "every_s": I}, ["mode"])),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
