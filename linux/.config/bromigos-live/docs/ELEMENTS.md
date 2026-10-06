@@ -202,7 +202,9 @@ Where each layer may draw:
   (origin (2000, 370), pointing up and to the left), with three pulses running out
   along it and fading with distance.
 - **Shows:** **the lab is all green**: the Lab API link is up, every node is Ready
-  and every service is up (`gadgets.all_green`). The beam is simply absent otherwise.
+  and every service is up (`gadgets.all_green`). The beam is simply absent otherwise:
+  a stale Lab API link, a node not Ready or a service down turns it off; this machine
+  running hot does not (that only tints the sky amber).
   Its pulse speed is 0.12 + min(ingress requests/s, 6) / 12, so a busier ingress
   pulses faster.
 - **Data:** the Lab API status, every 25 s (`cluster.nodesReady`, `nodesTotal`,
