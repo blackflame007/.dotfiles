@@ -134,7 +134,7 @@ def check_command(words, joined):
     for p in PROTECTED:
         full = os.path.join(DOT, p)
         stow = full.replace(os.path.join(DOT, "linux"), HOME)
-        base = os.path.basename(p.rstrip("/"))
+        base = "" if p.endswith("/") else os.path.basename(p)   # a folder by its path, not a bare word ("user")
         rel = p.split("linux/.config/", 1)[-1]
         if (full.rstrip("/") in joined or stow.rstrip("/") in joined or rel.rstrip("/") in joined
                 or (base and re.search(r"(^|[\s/'\"=])" + re.escape(base) + r"($|[\s'\";|&)>])", joined)
