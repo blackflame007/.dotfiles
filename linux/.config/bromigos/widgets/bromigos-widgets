@@ -69,8 +69,39 @@ import panels as P  # noqa: E402
 
 
 # ------------------------------------------------------------------ Hyprland: which monitor, is it covered?
+def _live_sig():
+    """The Hyprland instance that answers. $HYPRLAND_INSTANCE_SIGNATURE goes stale when the
+    widgets outlive a Hyprland restart (or start from a shell that did); then fall back to
+    the newest instance whose socket accepts a connection, and remember it."""
+    base = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr")
+
+    def alive(sig):
+        if not sig:
+            return False
+        s = socket.socket(socket.AF_UNIX)
+        s.settimeout(0.5)
+        try:
+            s.connect(os.path.join(base, sig, ".socket.sock"))
+            return True
+        except OSError:
+            return False
+        finally:
+            s.close()
+    cur = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if alive(cur):
+        return cur
+    try:
+        for d in sorted(os.listdir(base), key=lambda n: os.path.getmtime(os.path.join(base, n)), reverse=True):
+            if alive(d):
+                os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = d
+                return d
+    except OSError:
+        pass
+    return None
+
+
 def hypr_request(cmd):
-    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    sig = _live_sig()
     if not sig:
         return None
     path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr", sig, ".socket.sock")
@@ -114,7 +145,7 @@ class Coverage(threading.Thread):
             GLib.idle_add(self.on_change)
 
     def run(self):
-        sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+        sig = _live_sig()
         if not sig:
             return
         path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr", sig, ".socket2.sock")

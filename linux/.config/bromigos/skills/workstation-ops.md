@@ -63,6 +63,7 @@ were one setting, found in seconds by reading state, not by guessing.
 | A command works in a terminal but not from a keybind or service | different PATH/env (Hyprland exec, systemd user units) | use absolute paths or resolve `~/.local/bin`, `~/.cargo/bin` |
 | btrbk "Failed to fetch subvolume detail" | `/mnt/btrfs-top` automount not started | `systemctl start 'mnt-btrfs\x2dtop.automount'` (root) |
 | Razer volume roller does nothing | it reports as vertical scroll on the keyboard's mouse interface, which `bromigos-knob` grabs for the dial; the grab swallowed it | the knob service now turns roller scrolls into `wpctl set-volume` (2% a click); if a new control on that interface goes dead, look there first |
+| Wallpaper animation stopped, status says "output gone" / no layers while the monitor is on | the daemon inherited a dead Hyprland session id (a shell or service that outlived a Hyprland restart); the old socket file still exists | fixed: the live layer, widgets and launcher pick the instance whose socket answers; to recover by hand, restart it with the live signature (`hyprctl version` succeeds) |
 | `sudo` hangs, no FIDO prompt | YubiKey not answering | replug it |
 
 ## Don't

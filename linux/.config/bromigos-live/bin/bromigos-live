@@ -47,8 +47,13 @@ supervise() {
     local first="--login"; [ "${1:-}" = "--login" ] || first=""
     local fails=() now
     while :; do
-        if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || [ ! -S "$RUN/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket.sock" ]; then
-            HYPRLAND_INSTANCE_SIGNATURE="$(ls -t "$RUN/hypr" 2>/dev/null | head -1)"
+        # the instance that actually answers: a socket file outlives its Hyprland
+        if ! HYPRLAND_INSTANCE_SIGNATURE="${HYPRLAND_INSTANCE_SIGNATURE:-}" /usr/bin/hyprctl version >/dev/null 2>&1; then
+            for s in $(ls -t "$RUN/hypr" 2>/dev/null); do
+                if HYPRLAND_INSTANCE_SIGNATURE="$s" /usr/bin/hyprctl version >/dev/null 2>&1; then
+                    HYPRLAND_INSTANCE_SIGNATURE="$s"; break
+                fi
+            done
             export HYPRLAND_INSTANCE_SIGNATURE
         fi
         cd "$HERE" && "$PY" -m live.app $first >>"$LOG" 2>&1

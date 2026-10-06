@@ -7,19 +7,41 @@ import threading
 import time
 
 
+def _alive(path):
+    """True when a Hyprland instance answers on this request socket. A dead instance
+    leaves its socket file behind, so existence alone isn't enough."""
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            s.connect(path)
+        return True
+    except OSError:
+        return False
+
+
+_cache = {"sig": None}
+
+
 def _sig():
-    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    """The live Hyprland instance: the cached one or $HYPRLAND_INSTANCE_SIGNATURE if it
+    still answers, else the newest instance dir whose socket answers. A daemon started from
+    a shell that outlived a Hyprland restart inherits a dead signature; this follows the
+    session instead of sticking to it."""
     base = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "hypr")
-    if sig and os.path.exists(os.path.join(base, sig, ".socket.sock")):
-        return base, sig
+    for sig in (_cache["sig"], os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")):
+        if sig and _alive(os.path.join(base, sig, ".socket.sock")):
+            _cache["sig"] = sig
+            return base, sig
     try:
         dirs = sorted((os.path.join(base, d) for d in os.listdir(base)), key=os.path.getmtime, reverse=True)
         for d in dirs:
-            if os.path.exists(os.path.join(d, ".socket.sock")):
-                return base, os.path.basename(d)
+            if _alive(os.path.join(d, ".socket.sock")):
+                _cache["sig"] = os.path.basename(d)
+                os.environ["HYPRLAND_INSTANCE_SIGNATURE"] = _cache["sig"]   # for child hyprctl calls too
+                return base, _cache["sig"]
     except OSError:
         pass
-    return base, sig or ""
+    return base, _cache["sig"] or os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
 
 
 def request(cmd, as_json=True):
