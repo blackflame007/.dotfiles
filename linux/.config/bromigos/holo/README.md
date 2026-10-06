@@ -30,7 +30,7 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 | `tools/voice-demo.py` | Render a tagged reply to a wav exactly as the desktop would speak it |
 | `holo/shimmer.py` | The projector shimmer DSP (band-limit, swept comb, quiet ring mod, tiny room), streamable, one knob per voice; and the dial scratch between voices |
 | `holo/pilot/` | Compatibility alias for older callers (`holo.pilot.voice` is `holo.vector.voice`) |
-| `holo/vector/act.py`, `vault.py`, `events.py`, `skills.py` | Act tools (cluster, Argo, CI, kb notes), Vault wiring, the event feed, the skills loader and router |
+| `holo/vector/act.py`, `vault.py`, `events.py`, `skills.py`, `desk.py`, `track.py` | Act tools (cluster, Argo, CI, kb notes), Vault wiring, the event feed, the skills loader and router, programs and windows, change tracking and new repos |
 | `holo/vector/history.py` | Conversation history from `vector-chat.log`: sessions, titles, search, the `conversation_history` tool |
 | `tools/kb-sync.py` | Syncs the operator's docs into the Gnosis knowledge base (`kb-*` spaces); nightly via `bromigos-kb-sync.timer` |
 | `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning (`HISTORY_OPEN=1` renders the console as it looks under the history panel) |
@@ -105,9 +105,17 @@ Cluster actions run as the ServiceAccount **`vector-operator`** (homelab `helm/v
 - None returns a value; the audit log and the event feed get path, key and operation only. An app gets its secret through an ExternalSecret he writes in homelab GitOps.
 - Vault's own policy denies `homelab/arbiter*` (real money), `homelab/entitlements`, his own credentials and every policy, auth, mount and token path, whatever the tool does. The `vault` CLI and Vault's API stay refused in his terminal, even though `~/.vault-token` exists.
 
+**Programs and windows** (`holo/vector/desk.py`): `app_search` and `launch_app` find and start any installed program by fuzzy name from its desktop entry (name and generic name count most; every word must match; ties come back as a list to choose from), optionally on a workspace; `run_detached` starts a command through the terminal's limits; `open_path` opens a file or URL; `windows` lists them and `window` focuses, moves or closes one (he says so before closing).
+
+**Always tracking his changes** (`holo/vector/track.py`). A hard rule in the persona and the `software-work` skill: everything he changes in a repo is committed in that repo's style and pushed; changes outside any repo (Vault entries, imperative cluster changes, user-space installs) go into `~/.dotfiles/VECTOR-CHANGELOG.md` (what, where, why, how to undo), committed and pushed; never the operator's own uncommitted files, secrets, `.env` files or keys.
+
+- Every terminal command reports the repos it works in. The first touch of a repo takes a baseline of what was already dirty or unpushed (the operator's work, never flagged).
+- `changes_check`, which he calls before reporting a task done, lists his own uncommitted files and unpushed commits per repo, and outside changes newer than the changelog. He clears it.
+- `github_repo_create` makes a repo under `bromigos-org`, `nolgiainc` or `blackflame007` (private unless the operator says public), clones it to `~/github.com/<owner>/<name>`, seeds README, AGENTS.md and .gitignore, and pushes. It joins the knowledge-base sync by itself.
+
 ARBITER stays read only: there is no paper-side write API, and nudges are the operator's, behind his sign-in.
 
-**Tests.** `tools/test-shell.py` (the terminal's original limits) and `tools/test-act.py` (everything above; `--live` also proves the cluster and Vault deny on their own, bypassing his code, does a real restart of searxng, an Argo refresh and a scratch-branch push, and shows a stored Vault value is absent from the tool results, the chat, shell, audit and sensitive logs and the event feed). Run both with the brain venv's python.
+**Tests.** `tools/test-shell.py` (the terminal's original limits) and `tools/test-act.py` (everything above; `--live` also proves the cluster and Vault deny on their own, bypassing his code, does a real restart of searxng, an Argo refresh and a scratch-branch push, and shows a stored Vault value is absent from the tool results, the chat, shell, audit and sensitive logs and the event feed). `tools/test-desk.py` launches a program by fuzzy name and closes it, makes a throwaway private repo, writes, commits and pushes a script to a branch through his terminal, checks the done-check before and after, and deletes the repo. Run them with the brain venv's python.
 
 ## Knowledge base
 
@@ -185,7 +193,7 @@ His know-how for kinds of work lives in **`~/.config/bromigos/skills/`** (dotfil
 - `holo/vector/skills.py` turns each into a deferred Pydantic AI capability: the model sees the catalog and can load one with `load_capability`.
 - The models rarely do that by themselves, so a **router** also attaches what a question needs. The question and each skill's description are embedded with the local model; a skill's score is taken against its own baseline (its mean over a few neutral questions, since hub skills like data-sources resemble everything); up to two that clear the margin (0.12, or a clear single winner at 0.08) go into that turn's instructions. Small talk attaches nothing.
 - The catalog is re-read when the directory changes, so a new skill is live on the next question. Loads are in the chat log (`role: skill`) and on the event feed (`skill.load`).
-- Skills today: `homelab-ops` (this stage), and the live layer's `hologram-build`, `live-layer-animation`, `desktop-style-guide` and `data-sources`.
+- Skills today: `homelab-ops`, `software-work`, and the live layer's `hologram-build`, `live-layer-animation`, `desktop-style-guide` and `data-sources`.
 
 ## Voice
 

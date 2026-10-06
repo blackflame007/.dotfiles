@@ -425,6 +425,11 @@ class Runner:
         except Refused as e:
             audit(event="refused", command=command, cwd=cwd, reason=str(e))
             return {"refused": str(e)}
+        try:                       # baseline the repos this command works in, before it runs
+            from . import track
+            track.touch_from_command(words, cwd)
+        except Exception:
+            pass
         if play:
             rec = {"t": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "event": "sensitive_playbook", "playbook": play,
                    "command": redact(command), "cwd": cwd}

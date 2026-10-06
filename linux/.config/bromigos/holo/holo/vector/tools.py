@@ -491,6 +491,8 @@ from .reach import (herdr_read, herdr_send, herdr_start, herdr_status, herdr_wai
 from .act import (argocd_refresh, argocd_sync, argocd_wait, ci_watch, k8s_delete_pod,  # noqa: E402
                   k8s_restart, k8s_run_job, k8s_scale, kb_write)
 from .vault import vault_copy, vault_list, vault_put  # noqa: E402
+from .desk import app_search, launch_app, open_path, run_detached, window, windows  # noqa: E402
+from .track import changes_check, github_repo_create  # noqa: E402
 
 
 def notes_read(last_lines=60):
@@ -539,7 +541,8 @@ def launch(target):
     if key in sb:
         _detach(["xdg-open", sb[key]])
         return {"opened": key, "url": sb[key]}
-    raise ValueError(f"unknown target. Apps: {sorted(APPS)}; switchboard: {sorted(sb)}; or an http(s) URL")
+    from .desk import launch_app
+    return launch_app(t)                      # any installed program, by fuzzy name
 
 
 def panel(name, action="toggle"):
@@ -657,7 +660,7 @@ SPECS = {
                    _p({"agent": S, "status": S, "timeout_s": I}, ["agent"])),
     "notes_read": ("Read the end of FIELD NOTES, the operator's notepad.", _p({"last_lines": I})),
     "notes_append": ("Append a line to FIELD NOTES (only when the operator asks to note something).", _p({"text": S}, ["text"])),
-    "launch": ("Open an app (terminal, browser, chrome, files, discord, spotify, obs, steam), a switchboard entry (arbiter, lab, grafana, argocd, …) or an http(s) URL.",
+    "launch": ("Open an app (terminal, browser, chrome, files, discord, spotify, obs, steam, or any installed program by name), a switchboard entry (arbiter, lab, grafana, argocd, …) or an http(s) URL.",
                _p({"target": S}, ["target"])),
     "panel": ("Toggle a desktop widget panel: all, system, network, storage, lab, switchboard, notes, shortcuts.",
               _p({"name": S, "action": S}, ["name"])),
@@ -708,6 +711,21 @@ SPECS = {
                       "biggest, instrument, agent or fill id>, play, pause, seek <0..1>: an ARBITER paper trade). open/close "
                       "for any. Use it when showing beats telling, or when the host asks to see something.",
                       _p({"deck": S, "verb": S, "args": S}, ["deck"])),
+    "app_search": ("Find installed programs by fuzzy name or purpose ('image editor', 'files', 'obs').", _p({"query": S}, ["query"])),
+    "launch_app": ("Start any installed program by fuzzy name (its desktop entry); workspace optional (opens there silently).",
+                   _p({"name": S, "workspace": S}, ["name"])),
+    "run_detached": ("Start a command detached from you (a GUI program or a long job), optionally on a workspace. Same "
+                     "limits as your terminal.", _p({"command": S, "workspace": S}, ["command"])),
+    "open_path": ("Open a file, folder or URL with its default application.", _p({"target": S}, ["target"])),
+    "windows": ("The open windows: address, app, title, workspace, which is focused.", _p({})),
+    "window": ("Act on one window (by address, app class or title words): focus, close (say so first), or move to a "
+               "workspace.", _p({"action": S, "target": S, "workspace": S}, ["action", "target"])),
+    "changes_check": ("Before you say a task is done: lists every repo you touched with changes you left uncommitted or "
+                      "unpushed, and changes outside repos not yet recorded in VECTOR-CHANGELOG.md. Clear it first.", _p({})),
+    "github_repo_create": ("Create a new GitHub repo: owner bromigos-org (Bromigos), nolgiainc (Nolgia, the company) or "
+                           "blackflame007 (personal); ask when unclear. Private unless the host said public. Cloned to "
+                           "~/github.com/<owner>/<name>, seeded with README, AGENTS.md and .gitignore, pushed.",
+                           _p({"owner": S, "name": S, "description": S, "public": B}, ["owner", "name", "description"])),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
@@ -754,6 +772,8 @@ def call(name, args, ui=None, live=None):
         events.emit("tool.end", id=eid, name=name, ok=True, ms=ms, outcome=_outcome(res))
         if name.startswith("vault_"):
             events.emit("vault.op", op=name[6:], path=args.get("path") or args.get("dst"), key=args.get("key"))
+        from .track import note_outside
+        note_outside(name, args)
         ex = EXHIBIT.get(name)
         return text, ex
     except Exception as e:
