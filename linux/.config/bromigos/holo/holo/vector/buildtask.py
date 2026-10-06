@@ -100,6 +100,8 @@ def _agent_tools(cb):
         wrap(progress, "progress", "One short line for the host about where the build is (and pct 0-100).", P({"note": S, "pct": I}, ["note"])),
         wrap(look, "look", "Look at a render PNG with the vision model and ask about it.", P({"png": S, "question": S}, ["png", "question"])),
         wrap(knowledge, "knowledge_search", "Search the host's docs (what a piece is and how it works).", P({"query": S}, ["query"])),
+        wrap(lambda name: __import__("holo.vector.skills", fromlist=["load_skill"]).load_skill(name), "load_skill",
+             "Load a skill's full text by name (the catalog is in your instructions).", P({"name": S}, ["name"])),
         wrap(nolgia_image, "nolgia_image", "Generate a concept image with nolgia into the worktree (costs credits; under "
              "the daily budget). Only when procedural or drawn art won't do.", P({"prompt": S, "out": S, "model": S, "aspect_ratio": S},
                                                                                   ["prompt", "out"])),
@@ -179,7 +181,7 @@ class BuildTask:
             settings = OpenAIChatModelSettings(temperature=0.3, max_tokens=8000,
                                                extra_body={"chat_template_kwargs": {"enable_thinking": False}})
             agent = Agent(self._model(), model_settings=settings, tools=_agent_tools(self),
-                          capabilities=skills.capabilities(), instructions=instructions)
+                          instructions=instructions + skills.catalog_text())
             self.progress("planning the build", 2)
             self.future = self.loop.create_task(agent.run(
                 f"Build this for the host: {self.goal}", usage_limits=UsageLimits(request_limit=MAX_REQUESTS)))

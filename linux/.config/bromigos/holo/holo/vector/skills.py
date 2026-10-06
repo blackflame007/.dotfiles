@@ -201,3 +201,22 @@ def instructions_for(matched, builder=False):
     for _, s in matched:
         parts.append(f"# Skill: {s['name']} (source: {s['path']})\n\n{s['body']}\n")
     return "\n".join(parts)
+
+
+def catalog_text():
+    """One line per skill, inside VECTOR's single system prompt (a second system message,
+    as Pydantic AI's deferred capabilities send it, made hive stop calling tools)."""
+    items = load()
+    if not items:
+        return ""
+    lines = [f"- {s['name']}: {s['description'][:150]}" for s in items]
+    return ("\nYOUR SKILLS (know-how; call load_skill with a name before a task it covers, unless it's already "
+            "attached below):\n" + "\n".join(lines) + "\n")
+
+
+def load_skill(name):
+    """A skill's full text, as a tool result."""
+    for s in load():
+        if s["name"] == (name or "").strip():
+            return {"skill": s["name"], "source": s["path"], "text": s["body"][:20000]}
+    raise ValueError(f"no skill {name!r}; skills: {[s['name'] for s in load()]}")

@@ -503,6 +503,7 @@ from .act import (argocd_refresh, argocd_sync, argocd_wait, ci_watch, k8s_delete
 from .vault import vault_copy, vault_list, vault_put  # noqa: E402
 from .desk import app_search, launch_app, open_path, run_detached, window, windows  # noqa: E402
 from .track import changes_check, github_repo_create  # noqa: E402
+from .skills import load_skill  # noqa: E402
 from .nolgia import nolgia_catalog, nolgia_credits, nolgia_generate, nolgia_read, nolgia_review  # noqa: E402
 
 
@@ -761,6 +762,8 @@ SPECS = {
                    "answered; never on your own.", _p({})),
     "build_revert": ("The host said revert (or doesn't want it): roll the trial back to exactly what was there.", _p({})),
     "build_stop": ("Stop the background build now (its worktree is removed; a trial is rolled back).", _p({})),
+    "load_skill": ("Load one of your skills by name (the catalog is in your instructions) when a task needs its know-how.",
+                   _p({"name": S}, ["name"])),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
