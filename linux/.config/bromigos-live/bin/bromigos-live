@@ -5,7 +5,8 @@
 #   bromigos-live stop | restart
 #   bromigos-live toggle           background layer on/off
 #   bromigos-live mute             sounds on/off (works without the daemon)
-#   bromigos-live holodeck | arbiter | driftmap | timeline | radial | intercept | screensaver | screensaver-off
+#   bromigos-live holodeck | arbiter | driftmap | timeline [open|close]   a deck: toggle, or open/close
+#   bromigos-live radial | intercept | screensaver | screensaver-off
 #   bromigos-live scan             run a scanner pass now (hardware schematic)
 #   bromigos-live scan-pin         pin / unpin the schematic (stays up, live values)
 #   bromigos-live scan-hold on|off hold-to-scan (bound to press / release)
@@ -109,7 +110,10 @@ case "${1:-start}" in
         notify-send -a bromigos-live -u low -t 1200 "SOUND ${out^^}" 2>/dev/null
         echo "$out"
         ;;
-    toggle|holodeck|arbiter|driftmap|timeline|radial|intercept|screensaver|screensaver-off)
+    holodeck|arbiter|driftmap|timeline)
+        # no argument toggles (the keys); "open" / "close" are explicit (VECTOR's tour)
+        ctl "$1${2:+ $2}" || { echo "not running (bromigos-live start)"; exit 1; } ;;
+    toggle|radial|intercept|screensaver|screensaver-off)
         ctl "$1" || { [ "$1" = screensaver-off ] || echo "not running (bromigos-live start)"; exit 1; } ;;
     scan|scan-pin) ctl "$1" ;;
     plugin)

@@ -582,7 +582,11 @@ def scan():
     return {"ok": True, "note": "scanner pass running on the desktop"}
 
 
-DECKS = {  # bromigos-live's holograms (README "Driving the holograms") -> their verbs
+DECKS = {  # bromigos-live's holograms (README "Decks") -> their verbs
+    "holodeck": {"open", "close"},
+    "arbiter": {"open", "close"},
+    "timeline": {"open", "close"},
+    "driftmap": {"open", "close"},
     "mind": {"open", "close", "focus", "space", "clear"},
     "ops": {"open", "close", "focus", "clear"},
     "swarm": {"open", "close", "point", "focus", "clear"},
@@ -757,7 +761,10 @@ SPECS = {
                   _p({"path": S, "key": S, "value_from": S, "length": I, "charset": S}, ["path", "key", "value_from"])),
     "vault_copy": (f"Copy one Vault key to another path, Vault to Vault: src and dst as {VAULT_ROOT}/<path>#<key>.",
                    _p({"src": S, "dst": S}, ["src", "dst"])),
-    "hologram_deck": ("Open or drive a live-layer hologram for the host. deck and verbs: mind (focus <memory or doc>, "
+    "hologram_deck": ("Open or drive a live-layer hologram for the host. One is up at a time: opening one closes the "
+                      "last, and open/close wait until you have finished saying what you said before the call, so narrate a "
+                      "deck, then open the next. holodeck, arbiter, timeline, driftmap: open/close only (this machine and "
+                      "the lab; ARBITER's paper portfolio; the last 72 h; the lore star chart). mind (focus <memory or doc>, "
                       "space <kb-name>, clear: your memory and knowledge as a constellation); ops (focus <repo>, clear: your "
                       "and the host's actions on the lab, pushes, CI, Argo, pods); swarm (point <repo or agent>, focus, clear: "
                       "repos and herdr agents); netmap (trace <host or ip>, clear: the LAN and latency); replay (pick <latest, "
@@ -910,6 +917,8 @@ def call(name, args, ui=None, live=None):
         if name in ("show_hologram", "open_gallery", "set_voice", "remember", "forget") or name.startswith("build_"):
             if ui is None:
                 raise RuntimeError("no display")
+            res = ui(name, args)
+        elif name == "hologram_deck" and ui is not None:     # the desktop paces it with his speech
             res = ui(name, args)
         elif name == "system_stats":
             res = system_stats(live)

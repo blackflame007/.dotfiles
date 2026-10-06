@@ -651,6 +651,14 @@ class App:
         if c in ("intercept", "holodeck", "arbiter", "driftmap", "timeline", "radial", "screensaver"):
             if c == "screensaver" and not self.cfg["screensaver"].get("enabled", True):
                 return "screensaver disabled"
+            verb = arg.strip()
+            if verb in ("open", "close"):        # explicit (VECTOR's tour); no verb toggles, as the keys do
+                cur = self.overlays.get(c)
+                if verb == "open" and not cur:
+                    self.overlay(c)
+                elif verb == "close" and cur:
+                    cur.close()
+                return f"{c} {'open' if verb == 'open' else 'closed'}"
             self.overlay(c)
             return c
         if c == "screensaver-off":

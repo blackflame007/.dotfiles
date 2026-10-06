@@ -874,6 +874,21 @@ class App:
         self.pscene.reroute(model, why)
         self.pscene.route = f"{model} · homelab LiteLLM (rerouted)"
 
+    def _speech_settle(self, limit=60.0):
+        """Brain thread: block until VECTOR has spoken everything he has said so far this
+        turn (the half sentence still streaming is flushed first), at most `limit` s."""
+        v = self.voice
+        if not v or v.muted:
+            return
+        done = threading.Event()
+        GLib.idle_add(lambda: (v.flush(), done.set(), False)[2])
+        done.wait(2)
+        t0 = time.monotonic()
+        time.sleep(0.3)                          # the last sentence reaches the queue
+        while (v.queue or v.speaking) and time.monotonic() - t0 < limit and not v.muted:
+            time.sleep(0.15)
+        time.sleep(0.35)                         # a breath before the scene changes
+
     def _vector_shown(self):
         return bool(self.vector and self.vector.visible and self.pscene.fade_to > 0)
 
@@ -895,6 +910,12 @@ class App:
         """UI-only tools, called from the brain thread."""
         if name.startswith("build_"):
             return self._build_tool(name, args or {})
+        if name == "hologram_deck":
+            # a tour: what he's saying about this deck finishes before the next one opens
+            if (args or {}).get("verb", "open") in ("open", "close"):
+                self._speech_settle()
+            from .vector import tools
+            return tools.hologram_deck(**(args or {}))
         if name in ("remember", "forget"):
             if not self.memory:
                 raise RuntimeError("long-term memory unavailable")
