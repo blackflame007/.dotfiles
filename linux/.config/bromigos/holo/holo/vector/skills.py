@@ -185,7 +185,7 @@ BUILD_SKILLS = {"make-widget", "make-hologram-model", "live-shader-layer", "upda
                 "hologram-build", "live-layer-animation"}
 BUILD_DIRECTIVE = """
 THIS IS A BUILD TASK (the host wants something made or changed on the desktop)
-Call build_start now, with the whole goal in the host's words plus any details he gave (no guessed file names). Then say one short line that your builder has started and END YOUR TURN. Do not call build_status unless the host asks how it's going. Do not read, write or inspect the desktop's files yourself, do not use your terminal for it, and never switch your terminal off: the builder does the work in the background, validates it and puts it up for a trial, and you'll announce it.
+The host has already asked: don't ask whether to build it and don't look for an existing one first. Call build_start now, with the whole goal in the host's words plus any details he gave (no guessed file names). Then say one short line that your builder has started and END YOUR TURN. Do not call build_status unless the host asks how it's going. Do not read, write or inspect the desktop's files yourself, do not use your terminal for it, and never switch your terminal off: the builder does the work in the background, validates it and puts it up for a trial, and you'll announce it.
 """
 
 
