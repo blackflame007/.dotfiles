@@ -6,7 +6,7 @@ Hard limits (enforced here, not by the prompt):
   * reads: the cluster through the `pilot-readonly` ServiceAccount kubeconfig (get/list/
     watch, no secrets/configmaps/exec); verbs used: get, logs, top;
   * acts (act.py): restart, scale, delete a pod, run a Job from a CronJob, Argo sync/
-    refresh/wait, as `vector-operator` (RBAC + admission policies in homelab helm/vector),
+    refresh/wait, as `vector-operator` (RBAC + admission policies in the lab's vector chart),
     never arbiter-live*; CI watch through gh; notes into the kb-* knowledge spaces;
   * Vault (vault.py): AppRole `vector`; list names, put a generated or operator-typed
     value, copy Vault to Vault; never returns or logs a value;
@@ -33,6 +33,7 @@ import urllib.parse
 import urllib.request
 
 from ..live import get_json, ssl_ctx
+from ..private import PRIV
 
 HOME = os.path.expanduser("~")
 STATE = os.path.join(HOME, ".local/state/bromigos")
@@ -40,10 +41,13 @@ AUDIT = os.path.join(STATE, "vector-audit.log")
 KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/pilot-kubeconfig")
 GNOSIS_TOKEN = os.path.join(HOME, ".local/share/bromigos/gnosis-vector-read-token")   # gate token: read only
 NOTES = os.path.join(HOME, ".local/share/bromigos/notes.md")
-PROM = "https://prometheus.redacted"
-GNOSIS = "https://gnosis.redacted/gate"           # gnosis-gate: narrow tokens, never the service token
-ARBITER = "https://arbiter.redacted"
-LAB = "https://lab.redacted/api/status"
+# Internal URLs and Vault paths come from the private overlay (AGENTS.md, Private values).
+PROM = PRIV.url("prometheus")
+GNOSIS = PRIV.url("gnosis_gate")                   # gnosis-gate: narrow tokens, never the service token
+ARBITER = PRIV.url("arbiter")
+LAB = PRIV.url("lab", "/api/status")
+VAULT_ROOT = PRIV.vault_root() or "<vault root>"   # the KV prefix his Vault tools may touch
+LAB_DOMAIN = PRIV.lan_domain() or "<lab domain>"
 WIDGETS = os.path.join(HOME, ".config/bromigos/widgets/bromigos-widgets")
 WALLPAPER = os.path.join(HOME, ".config/bromigos/bin/bromigos-wallpaper")
 LIVE = os.path.join(HOME, ".config/bromigos-live/bin/bromigos-live")
@@ -107,6 +111,7 @@ EXHIBIT = {
 }
 
 
+LAST_USER_TEXT = {"text": ""}          # the host's latest words (set by the brain each turn)
 PRIVATE_ARGS = {"remember": ("text",), "forget": ("what",), "gnosis_search": ("query",), "herdr_send": ("text",)}
 
 
@@ -480,6 +485,11 @@ def run_shell(command, cwd="~", timeout_s=60):
 
 
 def shell_off():
+    t = LAST_USER_TEXT["text"].lower()
+    if not (re.search(r"\b(terminal|shell|command line|commands)\b", t) and
+            re.search(r"\b(off|stop|disable|don'?t|do not|no more|kill)\b", t)):
+        raise PermissionError("only when the host asks you to stop using the terminal (he hasn't); "
+                              "a refused command is not a reason to switch it off")
     from .shell import RUNNER, set_enabled
     RUNNER.kill("terminal switched off")
     set_enabled(False)
@@ -515,8 +525,7 @@ def notes_append(text):
 
 
 def _switchboard():
-    out = {"arbiter": "https://arbiter.redacted", "lab": "https://lab.redacted",
-           "prometheus": PROM, "grafana": "https://grafana.redacted"}
+    out = {k: PRIV.url(k) for k in ("arbiter", "lab", "prometheus", "grafana") if PRIV.url(k)}
     try:
         with open(os.path.join(HOME, ".local/share/bromigos/lab-token")) as f:
             D = get_json(LAB, {"Authorization": "Bearer " + f.read().strip()}, timeout=6)
@@ -648,7 +657,7 @@ SPECS = {
                   _p({})),
     "web_search": ("Search the web (the homelab's SearXNG) for current information. Returns title, url and snippet. "
                    "Say where facts came from. category: general (default), it, science or news.", _p({"query": S, "n": I, "category": S}, ["query"])),
-    "web_fetch": ("Fetch a web page's readable text (http/https; no LAN hosts except *.redacted).", _p({"url": S}, ["url"])),
+    "web_fetch": (f"Fetch a web page's readable text (http/https; no LAN hosts except *.{LAB_DOMAIN}).", _p({"url": S}, ["url"])),
     "herdr_status": ("The host's herdr workspaces: AI coding agents (e.g. Claude Code sessions) with their status: "
                      "working, idle, or blocked (waiting on the host).", _p({})),
     "herdr_read": ("Recent output of a herdr agent (target: its id, or a hint like the repo name).",
@@ -697,13 +706,14 @@ SPECS = {
     "kb_write": ("Add a verified note to the knowledge base (space: bromigos, nolgia, personal, desktop, homelab) "
                  "so it can be found later: how something works, where something lives. Never secrets.",
                  _p({"space": S, "title": S, "text": S}, ["space", "title", "text"])),
-    "vault_list": ("Homelab Vault: a folder's entries or a secret's key NAMES (never values). path under secret/homelab.",
+    "vault_list": ("Homelab Vault: a folder's entries or a secret's key NAMES (never values). "
+                   f"path under {VAULT_ROOT}.",
                    _p({"path": S})),
     "vault_put": ("Store one key in the homelab Vault (patch: other keys untouched). value_from: generate (random; "
                   "length, charset alnum|hex|urlsafe|strong) or operator_prompt (a dialog pops up for the host to "
                   "type or paste it; say so first). You never see the value.",
                   _p({"path": S, "key": S, "value_from": S, "length": I, "charset": S}, ["path", "key", "value_from"])),
-    "vault_copy": ("Copy one Vault key to another path, Vault to Vault: src and dst as secret/homelab/<path>#<key>.",
+    "vault_copy": (f"Copy one Vault key to another path, Vault to Vault: src and dst as {VAULT_ROOT}/<path>#<key>.",
                    _p({"src": S, "dst": S}, ["src", "dst"])),
     "hologram_deck": ("Open or drive a live-layer hologram for the host. deck and verbs: mind (focus <memory or doc>, "
                       "space <kb-name>, clear: your memory and knowledge as a constellation); ops (focus <repo>, clear: your "

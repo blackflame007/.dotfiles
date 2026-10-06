@@ -175,7 +175,7 @@ class BuildTask:
                     s = next((x for x in skills.load() if x["name"] == want), None)
                     if s:
                         matched.append((0.0, s))
-            instructions = RULES + "\n" + skills.instructions_for(matched)
+            instructions = RULES + "\n" + skills.instructions_for(matched, builder=True)
             settings = OpenAIChatModelSettings(temperature=0.3, max_tokens=8000,
                                                extra_body={"chat_template_kwargs": {"enable_thinking": False}})
             agent = Agent(self._model(), model_settings=settings, tools=_agent_tools(self),

@@ -13,6 +13,8 @@ import re
 
 import yaml
 
+from .. import private
+
 DIRS = [os.path.expanduser("~/.config/bromigos/skills")]
 FRONT = re.compile(r"\A---\s*\n(.*?)\n---\s*\n?(.*)\Z", re.S)
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,63}$")
@@ -77,7 +79,7 @@ def load():
             continue
         seen.add(name)
         when = " ".join(str(meta.get("when_to_use") or "").split())
-        skills.append({"name": name, "description": desc, "when": when, "body": m.group(2).strip(), "path": p})
+        skills.append({"name": name, "description": desc, "when": when, "body": private.fill(m.group(2).strip()), "path": p})
     return skills
 
 
@@ -179,9 +181,22 @@ def embed(texts, timeout=5.0):
     return m / np.maximum(np.linalg.norm(m, axis=1, keepdims=True), 1e-9)
 
 
-def instructions_for(matched):
+BUILD_SKILLS = {"make-widget", "make-hologram-model", "live-shader-layer", "update-visualization", "make-sound-cue",
+                "hologram-build", "live-layer-animation"}
+BUILD_DIRECTIVE = """
+THIS IS A BUILD TASK (the host wants something made or changed on the desktop)
+Call build_start now, with the whole goal in the host's words plus any details he gave. Then say one short line that your builder has started and stop. Do not read, write or inspect the desktop's files yourself, do not use your terminal for it, and never switch your terminal off: the builder does the work in the background, validates it and puts it up for a trial, and you'll announce it.
+"""
+
+
+def instructions_for(matched, builder=False):
+    """The matched skills' bodies. For VECTOR's own voice (builder=False), a build skill
+    becomes one directive instead: the build belongs to the builder (build_start)."""
     if not matched:
         return ""
+    if not builder and any(s["name"] in BUILD_SKILLS for _, s in matched):
+        rest = [(sc, s) for sc, s in matched if s["name"] not in BUILD_SKILLS]
+        return BUILD_DIRECTIVE + (instructions_for(rest, builder=True) if rest else "")
     parts = [f"\nSKILLS FOR THIS TASK (loaded for you; follow them)\n"]
     for _, s in matched:
         parts.append(f"# Skill: {s['name']} (source: {s['path']})\n\n{s['body']}\n")

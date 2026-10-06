@@ -58,9 +58,10 @@ export LANG=en_US.UTF-8
 # Go paths — GOROOT and GOPATH already set by GVM environment above
 export GOBIN="$GOPATH/bin"
 
-export KUBECONFIG=~/github.com/bromigos-org/homelab/ansible/kubeconfig.yml
+# Private values (Vault address, admin kubeconfig, LiteLLM URL) come from the encrypted
+# overlay, decrypted at login by bromigos-private (AGENTS.md, "Private values").
+[ -r "$HOME/.config/bromigos/private/env" ] && { set -a; . "$HOME/.config/bromigos/private/env"; set +a; }
 
-export VAULT_ADDR=http://vault.redacted
 
 # luarocks — cache output to avoid fork on every shell (saves ~40ms)
 # Delete ~/.cache/zsh_luarocks_env to force refresh after luarocks updates

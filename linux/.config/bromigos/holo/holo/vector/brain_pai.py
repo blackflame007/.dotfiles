@@ -47,8 +47,9 @@ from pydantic_ai.run import AgentRunResultEvent  # noqa: E402
 
 from . import persona, tools  # noqa: E402
 from .brain import CA, CHATLOG, KEY, _label  # noqa: E402
+from ..private import PRIV  # noqa: E402
 
-BASE = "https://litellm.redacted/v1"
+BASE = PRIV.url("litellm", "/v1")                    # private: endpoints.litellm
 FIRST_BYTE = 9.0
 IDLE_GAP = 45.0
 COOLDOWN = 120.0
@@ -303,6 +304,7 @@ class PaiBrain:
             nolgia.LAST_USER["t"] = time.time()      # an over-cap spend needs a host turn after VECTOR asked
             from . import build
             build.LAST_USER["t"] = time.time()       # so does keeping a trial
+            tools.LAST_USER_TEXT["text"] = text      # shell_off checks the host asked for it
             self._log({"role": "user", "text": text})
             self.history.append({"role": "user", "content": text})
             out, msgs, escalated = await self._stream(self.voice_agent, text, t0, list(self.messages))
