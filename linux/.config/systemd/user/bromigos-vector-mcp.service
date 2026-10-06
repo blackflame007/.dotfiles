@@ -1,0 +1,16 @@
+[Unit]
+Description=VECTOR's tools on the LAN for his Hermes brain: MCP over HTTP, bearer token, port 8765
+Documentation=file://%h/.config/bromigos/holo/holo/vector/mcp_lan.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/.config/bromigos/holo
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/.local/share/bromigos/venv-brain/bin/python -m holo.vector.mcp_lan
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=default.target

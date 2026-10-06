@@ -65,6 +65,16 @@ VECTOR keeps a long-term memory in Gnosis, the homelab memory service (`holo/vec
   - So hive leads both lanes and the hand-off is off. Pydantic AI and the classic brain are within noise of each other on the same model.
 - **MCP.** `holo/vector/mcp_server.py` publishes the read-only tools (15 of them, never desktop actions or memory writes) as an MCP server over stdio, or over HTTP on 127.0.0.1 with `--http PORT`, for background workers.
 
+
+## VECTOR's brain on Hermes (how the desktop and the server relate)
+
+There is one assistant, VECTOR. Since 2026-10-06 his brain also runs in the homelab on Hermes Agent (upstream image, extended only by config and plugins; the deployment's internal name is `bromigo`, in the homelab repo's `helm/agents`). The desktop is his body: voice, hologram, apps, shell. Gnosis is his one memory. Neither side commands the other; they are two front doors to the same VECTOR.
+
+- **Where each runs.** The phone (Telegram, the host's account only), the 07:00 morning brief and the 06:00 eval watch run on Hermes. Live voice turns still run on the desktop brain (`brain_pai.py`): stage 2, sending voice turns to Hermes and streaming the reply back sentence by sentence with the voice and mood tags, is designed and measured in the homelab repo's `docs/vector-brain.md`, not cut over (Hermes reaches the first token in ~0.9 s against ~0.45 s here).
+- **Persona.** `persona.py` is the source. The Hermes side uses it adapted for text (no voice or mood markers, no desktop-only instructions), with the same hard limits: no real money, no secret values, no privilege escalation.
+- **Memory.** Both write Gnosis through gnosis-gate, each under its own user (Gnosis partitions by tenant + user, not by space, so the user is the boundary): the desktop as `operator` in space `vector`, Hermes as `bromigo`. Hermes reads this side's memory and the knowledge base at every turn; this side's read token can read Hermes's (`gnosis_search` still has to offer that space).
+- **Tools.** Hermes calls this desktop's tools over MCP: `holo/vector/mcp_lan.py` (user unit `bromigos-vector-mcp.service`) serves whatever `mcp_server.build()` publishes as streamable HTTP on port 8765 of the LAN address only, for LAN clients with a bearer token (`~/.local/share/bromigos/vector-mcp-token`; the same value is in Vault for Hermes). Every call still goes through `tools.call()`, so the limits here hold for every caller; Hermes adds a per-tool allowlist (no Vault tools). Requests are logged to `~/.local/state/bromigos/vector-mcp.log`. When this machine sleeps, the phone line says the console relay is quiet; the brief still works from in-cluster data.
+
 ## Reusing the renderer
 
 ```python
