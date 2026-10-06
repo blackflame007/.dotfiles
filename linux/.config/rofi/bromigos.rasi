@@ -128,17 +128,22 @@ element {
 }
 element normal.normal, element alternate.normal {
     background-color: transparent;
+    text-color: @static;
 }
+/* Selection is a HUD bar, not a solid fill: dark guard green with a phosphor edge, so
+   the matched letters (bright phosphor, below) stay readable on every row. */
 element selected.normal {
-    background-color: @phosphor;
-    border-color: @soft;
-    text-color: @void;
+    background-color: #003b00cc;
+    border-color: @phosphor;
+    text-color: @soft;
 }
 element normal.urgent, element alternate.urgent {
     text-color: @amber;
 }
 element selected.urgent {
-    background-color: @amber;
+    background-color: #4a3a0acc;
+    border-color: @amber;
+    text-color: @amber;
 }
 element normal.active, element alternate.active {
     text-color: @phosphor;
@@ -150,16 +155,7 @@ element-icon {
 element-text {
     vertical-align: 0.5;
     text-color: inherit;
-    /* matched letters: bright phosphor + underline on the dark rows... */
-    highlight: bold underline #39ff14;
-}
-/* ...and void-dark on the selected row, whose background is phosphor (green on green
-   made the match invisible). */
-element-text selected, element-text selected.normal, element-text selected.active {
-    highlight: bold underline #000500;
-}
-element-text selected.urgent {
-    highlight: bold underline #000500;
+    highlight: bold #39ff14;          /* matched letters: bold bright phosphor on every row */
 }
 
 box-footer {
