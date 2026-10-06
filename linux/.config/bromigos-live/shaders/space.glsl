@@ -4,7 +4,6 @@
 // Needs rain.glsl (palette, hashes, seg_dist) included first.
 
 uniform vec4 u_space;        // stars on, smoothed traffic level 0..1 (<0 = traffic off), beam on, health (0 ok, 1 amber, 2 red)
-uniform vec4 u_lane[7];      // per lane, from live/traffic.py: x px along the lane, busy (decided per crossing), -, -
 uniform vec4 u_space_rect;   // sky region x y w h (px)
 uniform vec4 u_planet;       // cx, cy, R, on
 uniform vec4 u_sun;          // sun angle (rad, from local time), spin, tilt, -
@@ -58,32 +57,44 @@ float ship_dist(vec2 p, float kind) {
     return d;
 }
 
+// how much of the hull's silhouette covers p (ship units): near ships hide far ones
+float ship_cover(vec2 p) {
+    float half_h = p.x < 8.0 ? 5.0 : 5.0 * (16.0 - p.x) / 8.0;
+    return step(-22.0, p.x) * step(p.x, 16.0) * smoothstep(half_h + 0.8, half_h - 0.2, abs(p.y));
+}
+
+uniform vec4 u_ship[9];      // from live/traffic.py, far to near: x, y px, heading rad, scale
+uniform vec4 u_ship2[9];     //   brightness, occupied (decided per crossing), hull kind, -
+uniform vec4 u_ship_rect;    // where ships may show (the open sky; they pass behind the den at its edges)
+
 vec3 traffic(vec2 px) {
     vec4 r = u_space_rect;
     if (px.x < r.x || px.y < r.y || px.x > r.x + r.z || px.y > r.y + r.w) return vec3(0.0);
     vec3 acc = vec3(0.0);
     float lvl = u_space.y;
     if (lvl < 0.0) return acc;
-    for (int k = 0; k < 7; k++) {
-        float fk = float(k);
-        float ly = r.y + r.w * (0.08 + 0.84 * hash1(fk * 7.13 + 1.0));
-        if (abs(px.y - ly) > 16.0) continue;
-        // position and occupancy come from the CPU (live/traffic.py): a lane's ship is decided
-        // once per crossing and runs edge to edge, so it never pops in or out mid-screen
-        if (u_lane[k].y < 0.5) continue;
-        float dir = hash1(fk * 5.1) > 0.5 ? 1.0 : -1.0;
-        float x = u_lane[k].x;
-        float sx = dir > 0.0 ? r.x + x : r.x + r.z - x;
-        float sc = 0.7 + 0.5 * hash1(fk * 2.3);
-        vec2 p = (px - vec2(sx, ly)) / sc;
-        p.x *= dir;
-        float d = ship_dist(p, step(0.5, hash1(fk * 9.9)));
-        float line = clamp(1.0 - d * sc, 0.0, 1.0);
-        float eng = exp(-dot(p + vec2(25.0, 0.0), p + vec2(25.0, 0.0)) / 6.0)
-                  * smoothstep(0.0, 40.0, min(x, r.z - x) + 22.0);   // the engine glow comes up over the first 40 px
-        float trail = (p.x < -22.0 && abs(p.y) < 1.5) ? exp((p.x + 22.0) / 40.0) * 0.25 : 0.0;
-        float blink = step(0.85, fract(u_time * 0.9 + fk * 0.3)) * exp(-dot(p - vec2(22.0, 0.0), p - vec2(22.0, 0.0)) / 2.0);
-        acc += SOFT * line * 0.65 + AMBER * (eng * 0.9 + trail) + DANGER * blink * 1.2;
+    vec4 sr = u_ship_rect;
+    // ships: a hard edge where the den's wall starts (they pass behind it), a soft one at the horizon
+    float in_sky = step(sr.x, px.x) * step(px.x, sr.x + sr.z) * step(sr.y, px.y)
+                 * smoothstep(sr.y + sr.w, sr.y + sr.w - 40.0, px.y);
+    if (in_sky > 0.0) {
+        for (int k = 0; k < 9; k++) {                   // far to near
+            vec4 a = u_ship[k];
+            vec4 b = u_ship2[k];
+            if (b.y < 0.5) continue;
+            vec2 d0 = px - a.xy;
+            float reach = 150.0 * a.w;
+            if (dot(d0, d0) > reach * reach) continue;
+            float c = cos(a.z), s = sin(a.z);
+            vec2 p = vec2(c * d0.x + s * d0.y, -s * d0.x + c * d0.y) / a.w;   // into the ship's frame
+            float d = ship_dist(p, b.z);
+            float line = clamp(1.0 - d * a.w, 0.0, 1.0);
+            float eng = exp(-dot(p + vec2(25.0, 0.0), p + vec2(25.0, 0.0)) / 6.0);
+            float trail = (p.x < -22.0 && abs(p.y) < 1.5) ? exp((p.x + 22.0) / 40.0) * 0.25 : 0.0;
+            float blink = step(0.85, fract(u_time * 0.9 + float(k) * 0.3)) * exp(-dot(p - vec2(22.0, 0.0), p - vec2(22.0, 0.0)) / 2.0);
+            vec3 col = (SOFT * line * 0.65 + AMBER * (eng * 0.9 + trail) + DANGER * blink * 1.2) * b.x;
+            acc = acc * (1.0 - 0.9 * ship_cover(p)) + col * in_sky;
+        }
     }
     // debris: slow tumbling flecks, density from traffic
     vec2 q = (px + vec2(u_time * 9.0, -u_time * 3.0)) / 26.0;

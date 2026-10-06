@@ -332,9 +332,13 @@ class Background:
         hl = gadgets.health(d) if sp.get("health_tint", True) else 0
         green = gadgets.all_green(d) and sp.get("relay_beam", True)
         rps = ((d.get("cluster") or {}).get("traefik") or {}).get("rpsNow") or 0.0
-        lanes, lvl_smooth = self.traffic.uniforms(gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0,
-                                                  2400.0 * sx)
-        f.fv("u_lane", lanes, 4)
+        # ships stay in the open sky: on a fitted den, left of its wall (they pass behind it) and above the floor
+        ship_rect = (0.0, 34.0 * sy, (995.0 if self.fitted else 2400.0) * sx, (fl["horizon_y"] - 34.0) * sy)
+        ships, ships2, lvl_smooth = self.traffic.uniforms(
+            gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0, ship_rect)
+        f.fv("u_ship", ships, 4)
+        f.fv("u_ship2", ships2, 4)
+        f.f("u_ship_rect", *ship_rect)
         f.f("u_space", 1.0 if sp.get("stars", True) else 0.0, lvl_smooth, 1.0 if green else 0.0, float(hl))
         f.f("u_space_rect", 0.0, 34.0 * sy, 2400.0 * sx, (fl["horizon_y"] - 34.0) * sy)
         f.f("u_planet", 0.0, 0.0, 1.0, 0.0)

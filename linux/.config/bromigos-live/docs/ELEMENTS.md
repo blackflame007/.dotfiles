@@ -24,7 +24,7 @@ Paths are relative to `linux/.config/bromigos-live/` (installed as
 | [Meters](#meters) | two analog meters on the desk | left: CPU load; right: GPU load | psutil 1 s; nvidia-smi 1.5 s | `background.den` |
 | [Glyph rain and bursts](#glyph-rain-and-bursts) | deep space, top of the screen | rain: CPU load; bursts: notifications, lab alerts, ARBITER fills | psutil 1 s; events | `[rain]` |
 | [Floor pulses](#floor-pulses) | the den's floor grid | download (toward you) and upload (away) | psutil, 1 s | `[floor]` |
-| [Ships and debris](#ships-and-debris) | deep space | network throughput as traffic density | psutil, 1 s | `space.traffic` |
+| [Ships and debris](#ships-and-debris) | the open sky left of the den, at many headings and three depths | network throughput as traffic density | psutil, 1 s | `space.traffic` |
 | [Stars](#stars) | deep space | decoration | none | `space.stars` |
 | [Relay beam](#relay-beam) | from the station, up and left | lab all green; pulse speed = ingress requests/s | Lab API, 25 s | `space.relay_beam` |
 | [Health tint](#health-tint) | space and rain | amber: running hot or lab link stale; red: a node or service down | Lab API, sensors | `space.health_tint` |
@@ -190,28 +190,41 @@ Where each layer may draw:
 
 ### Ships and debris
 
-- **Looks like:** small wireframe haulers (container ribs or fins) crossing the sky
-  in seven lanes at 14–44 px/s, amber engines (the glow comes up over the first 40 px)
-  and trails, a red nav blink; tumbling debris flecks.
-- **Shows:** network throughput as traffic. Whether a lane carries a ship is decided
-  once per crossing, when the crossing starts off-screen: busy if a stable random draw
-  < 0.12 + 0.88·level, where level = log10(1 + rx + tx) / 7.3 (`gadgets.traffic_level`).
-  The ship then runs edge to edge whatever the level does, so it never appears or
-  vanishes mid-screen; the number of busy lanes follows the level with a lag of at most
-  one crossing. Debris density follows a ~25 s average of the level, and flecks fade in
-  and out around the threshold instead of blinking.
+- **Looks like:** small wireframe haulers (container ribs or fins) crossing the open sky
+  on straight paths at many headings: horizontal, gentle diagonals (10–35°) and a few
+  steep ones (50–70°), either way. Three depth tiers: far ships small (0.5×), slow
+  (7–13 px/s) and dim; mid (0.8×, 14–26 px/s); near larger (1.15×), faster (24–38 px/s)
+  and bright. Near ships hide far ones where their hulls overlap. Rarely a far ship
+  approaches or recedes, its size changing along the path. Amber engines and a trail
+  behind, along the heading; a red nav blink. Tumbling debris flecks.
+- **Where:** only in the open sky, `u_ship_rect`: on a fitted den, x 0–995 (the den's
+  wall; ships pass behind it with a hard edge) and y 34 to the floor horizon (a soft
+  40 px fade); on any other wallpaper, the whole sky rect. Never over the den's screens
+  or window frame.
+- **Shows:** network throughput as traffic. Whether a crossing carries a ship is decided
+  once, when it starts off-screen: busy if a stable random draw < 0.12 + 0.88·level,
+  where level = log10(1 + rx + tx) / 7.3 (`gadgets.traffic_level`). The whole path
+  (heading, depth, speed) is fixed then and the ship runs edge to edge whatever the level
+  does, so it never appears or vanishes mid-screen; the number of busy lanes follows the
+  level with a lag of at most one crossing. Debris density follows a ~25 s average of the
+  level, and flecks fade in and out around the threshold instead of blinking.
 - **Data:** psutil, 1 s.
-- **Code:** `live/traffic.py` (`Traffic.uniforms()`: each lane's position in double
-  precision and its busy flag, latched per crossing; the smoothed level) feeds
-  `traffic()` and `ship_dist()` in `shaders/space.glsl` through `u_lane[7]` (x px along
-  the lane, busy) and `u_space.y` (the smoothed level; −1 = off). The background
+- **Code:** `live/traffic.py`: nine lanes (`TIERS`: three far, four mid, two near);
+  `Traffic.uniforms(level, rect)` plans each crossing (`heading()`, `path()`: through a
+  point in the region, from one edge to another plus the ship's reach), works out every
+  position in double precision, and returns them sorted far to near. `traffic()`,
+  `ship_dist()` and `ship_cover()` in `shaders/space.glsl` draw them from `u_ship[9]`
+  (x, y px, heading, scale), `u_ship2[9]` (brightness, occupied, hull kind) and
+  `u_ship_rect`; `u_space.y` is the smoothed level (−1 = off). The background
   (`Background.render()`) and the screensaver each own a `Traffic`.
 - **Config:** `space.traffic`.
-- **Change it:** speeds and phases are in `Traffic.__init__`, the busy rule in
-  `busy_threshold()`; lane heights, direction, size and the hull stay in the shader
-  (`traffic()`, `ship_dist()`). Never decide occupancy in the shader from the live level:
-  that is what made ships pop (fixed 2026-10-06). These are not the Swarm deck's
-  starships (`live/starship.py`).
+- **Cost:** measured with all nine lanes busy: 0.96 ms against 0.92 ms with traffic off
+  (median background frame, RTX 5070); each pixel skips a ship outside its 150 px reach.
+- **Change it:** tiers, speeds and brightness in `TIER`; the heading mix in `heading()`;
+  the busy rule in `_new()`; the hull in `ship_dist()` and its silhouette in
+  `ship_cover()`. Never decide occupancy in the shader from the live level: that made
+  ships pop (fixed 2026-10-06). These are not the Swarm deck's starships
+  (`live/starship.py`).
 
 ### Stars
 

@@ -30,7 +30,7 @@ def ease(x):
     return 1 - (1 - x) ** 3
 
 
-_NO_LANES = np.zeros((7, 4), dtype=np.float32)
+_NO_SHIPS = np.zeros((9, 4), dtype=np.float32)
 
 
 class Base:
@@ -123,7 +123,10 @@ class Base:
         f.f("u_edge", *u.get("edge", (0.0, 0.0, 0.0, 0.0)))
         f.f("u_vignette", *u.get("vignette", (0.0, 0.0, 1.0, 0.0)))
         f.f("u_space", *u.get("space", (0.0, -1.0, 0.0, 0.0)))
-        f.fv("u_lane", u.get("lanes", _NO_LANES), 4)
+        ships = u.get("ships") or (_NO_SHIPS, _NO_SHIPS)
+        f.fv("u_ship", ships[0], 4)
+        f.fv("u_ship2", ships[1], 4)
+        f.f("u_ship_rect", *u.get("space_rect", (0.0, 0.0, float(self.w), float(self.h))))
         f.f("u_space_rect", *u.get("space_rect", (0.0, 0.0, float(self.w), float(self.h))))
         f.f("u_planet", *u.get("planet", (0.0, 0.0, 1.0, 0.0)))
         f.f("u_sun", *u.get("sun", (0.0, 0.0, 0.0, 0.0)))
@@ -686,12 +689,12 @@ class Screensaver(Base):
         if not hasattr(self, "traffic"):
             from .traffic import Traffic
             self.traffic = Traffic()
-        lanes, lvl_smooth = self.traffic.uniforms(gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0,
-                                                  float(self.w))
+        ships, ships2, lvl_smooth = self.traffic.uniforms(
+            gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0, (0.0, 60 * s, float(self.w), 700 * s))
         u = {"backdrop": 1.0, "fade": fade, "glow": 1.0,
              "rain": (0.5 + 0.4 * cpu, 0.8 + 1.4 * cpu, 0.32, 1.0 if self.cfg["rain"].get("enabled", True) else 0.0),
              "rain_rect": (0.0, 0.0, float(self.w), float(self.h)),
-             "lanes": lanes,
+             "ships": (ships, ships2),
              "space": (1.0 if sp.get("stars", True) else 0.0, lvl_smooth,
                        1.0 if green else 0.0, float(gadgets.health(d) if sp.get("health_tint", True) else 0)),
              "space_rect": (0.0, 60 * s, float(self.w), 700 * s),
