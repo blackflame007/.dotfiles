@@ -485,6 +485,16 @@ class Runner:
             audit(event="sensitive", command=command, cwd=cwd, reason=f"playbook {play} touches Vault, ARBITER or venue secrets")
             if self.on_notice:
                 self.on_notice(f"Running the {play.rsplit('.', 1)[0]} playbook; it touches secrets. Logged.")
+        snaps, snap_note = {}, None
+        try:                       # a system-level change gets a snapper pre/post pair (undo)
+            from . import snapshots
+            if snapshots.needs_snapshot(command):
+                if snapshots.configs():
+                    snaps = snapshots.pre("vector: " + redact(command)[:100])
+                else:
+                    snap_note = "no snapshot: snapper isn't set up yet"
+        except Exception as e:
+            snap_note = f"no snapshot ({type(e).__name__})"
         t0 = time.monotonic()
         argv = ["/bin/bash", "-c", command]
         if writable_only:
@@ -532,6 +542,12 @@ class Runner:
         if "push" in words and any(os.path.basename(w) == "git" for w in words):
             _push_event(words, cwd, proc.returncode == 0)
         out = {"exit": proc.returncode, "seconds": dur, "output": shown}
+        if snaps:
+            from . import snapshots
+            posts = snapshots.post(snaps, f"vector: {redact(command)[:80]} (exit {proc.returncode})")
+            out["snapshots"] = snapshots.pairs_text(snaps, posts) + " (undo: snapshot_undo)"
+        elif snap_note:
+            out["snapshots"] = snap_note
         if cur.get("killed"):
             out["killed"] = cur["killed"]
         return out

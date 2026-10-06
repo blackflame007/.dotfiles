@@ -505,6 +505,7 @@ from .desk import app_search, launch_app, open_path, run_detached, window, windo
 from .track import changes_check, github_repo_create  # noqa: E402
 from .skills import load_skill  # noqa: E402
 from .eyes import active_window, look, read_screen_text, watch  # noqa: E402
+from .snapshots import snapshot_create, snapshot_list, snapshot_undo  # noqa: E402
 from .nolgia import nolgia_catalog, nolgia_credits, nolgia_generate, nolgia_read, nolgia_review  # noqa: E402
 
 
@@ -816,6 +817,13 @@ SPECS = {
               "(10-120) and keep a few lines of notes to follow along (e.g. while debugging); an indicator shows the "
               "whole time and it turns itself off after 15 minutes. mode: on, off or status.",
               _p({"mode": S, "every_s": I}, ["mode"])),
+    "snapshot_create": ("Take a snapper snapshot of the system (root and home) before something the host wants to be "
+                        "able to undo; description says what. Your terminal already wraps system-level commands in a "
+                        "pre/post pair by itself.", _p({"description": S}, ["description"])),
+    "snapshot_list": ("Recent snapper snapshots and your own pre/post pairs.", _p({"limit": I})),
+    "snapshot_undo": ("Undo your last system-level change (snapper undochange on its pre/post pair), or a given pair "
+                      "'home:12..13'. For 'VECTOR, undo that'. A whole-system rollback is the host's (the GRUB "
+                      "snapshot menu): explain it, don't do it.", _p({"pair": S})),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
