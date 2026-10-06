@@ -258,6 +258,8 @@ class PaiBrain:
                     delta = ev.part.content
                 elif isinstance(ev, PartDeltaEvent) and isinstance(ev.delta, TextPartDelta):
                     delta = ev.delta.content_delta
+                if delta:
+                    delta = delta.replace("*", "")     # spoken and shown as plain text: no markdown emphasis
                 elif isinstance(ev, FunctionToolCallEvent) and ev.part.tool_name == "think_harder":
                     return text, None, True
                 elif isinstance(ev, FunctionToolCallEvent) and ev.part.tool_name == "load_capability":

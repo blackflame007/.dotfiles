@@ -54,6 +54,24 @@ def _kind(kind):
     return k
 
 
+def _locate(ns, kind, name):
+    """The namespace a workload really lives in: the one given if it's there, else the single
+    namespace that has one by that name (so "searxng in the homelab" finds namespace searxng)."""
+    try:
+        _kubectl(["get", kind, name, "-n", ns, "-o", "name"])
+        return ns, None
+    except RuntimeError as e:
+        if "NotFound" not in str(e) and "not found" not in str(e):
+            raise
+    rows = _kubectl(["get", kind, "-A", "--field-selector", f"metadata.name={name}", "-o",
+                     "jsonpath={range .items[*]}{.metadata.namespace}{'\\n'}{end}"]).split()
+    if len(rows) == 1:
+        return rows[0], f"{kind} {name} isn't in namespace {ns}; found it in {rows[0]}"
+    if not rows:
+        raise ValueError(f"no {kind} named {name} in any namespace (k8s_get {kind}s to look)")
+    raise ValueError(f"{kind} {name} exists in several namespaces ({', '.join(rows)}); say which")
+
+
 def _ready(ns, kind, name):
     d = json.loads(_kubectl(["get", kind, name, "-n", ns, "-o", "json"]))
     st, spec = d.get("status") or {}, d.get("spec") or {}
@@ -63,10 +81,11 @@ def _ready(ns, kind, name):
 
 
 def k8s_restart(namespace, name, kind="deployment", wait=True):
-    ns, n, k = _name(namespace, "namespace"), _name(name), _kind(kind)
+    ns, n, k = _name(namespace or "default", "namespace"), _name(name), _kind(kind)
+    ns, moved = _locate(ns, k, n)
     try:
         _kubectl(["rollout", "restart", f"{k}/{n}", "-n", ns])
-        out = {"ok": True, "restarted": f"{ns}/{k}/{n}"}
+        out = {"ok": True, "restarted": f"{ns}/{k}/{n}", **({"note": moved} if moved else {})}
         if wait:
             try:
                 _kubectl(["rollout", "status", f"{k}/{n}", "-n", ns, "--timeout=240s"], timeout=260)
@@ -88,9 +107,10 @@ def k8s_scale(namespace, name, replicas, kind="deployment", wait=True):
         raise ValueError("replicas must be 0-20")
     if k == "daemonset":
         raise ValueError("a daemonset can't be scaled")
+    ns, moved = _locate(ns, k, n)
     try:
         _kubectl(["scale", f"{k}/{n}", "-n", ns, f"--replicas={reps}"])
-        out = {"ok": True, "scaled": f"{ns}/{k}/{n}", "replicas": reps}
+        out = {"ok": True, "scaled": f"{ns}/{k}/{n}", "replicas": reps, **({"note": moved} if moved else {})}
         if wait and reps:
             try:
                 _kubectl(["rollout", "status", f"{k}/{n}", "-n", ns, "--timeout=240s"], timeout=260)
