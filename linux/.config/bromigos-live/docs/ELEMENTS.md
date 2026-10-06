@@ -191,17 +191,27 @@ Where each layer may draw:
 ### Ships and debris
 
 - **Looks like:** small wireframe haulers (container ribs or fins) crossing the sky
-  in seven lanes at 14–44 px/s, amber engines and trails, a red nav blink; tumbling
-  debris flecks.
-- **Shows:** network throughput as traffic: a lane carries a ship when
-  hash < 0.12 + 0.88·level, debris density 0.06 + 0.22·level, where level =
-  log10(1 + rx + tx) / 7.3 (`gadgets.traffic_level`).
+  in seven lanes at 14–44 px/s, amber engines (the glow comes up over the first 40 px)
+  and trails, a red nav blink; tumbling debris flecks.
+- **Shows:** network throughput as traffic. Whether a lane carries a ship is decided
+  once per crossing, when the crossing starts off-screen: busy if a stable random draw
+  < 0.12 + 0.88·level, where level = log10(1 + rx + tx) / 7.3 (`gadgets.traffic_level`).
+  The ship then runs edge to edge whatever the level does, so it never appears or
+  vanishes mid-screen; the number of busy lanes follows the level with a lag of at most
+  one crossing. Debris density follows a ~25 s average of the level, and flecks fade in
+  and out around the threshold instead of blinking.
 - **Data:** psutil, 1 s.
-- **Code:** `traffic()` and `ship_dist()` in `shaders/space.glsl`; uniform `u_space.y`
-  (−1 = off).
+- **Code:** `live/traffic.py` (`Traffic.uniforms()`: each lane's position in double
+  precision and its busy flag, latched per crossing; the smoothed level) feeds
+  `traffic()` and `ship_dist()` in `shaders/space.glsl` through `u_lane[7]` (x px along
+  the lane, busy) and `u_space.y` (the smoothed level; −1 = off). The background
+  (`Background.render()`) and the screensaver each own a `Traffic`.
 - **Config:** `space.traffic`.
-- **Change it:** lanes, speeds and the hull are constants in `traffic()` /
-  `ship_dist()`. These are not the Swarm deck's starships (`live/starship.py`).
+- **Change it:** speeds and phases are in `Traffic.__init__`, the busy rule in
+  `busy_threshold()`; lane heights, direction, size and the hull stay in the shader
+  (`traffic()`, `ship_dist()`). Never decide occupancy in the shader from the live level:
+  that is what made ships pop (fixed 2026-10-06). These are not the Swarm deck's
+  starships (`live/starship.py`).
 
 ### Stars
 

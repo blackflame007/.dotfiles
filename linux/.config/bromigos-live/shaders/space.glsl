@@ -3,7 +3,8 @@
 // time of day, and the relay beam that runs only while the lab is all green.
 // Needs rain.glsl (palette, hashes, seg_dist) included first.
 
-uniform vec4 u_space;        // stars on, traffic level 0..1, beam on, health (0 ok, 1 amber, 2 red)
+uniform vec4 u_space;        // stars on, smoothed traffic level 0..1 (<0 = traffic off), beam on, health (0 ok, 1 amber, 2 red)
+uniform vec4 u_lane[7];      // per lane, from live/traffic.py: x px along the lane, busy (decided per crossing), -, -
 uniform vec4 u_space_rect;   // sky region x y w h (px)
 uniform vec4 u_planet;       // cx, cy, R, on
 uniform vec4 u_sun;          // sun angle (rad, from local time), spin, tilt, -
@@ -62,23 +63,24 @@ vec3 traffic(vec2 px) {
     if (px.x < r.x || px.y < r.y || px.x > r.x + r.z || px.y > r.y + r.w) return vec3(0.0);
     vec3 acc = vec3(0.0);
     float lvl = u_space.y;
+    if (lvl < 0.0) return acc;
     for (int k = 0; k < 7; k++) {
         float fk = float(k);
         float ly = r.y + r.w * (0.08 + 0.84 * hash1(fk * 7.13 + 1.0));
         if (abs(px.y - ly) > 16.0) continue;
-        float spd = 14.0 + 30.0 * hash1(fk * 3.7);           // px/s: slow haulers
-        float span = r.z + 200.0;
-        float cyc = floor((u_time * spd + hash1(fk) * span) / span);
-        if (hash1(fk * 11.0 + cyc * 1.37) > 0.12 + 0.88 * lvl) continue;   // lane busy?
+        // position and occupancy come from the CPU (live/traffic.py): a lane's ship is decided
+        // once per crossing and runs edge to edge, so it never pops in or out mid-screen
+        if (u_lane[k].y < 0.5) continue;
         float dir = hash1(fk * 5.1) > 0.5 ? 1.0 : -1.0;
-        float x = mod(u_time * spd + hash1(fk) * span, span) - 100.0;
+        float x = u_lane[k].x;
         float sx = dir > 0.0 ? r.x + x : r.x + r.z - x;
         float sc = 0.7 + 0.5 * hash1(fk * 2.3);
         vec2 p = (px - vec2(sx, ly)) / sc;
         p.x *= dir;
         float d = ship_dist(p, step(0.5, hash1(fk * 9.9)));
         float line = clamp(1.0 - d * sc, 0.0, 1.0);
-        float eng = exp(-dot(p + vec2(25.0, 0.0), p + vec2(25.0, 0.0)) / 6.0);
+        float eng = exp(-dot(p + vec2(25.0, 0.0), p + vec2(25.0, 0.0)) / 6.0)
+                  * smoothstep(0.0, 40.0, min(x, r.z - x) + 22.0);   // the engine glow comes up over the first 40 px
         float trail = (p.x < -22.0 && abs(p.y) < 1.5) ? exp((p.x + 22.0) / 40.0) * 0.25 : 0.0;
         float blink = step(0.85, fract(u_time * 0.9 + fk * 0.3)) * exp(-dot(p - vec2(22.0, 0.0), p - vec2(22.0, 0.0)) / 2.0);
         acc += SOFT * line * 0.65 + AMBER * (eng * 0.9 + trail) + DANGER * blink * 1.2;
@@ -87,12 +89,14 @@ vec3 traffic(vec2 px) {
     vec2 q = (px + vec2(u_time * 9.0, -u_time * 3.0)) / 26.0;
     vec2 ci = floor(q);
     float h = hash2(ci * 1.31 + 5.0);
-    if (h < 0.06 + 0.22 * lvl) {
+    float th = 0.06 + 0.22 * lvl;                    // lvl is a ~25 s average: flecks fade, never blink
+    float keep = 1.0 - smoothstep(th - 0.025, th, h);
+    if (keep > 0.0) {
         vec2 c0 = (ci + 0.5) * 26.0 - vec2(u_time * 9.0, -u_time * 3.0);
         float a = u_time * (0.5 + h * 6.0) + h * 30.0;
         vec2 dv = vec2(cos(a), sin(a)) * 2.5;
         float d = seg_dist(px, c0 - dv, c0 + dv);
-        acc += DIM * clamp(1.0 - d, 0.0, 1.0) * 0.8;
+        acc += DIM * clamp(1.0 - d, 0.0, 1.0) * 0.8 * keep;
     }
     return acc;
 }
