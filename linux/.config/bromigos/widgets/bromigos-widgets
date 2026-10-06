@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bromigos desktop widgets: SYSTEM, NETWORK, STORAGE, LAB, SWITCHBOARD, FIELD NOTES.
+"""Bromigos desktop widgets: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS.
 
 One GTK3 process, one layer-shell surface per panel on the BOTTOM layer of the
 monitor named in layout.json (above any background/live layer, below windows).
