@@ -42,11 +42,20 @@ LOG = os.path.expanduser("~/.local/state/bromigos/vector-mcp.log")
 PORT = int(os.environ.get("VECTOR_MCP_PORT", "8765"))
 
 
-def host_names():
-    """The names a client may use for this host (DNS-rebinding protection checks Host)."""
+def host_names(host):
+    """The names a client may use for this host (DNS-rebinding protection checks Host): the
+    hostname, the LAN's reverse-DNS name for the bound address, and <short>.<lan.domain>."""
     short = socket.gethostname().split(".")[0]
+    names = {short, socket.getfqdn()}
+    try:
+        name, aliases, _ = socket.gethostbyaddr(host)
+        names.update([name, *aliases])
+    except OSError:
+        pass
     domain = PRIV.get("lan.domain", "")
-    return [short] + ([f"{short}.{domain}"] if domain else [])
+    if domain:
+        names.add(f"{short}.{domain}")
+    return sorted(n for n in names if n)
 
 
 def client_networks(host):
@@ -118,7 +127,7 @@ def main():
     host = lan_address()
     if host in ("0.0.0.0", "::") or host.startswith("127."):
         sys.exit(f"vector-mcp: refusing to bind {host}; set VECTOR_MCP_HOST to the LAN address")
-    allowed = [f"{h}:{PORT}" for h in (host, *host_names())]
+    allowed = [f"{h}:{PORT}" for h in (host, *host_names(host))]
     clients = client_networks(host)
     server = mcp_server.build()
     app = server.streamable_http_app(host=host, transport_security=TransportSecuritySettings(
