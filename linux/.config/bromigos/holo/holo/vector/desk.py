@@ -150,8 +150,11 @@ def run_detached(command, workspace=None):
     shell.check(command)
     if not shell.enabled():
         raise PermissionError("the terminal is switched off (bromigos-holo shell on)")
+    argv = shell.jail_argv(["/bin/sh", "-c", command], die_with_parent=False)   # the same sandbox as his shell
+    if argv is None:
+        raise PermissionError("the terminal's sandbox (bubblewrap) isn't available, so nothing runs")
     shell.audit(event="detached", command=command, cwd=HOME)
-    _exec(command, workspace)
+    _exec(shlex.join(argv), workspace)
     return {"ok": True, "started": command[:200], **({"workspace": workspace} if workspace not in (None, "") else {})}
 
 
@@ -163,7 +166,7 @@ def open_path(target):
         p = os.path.realpath(os.path.expanduser(t))
         if not os.path.exists(p):
             raise ValueError(f"no such file or folder: {t}")
-        if shell._path_secret(p, "/"):
+        if shell._path_secret(p, "/") or shell.is_masked(p):
             raise PermissionError("that is a secret path; not opened")
         t = p
     subprocess.Popen(["xdg-open", t], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,

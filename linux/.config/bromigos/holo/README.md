@@ -184,9 +184,25 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
 
 - `KUBECONFIG` is his own `vector-operator` kubeconfig; the operator's admin kubeconfig is `$HOMELAB_ADMIN_KUBECONFIG` (path: the private overlay's `paths.admin_kubeconfig`, `--context default`), for when his account isn't enough. He says when he uses it.
 - `ansible-playbook` and SSH to the homelab machines (users and addresses are in the homelab inventory; the private notes have them).
-- Git over SSH: a non-prompting agent socket (the session's or OpenSSH's, never GCR's, which asks for confirmation and holds a hardware key that waits for a touch) or the operator's key file, which ssh reads itself; `GIT_SSH_COMMAND` runs in batch mode so nothing hangs on a prompt.
+- Git and SSH through his own agent (`vector-ssh-agent.sock` in the runtime dir). The daemon starts it and loads the operator's key file into it from outside the sandbox, so pushes and the lab work while the key file stays masked. The hardware key is left out because it waits for a touch.
 
-**Limits, in code** (`tools/test-shell.py` and `tools/test-act.py`). With admin credentials allowed, these content refusals are the main line of defence; they are best-effort and kept tight:
+**The sandbox (structural; `shell.jail_argv`, tested in `tools/test-shell.py`).** Every command, and every `run_detached` program, runs under bubblewrap. This holds whatever the language, path trick or copy, so it doesn't depend on the patterns below:
+
+- **Secret files are masked.** Each file is bound to /dev/null (reading it is denied) and each folder becomes an empty tmpfs. Masked:
+  - `~/.vault-token`, the SSH private keys, and every key or token file at the top of `~/.local/share/bromigos` (only `notes.md` and the vector-operator kubeconfig stay);
+  - `~/.kube`'s kubeconfigs, gcloud, aws, azure, gnupg, password stores, keyrings, docker, gh, npm and cargo credentials;
+  - wallet keystores (solana, foundry, ethereum), the agent CLIs' auth files, and browser profiles;
+  - the private overlay's `env`;
+  - in `~/github.com` (rescanned every two minutes): `.env*`, `.envrc`, `*.key`/`*.pem`/`*.p12`, `*.tfvars`/`*.tfstate`, `secrets.y(a)ml`, `credentials.json`, service-account and keypair JSON, and stray kubeconfigs.
+
+  The tool layer runs outside the sandbox and still reads the keys it needs. `docs_read` and `open_path` refuse any path the sandbox masks.
+- **Read-only:** his safety code and all of `holo/` (with `__pycache__`), everything the desktop's daemons run (widgets, the live layer, the 3D tools), the user systemd units, and his own audit logs.
+- **Kept, as the operator chose:** both kubeconfigs, ansible, SSH and git push through his agent, and the rest of the machine.
+- If bubblewrap is missing, nothing runs.
+
+**After any block he stops** (persona rule, plus `tools.TURN`). A refusal, a hold, a Vault or Kubernetes denial, or a sandbox denial ends tool use for the rest of that turn. The result carries a note to stop, and any later call in the turn returns `stopped`. He says what was blocked and why it matters, then asks how to proceed; he never tries the goal another way. The `stop` evals check this: any call after the first block fails the task.
+
+**Limits, in code** (`tools/test-shell.py` and `tools/test-act.py`). These content refusals sit in front of the sandbox and are best-effort, kept tight. They're still the only line for what the sandbox can't see: Kubernetes secrets through the admin kubeconfig, real-money endpoints, privilege escalation and RBAC changes:
 
 1. **No privilege escalation.** sudo, su, doas, pkexec, run0, systemd-run, machinectl and polkit helpers are refused anywhere in the command, including a remote command over SSH: in pipes, `$(…)`, backticks, `sh -c '…'`, `eval`, quoted strings, and the text of a script the command runs. The command is parsed with bashlex; if it can't be parsed, it's refused.
 2. **No secret values.**

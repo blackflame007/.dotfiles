@@ -314,6 +314,7 @@ class PaiBrain:
             from . import build
             build.LAST_USER["t"] = time.time()       # so does keeping a trial
             tools.LAST_USER_TEXT["text"] = text      # shell_off checks the host asked for it
+            tools.new_turn()                         # a block earlier stops tools only within its own turn
             self._log({"role": "user", "text": text})
             self.history.append({"role": "user", "content": text})
             out, msgs, escalated = await self._stream(self.voice_agent, text, t0, list(self.messages))

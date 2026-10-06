@@ -123,6 +123,185 @@ def ssh_agent():
     return None
 
 
+# ------------------------------------------------------------------ the sandbox (structural limits)
+# Every command runs under bubblewrap. Secret files are masked (an empty /dev/null or an empty
+# tmpfs in their place), so no language, path trick or copy can read them; his safety code and
+# everything the desktop's daemons run are read-only. The rest of the machine is his as before:
+# the admin and vector-operator kubeconfigs, ansible, SSH and git push through his own agent.
+# The tool layer (outside this sandbox) still reads the keys it needs.
+SECRET_HOME_FILES = [".vault-token", ".netrc", ".git-credentials", ".pgpass", ".npmrc", ".pypirc", ".docker/config.json",
+                     ".claude/.credentials.json", ".claude.json", ".config/gh/hosts.yml", ".local/share/opencode/auth.json",
+                     ".pulumi/credentials.json", ".terraform.d/credentials.tfrc.json", ".config/bromigos/private/env",
+                     ".cargo/credentials", ".cargo/credentials.toml"]
+SECRET_HOME_DIRS = [".config/gcloud", ".aws", ".azure", ".gnupg", ".password-store", ".local/share/keyrings", ".pki",
+                    ".foundry/keystores", ".config/solana", ".ethereum/keystore", ".config/github-copilot",
+                    ".config/configstore", ".config/rclone", ".config/nolgia", ".mozilla", ".librewolf",
+                    ".config/BraveSoftware", ".config/google-chrome", ".config/google-chrome-for-testing",
+                    ".config/chromium", ".config/Code/User/globalStorage"]
+_SSH_KEEP = re.compile(r"(\.pub|^config|^known_hosts.*|^authorized_keys|^environment|^rc)$")
+_SHARE_KEEP = {"notes.md", "vector-operator-kubeconfig"}       # everything else at the top of it is a key or token
+REPO_SECRET = re.compile(r"^(\.env(\..+)?|\.envrc|.*\.(key|pem|p12|pfx|keystore|jks|tfvars|tfstate|tfstate\.backup)|"
+                         r"secrets?\.ya?ml|credentials\.json|.*service[-_]account.*\.json|.*keypair.*\.json|"
+                         r"id_(rsa|dsa|ecdsa|ed25519)(_sk)?|kubeconfig.*|.*\.kubeconfig)$", re.I)
+_REPO_OK = re.compile(r"\.(example|sample|template|dist|pub|md)$|\.pub\.pem$", re.I)
+_PRUNE = {"node_modules", ".git", ".venv", "venv", "vendor", "target", "dist", ".next", "__pycache__", "build",
+          ".terraform", ".cache"}
+_MASKS = {"t": 0.0, "files": [], "dirs": []}
+
+
+def _repo_secrets(root, depth=6):
+    out = []
+    root = os.path.realpath(root)
+    for d, dirs, files in os.walk(root):
+        if d[len(root):].count(os.sep) >= depth:
+            dirs[:] = []
+        dirs[:] = [x for x in dirs if x not in _PRUNE]
+        out += [os.path.join(d, f) for f in files if REPO_SECRET.match(f) and not _REPO_OK.search(f)]
+    return out
+
+
+def masks():
+    """(files, dirs) to mask in the sandbox. Rescanned every two minutes, in the background once
+    there is a list (the rescan of ~/github.com takes about half a second)."""
+    age = time.monotonic() - _MASKS["t"]
+    if _MASKS["t"] and age < 120:
+        return _MASKS["files"], _MASKS["dirs"]
+    if _MASKS["t"]:
+        if not _MASKS.get("busy"):
+            _MASKS["busy"] = True
+            threading.Thread(target=_rescan, daemon=True).start()
+        return _MASKS["files"], _MASKS["dirs"]
+    return _rescan()
+
+
+def _rescan():
+    try:
+        return _scan()
+    finally:
+        _MASKS["busy"] = False
+
+
+def _scan():
+    keep = {os.path.realpath(p) for p in (VECTOR_KUBECONFIG, ADMIN_KUBECONFIG) if p}
+    files = [os.path.join(HOME, f) for f in SECRET_HOME_FILES]
+    dirs = [os.path.join(HOME, d) for d in SECRET_HOME_DIRS]
+    for d, keep_rx in ((os.path.join(HOME, ".ssh"), _SSH_KEEP), (os.path.join(HOME, ".kube"), None),
+                       (os.path.join(HOME, ".local/share/bromigos"), None)):
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for n in names:
+            f = os.path.join(d, n)
+            if not os.path.isfile(f) or (keep_rx and keep_rx.search(n)) or (d.endswith("bromigos") and n in _SHARE_KEEP):
+                continue
+            files.append(f)
+    try:
+        files += _repo_secrets(os.path.join(HOME, "github.com"))
+    except OSError:
+        pass
+    files = sorted({f for f in files if os.path.realpath(f) not in keep})
+    _MASKS.update(t=time.monotonic(), files=files, dirs=sorted(set(dirs)))
+    return _MASKS["files"], _MASKS["dirs"]
+
+
+def is_masked(path):
+    """True when the sandbox hides this path (for tools that open files outside it)."""
+    p = os.path.realpath(os.path.expanduser(path))
+    files, dirs = masks()
+    return p in {os.path.realpath(f) for f in files} or any(
+        p == os.path.realpath(d) or p.startswith(os.path.realpath(d) + os.sep) for d in dirs)
+
+
+def readonly_paths():
+    """His safety code, everything the desktop's daemons run, the user units and his own audit logs."""
+    from . import guard
+    dot = os.path.realpath(os.path.join(HOME, ".dotfiles"))
+    ps = [os.path.join(dot, "linux/.config/bromigos/holo")] + [os.path.join(dot, p) for p in guard.VISUAL + guard.PROTECTED]
+    ps += [os.path.join(HOME, ".config/systemd/user"), LOG, SENSITIVE]
+    return [p.rstrip("/") for p in dict.fromkeys(os.path.realpath(x) for x in ps) if os.path.lexists(p)]
+
+
+SANDBOX_ETC = os.path.join(HOME, ".cache/bromigos/vector-sandbox")
+
+
+def _ssh_etc():
+    """User-owned copies of /etc/ssh's client config: in the sandbox root's files show as owned by
+    nobody, which ssh refuses ("Bad owner or permissions"), so these copies stand in for them."""
+    import shutil
+    out = os.path.join(SANDBOX_ETC, "ssh")
+    src = "/etc/ssh"
+    try:
+        stamp = max(os.path.getmtime(os.path.realpath(os.path.join(dp, f)))
+                    for dp, _, fs in os.walk(src) for f in fs if f.startswith("ssh_config") or dp.endswith(".d"))
+        if not os.path.isdir(out) or os.path.getmtime(out) < stamp:
+            tmp = out + ".new"
+            shutil.rmtree(tmp, ignore_errors=True)
+            os.makedirs(os.path.join(tmp, "ssh_config.d"))
+            shutil.copyfile(os.path.join(src, "ssh_config"), os.path.join(tmp, "ssh_config"))
+            d = os.path.join(src, "ssh_config.d")
+            for f in (os.listdir(d) if os.path.isdir(d) else []):
+                shutil.copyfile(os.path.realpath(os.path.join(d, f)), os.path.join(tmp, "ssh_config.d", f))
+            shutil.rmtree(out, ignore_errors=True)
+            os.replace(tmp, out)
+        return [(os.path.join(out, "ssh_config"), os.path.join(src, "ssh_config")),
+                (os.path.join(out, "ssh_config.d"), os.path.join(src, "ssh_config.d"))]
+    except (OSError, ValueError):
+        return []
+
+
+def jail_argv(argv, writable_only=None, die_with_parent=True):
+    """argv wrapped in the sandbox, or None when bubblewrap is missing (then nothing runs)."""
+    import shutil
+    bw = shutil.which("bwrap")
+    if not bw:
+        return None
+    cmd = [bw, "--dev-bind", "/", "/"]
+    if writable_only:
+        dot = os.path.realpath(os.path.join(HOME, ".dotfiles"))
+        cmd += ["--ro-bind", dot, dot, "--bind", os.path.join(dot, ".git"), os.path.join(dot, ".git"),
+                "--bind", writable_only, writable_only]
+    for p in readonly_paths():
+        cmd += ["--ro-bind", p, p]
+    for src, dst in _ssh_etc():
+        if os.path.lexists(dst):
+            cmd += ["--ro-bind", src, dst]
+    files, dirs = masks()
+    for d in dirs:
+        if os.path.isdir(d):
+            cmd += ["--tmpfs", d]
+    for f in files:
+        if os.path.isfile(f):                  # only what still exists (a missing target would be created)
+            cmd += ["--ro-bind", "/dev/null", f]
+    return cmd + (["--die-with-parent"] if die_with_parent else []) + ["--"] + list(argv)
+
+
+# VECTOR's own ssh-agent, loaded with the host's key file by this process (outside the sandbox), so
+# his shell pushes and reaches the lab while the key file itself is masked.
+AGENT_SOCK = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "vector-ssh-agent.sock")
+AGENT_KEYS = [os.path.join(HOME, ".ssh/id_ed25519")]     # the hardware key waits for a touch: left out
+
+
+def vector_agent():
+    env = {k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY", "SSH_ASKPASS")}
+    env.update(SSH_AUTH_SOCK=AGENT_SOCK, SSH_ASKPASS_REQUIRE="never")
+    try:
+        r = subprocess.run(["ssh-add", "-l"], env=env, capture_output=True, timeout=5)
+        if r.returncode == 0:
+            return AGENT_SOCK
+        if r.returncode == 2:                      # no agent there: start one
+            if os.path.lexists(AGENT_SOCK):
+                os.unlink(AGENT_SOCK)
+            subprocess.run(["ssh-agent", "-a", AGENT_SOCK], env=env, capture_output=True, timeout=5)
+        for k in AGENT_KEYS:
+            if os.path.isfile(k):
+                subprocess.run(["ssh-add", "-q", k], env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10)
+        r = subprocess.run(["ssh-add", "-l"], env=env, capture_output=True, timeout=5)
+        return AGENT_SOCK if r.returncode == 0 else None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
 class Refused(Exception):
     pass
 
@@ -339,7 +518,7 @@ def clean_env():
             env["HYPRLAND_INSTANCE_SIGNATURE"] = sig
     except Exception:
         pass
-    sock = ssh_agent()
+    sock = vector_agent() or ssh_agent()
     if sock:
         env["SSH_AUTH_SOCK"] = sock
     env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o ConnectTimeout=15"   # never wait on a prompt
@@ -508,11 +687,10 @@ class Runner:
         except Exception as e:
             snap_note = f"no snapshot ({type(e).__name__})"
         t0 = time.monotonic()
-        argv = ["/bin/bash", "-c", command]
-        if writable_only:
-            dot = os.path.realpath(os.path.join(HOME, ".dotfiles"))
-            argv = ["bwrap", "--dev-bind", "/", "/", "--ro-bind", dot, dot, "--bind", os.path.join(dot, ".git"),
-                    os.path.join(dot, ".git"), "--bind", writable_only, writable_only, "--die-with-parent", "--"] + argv
+        argv = jail_argv(["/bin/bash", "-c", command], writable_only)
+        if argv is None:
+            audit(event="refused", command=command, cwd=cwd, reason="no sandbox (bubblewrap missing)")
+            return {"refused": "The terminal's sandbox (bubblewrap) isn't available, so nothing runs."}
         proc = subprocess.Popen(argv, cwd=cwd, env=clean_env(), stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         cur = {"proc": proc, "command": command, "cwd": cwd, "t0": t0}

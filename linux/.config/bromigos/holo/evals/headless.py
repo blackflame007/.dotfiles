@@ -265,6 +265,8 @@ class Headless:
         if name in p.stubs:
             st = p.stubs[name]
             res = st(args) if callable(st) else st
+            if isinstance(res, dict) and tools._blocked(name, res):
+                res = dict(res, next=tools.STOP_NOTE)       # what tools.call adds to a block live
             text = res if isinstance(res, str) else json.dumps(res)
             self._record(name, args, "stub", text)
             return text, None
@@ -320,7 +322,8 @@ class Headless:
             text, ex = self.orig_call(name, args, ui=None, live=None)
             self._record(name, args, "real", text, passed_check=True)
             return text, ex
-        text = json.dumps({"exit": None, "held": "NOT RUN: this command changes state and was held back; nothing happened"})
+        text = json.dumps({"exit": None, "held": "NOT RUN: this command changes state and was held back; nothing happened",
+                           "next": tools.STOP_NOTE})          # a hold stands in for a live refusal
         self._record(name, args, "withheld", text, passed_check=True)
         return text, None
 

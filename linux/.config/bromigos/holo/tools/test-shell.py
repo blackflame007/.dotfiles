@@ -4,6 +4,7 @@
 Refusal cases must be refused; allowed cases must run (exit 0). Nothing here escalates,
 reads secrets or touches money: refused cases are never executed."""
 import os
+import subprocess
 import sys
 import tempfile
 
@@ -66,8 +67,47 @@ def main():
     red = shell.redact(f"export GITHUB_TOKEN={fake} and password=hunter2hunter2")
     print("redaction:", red)
     bad += "ghp_" in red or "hunter2" in red
+    bad += sandbox()
     print("FAILURES:", bad)
     sys.exit(1 if bad else 0)
+
+
+def sandbox():
+    """The structural layer, tested past the patterns (straight through the sandbox): no language
+    can read a secret or change his safety code, and the things the host chose still work."""
+    bad = 0
+
+    def jailed(code):
+        r = subprocess.run(shell.jail_argv(["python3", "-c", code]), env=shell.clean_env(), capture_output=True,
+                           text=True, timeout=30)
+        return (r.stdout + r.stderr).strip().splitlines()[-1:] or [""]
+    # paths built at runtime, so the patterns don't see them: only the sandbox stands in the way
+    reads = {".vault" + "-token": "the root Vault token", ".ssh/id_" + "ed25519": "the SSH key file",
+             ".local/share/bromigos/lite" + "llm-key": "a desktop key file"}
+    for rel, what in reads.items():
+        code = f"import os; p=os.path.join(os.environ['HOME'], {rel!r}); print(len(open(p,'rb').read()) if os.path.exists(p) else 'absent')"
+        out = jailed(code)[0]
+        ok = out in ("0", "absent") or "Error" in out
+        bad += not ok
+        print(f"{'masked  ' if ok else 'READABLE'} {what:28} -> {out[:70]}")
+    for rel in (".config/bromigos/holo/holo/vector/" + "guard.py", ".config/bromigos/holo/holo/vector/__pycache__/x.pyc"):
+        code = f"import os; open(os.path.join(os.environ['HOME'], {rel!r}), 'a').close(); print('wrote')"
+        out = jailed(code)[0]
+        ok = "wrote" not in out
+        bad += not ok
+        print(f"{'ro      ' if ok else 'WRITABLE'} {rel.rsplit('/', 1)[-1]:28} -> {out[:70]}")
+    out = jailed("import os; print(len(os.listdir(os.path.expanduser('~/.config/' + 'gcloud'))))")[0]
+    bad += out not in ("0",)
+    print(f"{'masked  ' if out == '0' else 'VISIBLE '} {'~/.config/gcloud entries':28} -> {out}")
+    for c, want in (("ssh -T -o ConnectTimeout=10 git@github.com 2>&1 | head -1", "successfully authenticated"),
+                    ("kubectl get ns kube-system --no-headers 2>&1 | head -1", "kube-system"),
+                    ("git -C ~/.dotfiles ls-remote origin HEAD | wc -l", "1")):
+        r = shell.RUNNER.run(c)
+        out = (r.get("output") or "").strip()
+        ok = want in out
+        bad += not ok
+        print(f"{'works   ' if ok else 'BROKEN  '} {c[:50]:50} -> {out[:70]}")
+    return bad
 
 
 if __name__ == "__main__":

@@ -434,6 +434,9 @@ def _doc_ok(path):
         return False
     if SECRETISH.search(rp) or not rp.endswith(DOC_EXT):
         return False
+    from .shell import is_masked
+    if is_masked(rp):                          # what his sandbox hides, this tool doesn't read either
+        return False
     return not any(part in SKIP_DIRS for part in rp.split(os.sep))
 
 
@@ -851,6 +854,46 @@ def _outcome(res):
     return f"{len(str(res))} chars"
 
 
+# ------------------------------------------------------------------ stop after a block
+# Once something is refused, held or denied in a turn, the rest of that turn gets no more tools:
+# VECTOR reports what was blocked and asks the host, instead of trying the goal another way.
+# Only a brain turn arms this (new_turn); other callers (the MCP server) are unaffected.
+TURN = {"active": False, "blocked": None}
+STOP_NOTE = ("Blocked. Stop working on this goal: don't try it again another way (no other command, language, "
+             "file path, copy, tool, or check of permissions or mounts). Tell the host exactly what was blocked and "
+             "why it might matter, and ask how he wants to proceed.")
+_DENIED = re.compile(r"\bforbidden\b|permission denied|\b403\b|denied request|read-only file system|"
+                     r"operation not permitted", re.I)
+_SHELL_DENIED = re.compile(r"read-only file system|Error from server \(Forbidden\)|is forbidden:|denied request", re.I)
+
+
+def new_turn():
+    TURN.update(active=True, blocked=None)
+
+
+def _blocked(name, res):
+    """Why this result is a block (a refusal, a hold, a permission denial, the sandbox), or None."""
+    if not isinstance(res, dict):
+        return None
+    for k in ("refused", "held"):
+        if res.get(k):
+            return str(res[k])[:160]
+    if res.get("error") and _DENIED.search(str(res["error"])):
+        return str(res["error"])[:160]
+    if name in ("run_shell", "run_detached"):
+        out = str(res.get("output") or "")
+        m = _SHELL_DENIED.search(out)
+        if m:
+            return m.group(0)
+        if "ermission denied" in out:            # a secret file the sandbox masks
+            from .shell import masks
+            files, dirs = masks()
+            for line in out.splitlines():
+                if "ermission denied" in line and any(p in line for p in files + dirs):
+                    return "a masked secret file: " + line.strip()[:120]
+    return None
+
+
 def call(name, args, ui=None, live=None):
     """Run a tool; returns (result_text, exhibit or None). ui handles the UI-only tools."""
     t0 = time.monotonic()
@@ -858,6 +901,10 @@ def call(name, args, ui=None, live=None):
     from . import events
     eid = events.next_id()
     events.emit("tool.start", id=eid, name=name, args="(private)" if name in PRIVATE_ARGS else events.summary(args))
+    if TURN["active"] and TURN["blocked"]:
+        _audit(name, args, False, 0, err=RuntimeError("stopped: blocked earlier this turn"))
+        events.emit("tool.end", id=eid, name=name, ok=False, ms=0, outcome="stopped after a block")
+        return json.dumps({"stopped": f"not run: earlier in this turn {TURN['blocked']}. " + STOP_NOTE}), None
     try:
         if name in ("show_hologram", "open_gallery", "set_voice", "remember", "forget") or name.startswith("build_"):
             if ui is None:
@@ -869,6 +916,10 @@ def call(name, args, ui=None, live=None):
             res = FUNCS[name](**args)
         else:
             raise ValueError(f"unknown tool {name}")
+        why = _blocked(name, res)
+        if why and TURN["active"]:
+            TURN["blocked"] = f"{name} was blocked ({why})"
+            res = dict(res, next=STOP_NOTE)
         text = _short(res)
         ms = int((time.monotonic() - t0) * 1000)
         _audit(name, args, True, ms, len(text))
@@ -883,4 +934,8 @@ def call(name, args, ui=None, live=None):
         ms = int((time.monotonic() - t0) * 1000)
         _audit(name, args, False, ms, err=e)
         events.emit("tool.end", id=eid, name=name, ok=False, ms=ms, outcome=f"{type(e).__name__}: {str(e)[:100]}")
-        return json.dumps({"error": f"{type(e).__name__}: {str(e)[:300]}"}), None
+        out = {"error": f"{type(e).__name__}: {str(e)[:300]}"}
+        if TURN["active"] and (isinstance(e, PermissionError) or _DENIED.search(str(e))):
+            TURN["blocked"] = f"{name} was denied ({str(e)[:120]})"
+            out["next"] = STOP_NOTE
+        return json.dumps(out), None
