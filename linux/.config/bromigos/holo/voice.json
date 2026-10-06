@@ -6,7 +6,7 @@
     "model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
     "temperature": 0.7,
     "chunk_size": 4,
-    "wait_for_load_s": 4
+    "wait_for_load_s": 0
   },
   "voices": {
     "main": {
@@ -119,7 +119,7 @@
   "echo_cancel": true,
   "drain_ms": 350,
   "max_record_seconds": 30,
-  "unload_after_seconds": 600,
+  "unload_after_seconds": 1800,
   "exit_after_seconds": 1800,
   "brain": "pai",
   "lanes": {

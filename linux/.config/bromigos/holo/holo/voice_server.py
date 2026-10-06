@@ -52,7 +52,7 @@ from .shimmer import SilenceShaper, Shimmer, TimeStretch, dial_scratch
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONF = os.path.join(HERE, "voice.json")
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-SOCK = os.path.join(RUNTIME, "bromigos-holo-voice.sock")
+SOCK = os.environ.get("BROMIGOS_VOICE_SOCK") or os.path.join(RUNTIME, "bromigos-holo-voice.sock")   # tests use their own
 CACHE = os.path.expanduser("~/.cache/bromigos/vector-tts")
 VOICE_DIR = os.path.expanduser("~/.local/share/bromigos/voice")
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
@@ -83,6 +83,7 @@ class Server:
             self.cfg = json.load(f)
         self.whisper = None
         self.kokoro = None
+        self.kokoro_lock = threading.Lock()
         self.kstyle = None
         self.qwen = None
         self.qwen_loading = threading.Event()
@@ -166,11 +167,22 @@ class Server:
         return {"ok": True, "ready": self.cfg["engine"] != "qwen" or self.qwen is not None}
 
     def _safe_load(self):
+        # Not under tts_lock: the load takes ~30 s, and holding the lock made every reply in
+        # that window wait silently. Kokoro answers meanwhile; Qwen takes over once it's set.
         try:
-            with self.tts_lock:
-                self._load_qwen()
+            self._load_qwen()
         except Exception as e:
             log("qwen voice failed to load:", e)
+
+    def warm_fallback(self):
+        """Kokoro (CPU) ready at once, so a cold start speaks within a second."""
+        def go():
+            try:
+                list(self._gen_kokoro("Ready.", "main"))   # not under tts_lock: replies never wait on it
+                log("kokoro fallback ready")
+            except Exception as e:
+                log("kokoro fallback failed to load:", e)
+        threading.Thread(target=go, daemon=True, name="kokoro-warm").start()
 
     def _gen_qwen(self, text, role):
         m = self.qwen
@@ -185,17 +197,43 @@ class Server:
 
     def _gen_kokoro(self, text, role):
         c = self.role(role).get("kokoro") or self.role("main").get("kokoro") or {"blend": {"bm_george": 1.0}}
-        if self.kokoro is None:
-            import onnxruntime as ort
-            from kokoro_onnx import Kokoro
-            sess = ort.InferenceSession(os.path.join(VOICE_DIR, "kokoro-v1.0.onnx"), providers=["CPUExecutionProvider"])
-            self.kokoro = Kokoro.from_session(sess, os.path.join(VOICE_DIR, "voices-v1.0.bin"))
-            self.kstyle = {}
+        with self.kokoro_lock:                 # the warm-up and a first reply never load it twice
+            if self.kokoro is None:
+                import onnxruntime as ort
+                from kokoro_onnx import Kokoro
+                so = ort.SessionOptions()
+                so.intra_op_num_threads = 8          # measured: faster than all 16 threads under desktop load
+                sess = ort.InferenceSession(os.path.join(VOICE_DIR, "kokoro-v1.0.onnx"), sess_options=so,
+                                            providers=["CPUExecutionProvider"])
+                self.kokoro = Kokoro.from_session(sess, os.path.join(VOICE_DIR, "voices-v1.0.bin"))
+                self.kstyle = {}
         key = json.dumps(c["blend"], sort_keys=True)
         if key not in self.kstyle:
             self.kstyle[key] = sum(w * self.kokoro.get_voice_style(v) for v, w in c["blend"].items())
-        a, sr = self.kokoro.create(text, voice=self.kstyle[key], speed=c.get("speed", 1.05), lang=c.get("lang", "en-gb"))
-        yield np.asarray(a, np.float32), sr
+        # Kokoro renders a whole piece before it returns; clause by clause, the first audio
+        # comes out of a short clause, not the whole sentence (cold-start replies use it)
+        import re as _re
+        parts, cur = [], ""
+        for piece in _re.split(r"(?<=[,;:—])\s+", text):
+            cur = (cur + " " + piece).strip()
+            if len(cur.split()) >= 2:
+                parts.append(cur)
+                cur = ""
+        if cur:
+            if parts:
+                parts[-1] += " " + cur
+            else:
+                parts.append(cur)
+        w = parts[0].split()
+        if len(w) > 8:                         # a long opening clause: break at a natural joint after word 4
+            for i in range(4, min(len(w) - 2, 9)):
+                if w[i].lower() in ("and", "but", "so", "which", "that", "with", "on", "in", "of", "for", "to", "at",
+                                    "from", "because", "while", "is", "are", "was"):
+                    parts[0:1] = [" ".join(w[:i]), " ".join(w[i:])]
+                    break
+        for piece in parts:
+            a, sr = self.kokoro.create(piece, voice=self.kstyle[key], speed=c.get("speed", 1.05), lang=c.get("lang", "en-gb"))
+            yield np.asarray(a, np.float32), sr
 
     def _gen_breeze(self, text, role):
         c = self.cfg["breeze"]
@@ -244,7 +282,7 @@ class Server:
             self.warm_tts()
             # give a load in progress a moment (the window usually warmed it already)
             t0 = time.monotonic()
-            while self.qwen is None and self.qwen_loading.is_set() and time.monotonic() - t0 < self.cfg["qwen"].get("wait_for_load_s", 4):
+            while self.qwen is None and self.qwen_loading.is_set() and time.monotonic() - t0 < self.cfg["qwen"].get("wait_for_load_s", 0):
                 time.sleep(0.05)
         out = [main] if (main != "qwen" or self.qwen is not None) else []
         return out + ([fb] if fb and fb != main else [])
@@ -271,7 +309,11 @@ class Server:
         """Yields (header, chunks...): header {"sr", "engine", "cached"} then float32 chunks."""
         text = text.strip()
         shim = self.shimmer_for(role, add)
-        for engine in self._engines():
+        engines = self._engines()
+        main = self.cfg["engine"]
+        if main not in engines and os.path.exists(os.path.join(CACHE, self._key(main, text, role, shim) + ".wav")):
+            engines = [main] + engines           # a cached cast-voice line needs no model: play it during a load
+        for engine in engines:
             path = os.path.join(CACHE, self._key(engine, text, role, shim) + ".wav")
             if os.path.exists(path):
                 with wave.open(path) as w:
@@ -403,6 +445,8 @@ class Server:
         srv.listen(8)
         threading.Thread(target=self.janitor, daemon=True).start()
         log("ready", SOCK, "engine", self.cfg["engine"])
+        if self.cfg.get("fallback", "kokoro") == "kokoro":
+            self.warm_fallback()
         if self.cfg.get("preload_tts", True):
             self.warm_tts()
         while True:

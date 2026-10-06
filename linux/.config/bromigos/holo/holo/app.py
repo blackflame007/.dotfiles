@@ -312,6 +312,8 @@ class App:
         self._state_sig = None
         self._serve()
         GLib.timeout_add_seconds(5, self._idle_check)
+        GLib.timeout_add_seconds(60, self._voice_keepalive)
+        GLib.timeout_add_seconds(15, self._voice_state)
         GLib.timeout_add(400, self._publish_state)
 
     # ------------------------------------------------------------------ VECTOR
@@ -379,12 +381,20 @@ class App:
         self.stopbtn.set_no_show_all(True)
         self.stopbtn.set_tooltip_text("Stop the command VECTOR is running in the terminal (kills its whole process group).")
         self.stopbtn.connect("clicked", lambda b: self._stop_clicked())
+        self.voicebtn = Gtk.Button(label="VOICE MUTED · UNMUTE", name="vector-min")
+        self.voicebtn.set_halign(Gtk.Align.END)
+        self.voicebtn.set_valign(Gtk.Align.START)
+        self.voicebtn.set_margin_end(30)
+        self.voicebtn.set_margin_top(100)
+        self.voicebtn.set_can_focus(False)
+        self.voicebtn.set_no_show_all(True)
+        self.voicebtn.connect("clicked", lambda b: self._voice_undo())
         from .vector.shell import RUNNER
         RUNNER.on_change = lambda cur: GLib.idle_add(self._shell_changed, cur)
         RUNNER.on_notice = lambda text: GLib.idle_add(self._herdr_notice, text)   # spoken in the notify voice
         self.vector = HoloWindow("bromigos-vector", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
-                                keyboard_exclusive=False, overlay_children=[self.histpanel, self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn],
-                                input_widgets=[self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.histpanel])
+                                keyboard_exclusive=False, overlay_children=[self.histpanel, self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.voicebtn],
+                                input_widgets=[self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.histpanel, self.voicebtn])
         self.vector.win.connect("key-press-event", self._vector_key)
         self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
@@ -583,6 +593,69 @@ class App:
             self._notify("VECTOR", text)
         self._publish_state()
         return False
+
+    def _voice_keepalive(self):
+        """While VECTOR is shown or in conversation, the voice server never idles out (it unloads
+        and exits only after 30 minutes hidden, so a game gets the VRAM back)."""
+        if self.voice and (self._vector_shown() or self.conversation_on()):
+            v = self.voice
+            threading.Thread(target=lambda: v._safe(lambda: v._req({"op": "ping"}, 5)), daemon=True).start()
+        return True
+
+    def _suppressed(self):
+        """Why VECTOR's speech is suppressed right now, and how to undo it: (label, kind) or None."""
+        if self.voice is None:
+            return None
+        if self.voice.muted:
+            return "VOICE MUTED · CLICK TO UNMUTE", "mute"
+        try:
+            from .vector import briefing
+            st = briefing._load()
+            left = st.get("quiet_until", 0) - time.time()
+            if left > 0:
+                return f"QUIET {int(left // 60) + 1}m · CLICK TO SPEAK UP", "quiet"
+            sup = st.get("suppressed") or {}
+            if time.time() - sup.get("t", 0) < 600:
+                return f"SILENT: {sup.get('reason', '').upper()} · CLICK TO HEAR IT", "replay"
+        except Exception:
+            pass
+        return None
+
+    def _voice_state(self):
+        sup = self._suppressed()
+        if self.vector:
+            self.voicebtn.set_visible(bool(sup))
+            if sup:
+                self.voicebtn.set_label(sup[0])
+                self.voicebtn.set_tooltip_text({"mute": "VECTOR's voice is muted (SUPER+SHIFT+V or the pip's middle-click). "
+                                                        "Replies show as text only. Click to unmute.",
+                                                "quiet": "You asked VECTOR to be quiet: no alert calls or return briefs. "
+                                                         "Answers still speak. Click to let him speak up again.",
+                                                "replay": "VECTOR held back a notice because of what was on screen "
+                                                          "(fullscreen, a game or a recording). Click to hear it now."}[sup[1]])
+            self.pscene.voice = self._voice_label()
+            self.vector.update_input_region()
+        self._publish_state()
+        return True
+
+    def _voice_undo(self):
+        sup = self._suppressed()
+        if not sup:
+            return
+        if sup[1] == "mute":
+            self.voice.toggle_mute()
+        elif sup[1] == "quiet":
+            from .vector import briefing
+            briefing.quiet(0)
+        elif sup[1] == "replay":
+            from .vector import briefing
+            st = briefing._load()
+            text = (st.get("suppressed") or {}).get("text")
+            st.pop("suppressed", None)
+            briefing._save(st)
+            if text:
+                self._speak_up(text, "notify")
+        self._voice_state()
 
     def _herdr_notice(self, msg):
         self.pscene.note(msg)
@@ -914,8 +987,10 @@ class App:
             self.pscene.catch_up()              # replies that came in while minimized: show them whole
         self.unread = 0
         self.hidden_since = None
-        if self.voice and not self.voice.muted:
-            self.voice.warm_tts()               # load the voice while the host types
+        v = self.ensure_voice()                 # the voice server starts now, in parallel with the window
+        if v and not v.muted:
+            v.warm_tts()                        # Kokoro answers in under a second; the cast loads behind it
+        self._voice_state()
         if focus:
             self.focus_vector()
         if first:
@@ -961,7 +1036,7 @@ class App:
         if self.voice.muted:
             return "VOICE MUTED · SUPER+SHIFT+V"
         mode = "VOICES AUTO" if self.voice.mode == "auto" else f"VOICE PINNED: {self.voice.mode.upper()}"
-        return f"{mode} · HOLD SUPER+V TO TALK"
+        return f"{mode} · HOLD SUPER+V OR M2 TO TALK"
 
     def set_voice_mode(self, mode):
         v = self.ensure_voice()
@@ -1064,7 +1139,8 @@ class App:
               "conversation": self.conversation_on(),
               "voice": getattr(self.pscene, "voice_role", "main") if self.vector else "main",
               "mood": self.pscene.mood_name() if self.vector else "calm",
-              "watching": getattr(self, "watching", None) if (getattr(self, "watching", None) or {}).get("on") else None}
+              "watching": getattr(self, "watching", None) if (getattr(self, "watching", None) or {}).get("on") else None,
+              "suppressed": (self._suppressed() or [None])[0]}
         sig = json.dumps(st, sort_keys=True)
         if sig != self._state_sig:
             self._state_sig = sig
@@ -1118,8 +1194,7 @@ class App:
             v = self.ensure_voice()
             if v:
                 v.toggle_mute()
-                if self.vector:
-                    self.pscene.voice = self._voice_label()
+                self._voice_state()
                 return "muted" if v.muted else "unmuted"
             return "voice unavailable"
         elif verb == "snap":

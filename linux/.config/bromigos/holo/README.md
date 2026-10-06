@@ -203,6 +203,16 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
    - Kill switch: `bromigos-holo shell off` (also the `shell_off` tool, which VECTOR can use but can never reverse). `bromigos-holo shell on` turns it back on, and `bromigos-holo shell stop` stops the running command.
 7. **Audit.** Every command and every refusal goes to `~/.local/state/bromigos/vector-shell.log` (time, cwd, the redacted command, exit code, duration, output size, or the refusal reason). The transcript shows `$ git status · exit 0`. A successful `git push` also goes on the event feed (`git.push`).
 
+## Never silent after a cold start
+
+The voice server (`holo/voice_server.py`) exits after 30 minutes with VECTOR hidden (so a game gets the VRAM back) and loads the cast voices (Qwen3-TTS, ~30 s) on start. VECTOR still speaks at once:
+
+- **Showing him starts it.** SUPER+E, M1, M3 (`vector-converse`) and any show start the server in parallel with the window, and Kokoro (CPU, 8 threads) is ready about a second later.
+- **Kokoro speaks until the cast is loaded**, then the cast takes over with no gap. The Qwen load no longer holds the speech lock (it used to: every reply in the first ~30 s waited silently behind it, which looked like a mute). Kokoro renders clause by clause, so the first audio comes from a short opening clause. A line already cached in a cast voice (the greeting, the acknowledgements) still plays in that voice during the load.
+- **It stays up while he's needed.** While VECTOR is shown or in conversation mode, the daemon pings the server every minute, so it never unloads or exits under him. `unload_after_seconds` and `exit_after_seconds` are both 1800 s.
+- **Suppressed speech is always visible.** A panel button shows "VOICE MUTED · CLICK TO UNMUTE", "QUIET 42m · CLICK TO SPEAK UP" or "SILENT: FULLSCREEN · CLICK TO HEAR IT" (a held-back notice), and the bar pip shows the same. One click undoes it. The quiet rules only hold back his own notices (alerts, briefs); his answers always speak unless he's muted.
+- **Test:** `tools/test-voice-cold.py` (voice venv) runs the real server on its own socket, with the cast load replaced by a 30 s sleep. The first reply sentence must be audible within 1.5 s from Kokoro while the cast loads (measured 0.83 s; the next sentence 1.46 s). A cached cast line must keep its voice. The worst case, a sentence sent the instant the server starts, is 1.5 s.
+
 ## Eyes (read-only sight of the screen)
 
 `holo/vector/eyes.py`, config `holo/eyes.json`, tests `tools/test-eyes.py`. VECTOR looks only when the operator asks ("look at this", "what's on my screen", "check this error") or to verify his own build; he says he's looking first and describes what he sees briefly, quoting errors exactly. He never clicks or types into apps.

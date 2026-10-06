@@ -50,6 +50,13 @@ def _save(st):
     os.replace(tmp, STATE)
 
 
+def _held(reason, text):
+    """A notice held back by a quiet rule: shown on the panel and pip ("SILENT: FULLSCREEN"), one click plays it."""
+    st = _load()
+    st["suppressed"] = {"reason": reason, "t": time.time(), "text": text[:400]}
+    _save(st)
+
+
 def quiet(minutes=60):
     """Be quiet: no alert calls and no briefs for this long (0 = speak again now)."""
     st = _load()
@@ -152,7 +159,10 @@ class Briefing:
                 self.seen = set(now)
                 if gone:
                     self.note(f"Resolved in the lab: {', '.join(sorted({k.split('|')[0] for k in gone}))}.")
-                if new and not busy_reason():
+                why = busy_reason() if new else None
+                if new and why and why != "asked to be quiet":
+                    _held(why, "Lab alerts: " + ", ".join(sorted({a["name"] for a in new.values()})) + " started firing.")
+                if new and not why:
                     facts = {"new": list(new.values()), "still_firing_total": len(now)}
                     try:
                         text = _compose(ALERT_STYLE, facts, 120)
@@ -201,7 +211,12 @@ class Briefing:
 
     def _brief(self, away_s):
         st = _load()
-        if time.time() - st.get("last_brief", 0) < BRIEF_GAP or busy_reason():
+        if time.time() - st.get("last_brief", 0) < BRIEF_GAP:
+            return
+        why = busy_reason()
+        if why:
+            if why != "asked to be quiet":
+                _held(why, f"Welcome back, host. You were away {round(away_s / 60)} minutes; ask me to brief you when you're ready.")
             return
         time.sleep(8)                                   # let him settle in (and the lock fade)
         facts = gather(away_s)

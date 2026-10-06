@@ -39,6 +39,13 @@ if st.get("conversation"):
     tip += "\nSUPER+SHIFT+E ends conversation mode"
 if mode != "auto":
     text += f" <span color='#7e927e'>·{mode.upper()}</span>"
+sup = st.get("suppressed")
+if sup:                              # speech held back: say so on the bar, never look broken
+    short = sup.split(" · ")[0]
+    text += f" <span color='#d4af37'>· {short}</span>"
+    tip = f"{sup.split(' · ')[0]}: VECTOR's speech is held back. " + {
+        "VOICE MUTED": "Middle-click (or SUPER+SHIFT+V) to unmute.",
+    }.get(short, "Click VECTOR's panel button to undo it.") + "\n" + tip
 w = st.get("watching") or {}
 if w.get("on"):                      # watch mode: say so for as long as it's on
     text = f"<span color='#ff766f'>◉ WATCHING</span> " + text
