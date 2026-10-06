@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# bromigos-session-env: the live Hyprland session's WAYLAND_DISPLAY and
+# HYPRLAND_INSTANCE_SIGNATURE, put back into systemd's and D-Bus's activation
+# environment.
+#
+#   bromigos-session-env             print the live values (KEY=value lines)
+#   bromigos-session-env import      also push them to systemd --user and D-Bus
+#   bromigos-session-env exec CMD…   import, then exec CMD with them
+#
+# Every Hyprland that starts, a nested test copy included, exports its own display to
+# the activation environment. When the copy exits the stale value stays, and anything
+# started on demand afterwards (xdg-desktop-portal-hyprland, when an app asks to share
+# the screen) gets "Couldn't connect to a wayland compositor". Each instance dir in
+# $XDG_RUNTIME_DIR/hypr holds hyprland.lock: its PID, then its Wayland socket. The real
+# session is the running instance that isn't itself a Wayland client (a nested copy has
+# WAYLAND_DISPLAY in its environment); with none of those, the newest running one.
+set -u
+run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+best= fallback=
+for dir in $(ls -td "$run"/hypr/*/ 2>/dev/null); do
+    lock=$dir/hyprland.lock
+    [ -r "$lock" ] || continue
+    { read -r pid; read -r wl; } < "$lock"
+    [ -n "${pid:-}" ] && [ -n "${wl:-}" ] && kill -0 "$pid" 2>/dev/null && [ -S "$run/$wl" ] || continue
+    sig=$(basename "$dir")
+    [ -z "$fallback" ] && fallback="$sig $wl"
+    if ! tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | grep -q '^WAYLAND_DISPLAY='; then
+        best="$sig $wl"
+        break
+    fi
+done
+pick=${best:-$fallback}
+if [ -z "$pick" ]; then
+    echo "bromigos-session-env: no running Hyprland session found" >&2
+    [ "${1:-}" = exec ] && { shift; exec "$@"; }
+    exit 1
+fi
+export HYPRLAND_INSTANCE_SIGNATURE=${pick% *} WAYLAND_DISPLAY=${pick#* }
+
+case "${1:-}" in
+    import|exec)
+        dbus-update-activation-environment --systemd WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE ;;
+esac
+case "${1:-}" in
+    exec) shift; exec "$@" ;;
+    import|"") echo "WAYLAND_DISPLAY=$WAYLAND_DISPLAY"; echo "HYPRLAND_INSTANCE_SIGNATURE=$HYPRLAND_INSTANCE_SIGNATURE" ;;
+    *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac
