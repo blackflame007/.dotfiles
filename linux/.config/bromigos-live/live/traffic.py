@@ -1,6 +1,6 @@
 """The sky's traffic (space.glsl traffic()), decided on the CPU so ships never pop.
 
-Nine lanes, each in a depth tier: far ships are small, slow and dim, near ones larger,
+Ten lanes, each in a depth tier: far ships are small, slow and dim, near ones larger,
 faster and brighter. Every crossing is a straight path at its own heading (horizontal,
 a gentle diagonal of 10-35 degrees, or a steep 50-70 degrees, either way) through the
 ship region, entering off one edge and leaving off another. A rare far crossing
@@ -25,8 +25,8 @@ import time
 
 import numpy as np
 
-LANES = 9
-TIERS = ("far", "far", "far", "mid", "mid", "mid", "mid", "near", "near")
+LANES = 10
+TIERS = ("far", "far", "far", "mid", "mid", "mid", "mid", "mid", "near", "near")
 TIER = {                       # scale, speed px/s (range), brightness
     "far": (0.5, (7.0, 13.0), 0.45),
     "mid": (0.8, (14.0, 26.0), 0.72),
@@ -86,6 +86,7 @@ class Traffic:
         self.smooth = None
         self.t_last = None
         self.rect = None
+        self.focus = None          # sub-regions the paths are aimed through (lane k uses focus[k % n])
 
     def _new(self, k, now, level, first=False):
         """Decide lane k's next crossing: path, depth, speed and whether it carries a ship."""
@@ -96,7 +97,7 @@ class Traffic:
         c = Crossing()
         c.cyc = cyc
         c.a = heading(k, cyc)
-        x0, y0, w, h = self.rect
+        x0, y0, w, h = self.focus[k % len(self.focus)] if self.focus else self.rect
         through = (x0 + w * (0.1 + 0.8 * _unit("px", k, cyc)), y0 + h * (0.1 + 0.8 * _unit("py", k, cyc)))
         speed = v0 + (v1 - v0) * _unit("v", k, cyc)
         c.s0 = c.s1 = scale
@@ -111,8 +112,10 @@ class Traffic:
         c.kind = 1.0 if _unit("hull", k, cyc) < 0.5 else 0.0
         self.lanes[k] = c
 
-    def uniforms(self, level, rect):
-        """level 0..1 (< 0 = traffic off); rect = the ship region (x, y, w, h) px."""
+    def uniforms(self, level, rect, focus=None):
+        """level 0..1 (< 0 = traffic off); rect = the region paths cross (x, y, w, h) px; focus =
+        sub-rects where ships are actually visible (the open sky, the den's window): each lane's
+        paths are aimed through one of them, so every visible region keeps its share of traffic."""
         now = self.clock()
         dt = 0.0 if self.t_last is None else max(0.0, min(now - self.t_last, 5.0))
         self.t_last = now
@@ -124,8 +127,9 @@ class Traffic:
         self.smooth = level if self.smooth is None else \
             self.smooth + (level - self.smooth) * (1 - math.exp(-dt / EMA_SECONDS))
         rect = tuple(float(v) for v in rect)
-        first = self.rect != rect
-        self.rect = rect
+        focus = [tuple(float(v) for v in f) for f in focus] if focus else None
+        first = self.rect != rect or self.focus != focus
+        self.rect, self.focus = rect, focus
         rows = []
         for k in range(LANES):
             if first or self.lanes[k] is None:

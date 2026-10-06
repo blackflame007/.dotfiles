@@ -63,9 +63,11 @@ float ship_cover(vec2 p) {
     return step(-22.0, p.x) * step(p.x, 16.0) * smoothstep(half_h + 0.8, half_h - 0.2, abs(p.y));
 }
 
-uniform vec4 u_ship[9];      // from live/traffic.py, far to near: x, y px, heading rad, scale
-uniform vec4 u_ship2[9];     //   brightness, occupied (decided per crossing), hull kind, -
-uniform vec4 u_ship_rect;    // where ships may show (the open sky; they pass behind the den at its edges)
+uniform vec4 u_ship[10];      // from live/traffic.py, far to near: x, y px, heading rad, scale
+uniform vec4 u_ship2[10];     //   brightness, occupied (decided per crossing), hull kind, -
+uniform vec4 u_ship_rect;    // the region ships' paths are planned in (and a bound for the mask)
+uniform sampler2D u_shipmask;  // where they may show: live/shipmask.py (open sky + the den's window glass)
+uniform float u_shipmask_on;   // 0 = no mask (overlays): the rect alone
 
 vec3 traffic(vec2 px) {
     vec4 r = u_space_rect;
@@ -74,11 +76,13 @@ vec3 traffic(vec2 px) {
     float lvl = u_space.y;
     if (lvl < 0.0) return acc;
     vec4 sr = u_ship_rect;
-    // ships: a hard edge where the den's wall starts (they pass behind it), a soft one at the horizon
-    float in_sky = step(sr.x, px.x) * step(px.x, sr.x + sr.z) * step(sr.y, px.y)
-                 * smoothstep(sr.y + sr.w, sr.y + sr.w - 40.0, px.y);
+    float in_sky = step(sr.x, px.x) * step(px.x, sr.x + sr.z) * step(sr.y, px.y) * step(px.y, sr.y + sr.w);
+    if (in_sky > 0.0 && u_shipmask_on > 0.5)
+        in_sky = texture(u_shipmask, px / u_res).r;     // behind the den's wall, frame, monitors and desk
+    else
+        in_sky *= smoothstep(sr.y + sr.w, sr.y + sr.w - 40.0, px.y);
     if (in_sky > 0.0) {
-        for (int k = 0; k < 9; k++) {                   // far to near
+        for (int k = 0; k < 10; k++) {                  // far to near
             vec4 a = u_ship[k];
             vec4 b = u_ship2[k];
             if (b.y < 0.5) continue;

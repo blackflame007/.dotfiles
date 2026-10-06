@@ -24,7 +24,7 @@ Paths are relative to `linux/.config/bromigos-live/` (installed as
 | [Meters](#meters) | two analog meters on the desk | left: CPU load; right: GPU load | psutil 1 s; nvidia-smi 1.5 s | `background.den` |
 | [Glyph rain and bursts](#glyph-rain-and-bursts) | deep space, top of the screen | rain: CPU load; bursts: notifications, lab alerts, ARBITER fills | psutil 1 s; events | `[rain]` |
 | [Floor pulses](#floor-pulses) | the den's floor grid | download (toward you) and upload (away) | psutil, 1 s | `[floor]` |
-| [Ships and debris](#ships-and-debris) | the open sky left of the den, at many headings and three depths | network throughput as traffic density | psutil, 1 s | `space.traffic` |
+| [Ships and debris](#ships-and-debris) | the open sky and the den's window (behind the station's art), at many headings and three depths | network throughput as traffic density | psutil, 1 s | `space.traffic` |
 | [Stars](#stars) | deep space | decoration | none | `space.stars` |
 | [Relay beam](#relay-beam) | from the station, up and left | lab all green; pulse speed = ingress requests/s | Lab API, 25 s | `space.relay_beam` |
 | [Health tint](#health-tint) | space and rain | amber: running hot or lab link stale; red: a node or service down | Lab API, sensors | `space.health_tint` |
@@ -197,10 +197,20 @@ Where each layer may draw:
   and bright. Near ships hide far ones where their hulls overlap. Rarely a far ship
   approaches or recedes, its size changing along the path. Amber engines and a trail
   behind, along the heading; a red nav blink. Tumbling debris flecks.
-- **Where:** only in the open sky, `u_ship_rect`: on a fitted den, x 0–995 (the den's
-  wall; ships pass behind it with a hard edge) and y 34 to the floor horizon (a soft
-  40 px fade); on any other wallpaper, the whole sky rect. Never over the den's screens
-  or window frame.
+- **Where:** in both of the den's skies: the open sky left of its wall, and the space
+  seen through its window on the right. Paths are planned across the whole sky rect
+  (x 0–2400, y 34 to the floor horizon, as before 2026-10-06) and aimed alternately
+  through each region (`shipmask.FOCUS`), so a ship can slip behind the wall and come back
+  into view in the window. Two masks decide where a ship shows, multiplied together:
+  - `live/shipmask.py`, fitted to the v1 plate like the den screens: the open sky (left of
+    x 995, fading out over the 40 px above the horizon) and the window's glass (inside its
+    frame, above the desk, with the monitors and cabinet in front of its lower-left corner
+    cut out). Ships never show over the den's screens, frame or interior. Sampled as
+    `u_shipmask` in `traffic()`.
+  - the dark-pixel test every sky layer uses (`sky` in `bg.frag`: wallpaper luminance under
+    about 0.1, nothing under a gadget plate), so the station, the wrecks and anything else
+    bright in the art hide the ships passing behind them.
+  On any other wallpaper only the second applies, over the whole sky rect.
 - **Shows:** network throughput as traffic. Whether a crossing carries a ship is decided
   once, when it starts off-screen: busy if a stable random draw < 0.12 + 0.88·level,
   where level = log10(1 + rx + tx) / 7.3 (`gadgets.traffic_level`). The whole path
@@ -209,16 +219,16 @@ Where each layer may draw:
   level with a lag of at most one crossing. Debris density follows a ~25 s average of the
   level, and flecks fade in and out around the threshold instead of blinking.
 - **Data:** psutil, 1 s.
-- **Code:** `live/traffic.py`: nine lanes (`TIERS`: three far, four mid, two near);
+- **Code:** `live/traffic.py`: ten lanes (`TIERS`: three far, five mid, two near);
   `Traffic.uniforms(level, rect)` plans each crossing (`heading()`, `path()`: through a
   point in the region, from one edge to another plus the ship's reach), works out every
   position in double precision, and returns them sorted far to near. `traffic()`,
-  `ship_dist()` and `ship_cover()` in `shaders/space.glsl` draw them from `u_ship[9]`
-  (x, y px, heading, scale), `u_ship2[9]` (brightness, occupied, hull kind) and
-  `u_ship_rect`; `u_space.y` is the smoothed level (−1 = off). The background
+  `ship_dist()` and `ship_cover()` in `shaders/space.glsl` draw them from `u_ship[10]`
+  (x, y px, heading, scale), `u_ship2[10]` (brightness, occupied, hull kind) and
+  `u_ship_rect`, with `u_shipmask` from `live/shipmask.py`; `u_space.y` is the smoothed level (−1 = off). The background
   (`Background.render()`) and the screensaver each own a `Traffic`.
 - **Config:** `space.traffic`.
-- **Cost:** measured with all nine lanes busy: 0.96 ms against 0.92 ms with traffic off
+- **Cost:** measured with all ten lanes busy: 1.03 ms against 0.95 ms with traffic off
   (median background frame, RTX 5070); each pixel skips a ship outside its 150 px reach.
 - **Change it:** tiers, speeds and brightness in `TIER`; the heading mix in `heading()`;
   the busy rule in `_new()`; the hull in `ship_dist()` and its silhouette in

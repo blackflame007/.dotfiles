@@ -30,7 +30,7 @@ def ease(x):
     return 1 - (1 - x) ** 3
 
 
-_NO_SHIPS = np.zeros((9, 4), dtype=np.float32)
+_NO_SHIPS = np.zeros((10, 4), dtype=np.float32)
 
 
 class Base:

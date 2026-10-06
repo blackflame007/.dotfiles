@@ -53,6 +53,7 @@ class Background:
         self.steam_on = False
         self.face = (0.62, 0.8, 0.55)
         self.checked_at = 0.0
+        self.shipmask = None
         self._load_under()
         self.schem_tex = None
         self.schem_next = time.monotonic() + 6.0
@@ -142,6 +143,11 @@ class Background:
                 print("bromigos-live: wallpaper is not an approved den variant; den overlays off", flush=True)
         self.steam_on = steam
         self.under = glkit.texture_rgba(raw, self.w, self.h, GL.GL_RGB)
+        from . import shipmask                  # where ships may show: open sky + the window's glass
+        if self.shipmask is not None:
+            GL.glDeleteTextures([self.shipmask])
+        m, mw, mh = shipmask.build(self.w, self.h, self.fitted)
+        self.shipmask = glkit.texture_rgba(m, mw, mh, GL.GL_RGB)
         print(f"bromigos-live: plate {os.path.basename(path)} variant={self.variant} steam={steam} "
               f"streaks={len(self.segs)}", flush=True)
         # the meter faces' own colour, so the live faces match the art
@@ -288,7 +294,8 @@ class Background:
         f.use()
         units = [("u_under", self.under or self.stage.emit.tex), ("u_emit", self.stage.emit.tex),
                  ("u_bloom", bloom), ("u_schem", self.schem_tex or self.stage.emit.tex),
-                 ("u_ring", self.emblem.ring), ("u_flame", self.emblem.flame or self.emblem.ring)]
+                 ("u_ring", self.emblem.ring), ("u_flame", self.emblem.flame or self.emblem.ring),
+                 ("u_shipmask", self.shipmask or self.stage.emit.tex)]
         for i, (name, tex) in enumerate(units):
             GL.glActiveTexture(GL.GL_TEXTURE0 + i)
             GL.glBindTexture(GL.GL_TEXTURE_2D, tex)
@@ -332,13 +339,17 @@ class Background:
         hl = gadgets.health(d) if sp.get("health_tint", True) else 0
         green = gadgets.all_green(d) and sp.get("relay_beam", True)
         rps = ((d.get("cluster") or {}).get("traefik") or {}).get("rpsNow") or 0.0
-        # ships stay in the open sky: on a fitted den, left of its wall (they pass behind it) and above the floor
-        ship_rect = (0.0, 34.0 * sy, (995.0 if self.fitted else 2400.0) * sx, (fl["horizon_y"] - 34.0) * sy)
+        # ships are planned across the whole sky and shown only through live/shipmask.py's mask:
+        # the open sky left of the den and the den's window glass (behind the wall, frame and desk)
+        ship_rect = (0.0, 34.0 * sy, 2400.0 * sx, (fl["horizon_y"] - 34.0) * sy)   # the sky rect, as before
+        from .shipmask import FOCUS
+        focus = [(x * sx, y * sy, w_ * sx, h_ * sy) for x, y, w_, h_ in FOCUS] if self.fitted else None
         ships, ships2, lvl_smooth = self.traffic.uniforms(
-            gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0, ship_rect)
+            gadgets.traffic_level(d) if sp.get("traffic", True) else -1.0, ship_rect, focus)
         f.fv("u_ship", ships, 4)
         f.fv("u_ship2", ships2, 4)
         f.f("u_ship_rect", *ship_rect)
+        f.f("u_shipmask_on", 1.0 if self.shipmask else 0.0)
         f.f("u_space", 1.0 if sp.get("stars", True) else 0.0, lvl_smooth, 1.0 if green else 0.0, float(hl))
         f.f("u_space_rect", 0.0, 34.0 * sy, 2400.0 * sx, (fl["horizon_y"] - 34.0) * sy)
         f.f("u_planet", 0.0, 0.0, 1.0, 0.0)
