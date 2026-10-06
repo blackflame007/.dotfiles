@@ -10,6 +10,10 @@ small crew lights, and every relationship is a faint lane.
 The Wick appears as an unplaceable shimmer: no fixed coordinate, drifting,
 marked with the burn-in — never with a callsign or a frequency.
 
+Scroll zooms toward the cursor (zoomcam.py): the minor entries' names appear as
+there is room for them, drag pans while zoomed in (Shift+drag turns), + and - zoom,
+double-click empty space or 0 resets.
+
 The relay network is real: the homelab's live services (EchoCraft /api/status)
 are the lit relays on the outer ring; a down service goes dark red, and the
 relay beam rises from the network only while every service is up.
@@ -25,6 +29,7 @@ import numpy as np
 from . import glkit
 from .glkit import col
 from .overlays import Base
+from .zoomcam import ZoomCam, lod
 
 TAU = 2 * math.pi
 WICK = "__wick__"
@@ -177,6 +182,10 @@ class DriftMap(Base):
         self.selected = None
         self.sel_t = 0.0
         self.wick_px = None
+        self.mods = 0
+        self.t_prev = None
+        cx, cy, R = self.L["center"]
+        self.cam = ZoomCam(self.L["chart"], (cx, cy), R, zmin=0.7, zmax=7.0)
 
     # ------------------------------------------------------------------ style
     def style(self, nd):
@@ -231,7 +240,11 @@ class DriftMap(Base):
             hot = focus in (a_, b_)
             b.line(self.nodes[a_]["p"], self.nodes[b_]["p"], col("soft" if hot else "dim", 0.85 if hot else 0.22),
                    space=2, reveal=T + 0.3)
-        # entries
+        # entries; labels by room (zoomed out: the stars and markers; zooming in: the rest)
+        z = self.cam.z
+        minor = lod(z, 1.35, 2.2)
+        p = self.stage.painter
+        labels = self.cam.labels(self.stage.atlas, p, s, cap=int(40 + 50 * minor))
         for i, k in enumerate(self.ids):
             nd = self.nodes[k]
             c, size, label = self.style(nd)
@@ -244,10 +257,19 @@ class DriftMap(Base):
             elif nd["kind"] in MARK:
                 b.arc(nd["p"], size * s + 3, size * s + 4.4, 0, TAU, cc, segs=4, gap=0.55, spin=0.0, phase=0.785,
                       space=2, reveal=T + 0.5)
-            if (label and on) or k in rel or k == self.hover:
-                b.text(_ascii(nd["name"], 30).upper(), *nd["p"][:2], cc if k != focus else col("white"),
-                       font="s" if nd["kind"] in STAR else "xs", track=1.4, space=2, z=nd["p"][2], dx=10,
-                       dy=-6, reveal=T + 0.7 + (i % 40) * 0.01)
+            name = _ascii(nd["name"], 30).upper()
+            font = "s" if nd["kind"] in STAR else "xs"
+            rv = T + 0.7 + (i % 40) * 0.01
+            if k == focus or k == self.hover or k in rel or (label and on and z <= 1.05):
+                labels.add(9, nd["p"], name, font, 1.4, colour=cc if k != focus else col("white"), reveal=rv,
+                           force=True)
+            elif label and on:                        # stars and markers: always worth a place
+                labels.add(5 + size, nd["p"], name, font, 1.4, colour=cc, reveal=rv)
+            elif on and minor > 0.0:                   # the minor entries, as zooming makes room
+                labels.add(1 + size, nd["p"], name, font, 1.4, colour=(cc[0], cc[1], cc[2], cc[3] * minor),
+                           reveal=rv)
+        labels.place(b)
+        self.cam.readout(b, s, T + 0.6)
         if self.hover == WICK and self.wick_px:
             wx, wy = self.wick_px
             b.plate(wx + 28 * s, wy - 22 * s, 470 * s, 44 * s, 0.85)
@@ -261,7 +283,8 @@ class DriftMap(Base):
         self._relays(b, d, T)
         self._side(b, T)
         self._card(b, T)
-        b.text("DRAG TO TURN · HOVER A LIGHT · CLICK FOR ITS ENTRY · ESC CLOSES", self.w / 2, self.h - 22 * s,
+        b.text("SCROLL ZOOMS · DRAG TURNS (PANS WHEN ZOOMED) · HOVER A LIGHT · CLICK FOR ITS ENTRY · ESC CLOSES",
+               self.w / 2, self.h - 22 * s,
                col("dim", 0.85), font="xs", track=2.5, align="c", reveal=T + 1.2)
 
     def _relays(self, b, d, T):
@@ -379,11 +402,15 @@ class DriftMap(Base):
     def frame(self, t, d):
         s = self.s
         p = self.stage.painter
-        if self.drag is None and t - self.last_input > 4.0:
+        dt = 0.0 if self.t_prev is None else min(t - self.t_prev, 0.1)
+        self.t_prev = t
+        if self.drag is None and t - self.last_input > 4.0 and not self.cam.zoomed:
             self.yaw += 0.0012
         cx, cy, R = self.L["center"]
         p.rot[2] = glkit.rot_matrix(self.yaw, self.pitch)
-        p.ctr[2] = (cx, cy, R, 3.6)
+        self.cam.step(dt, p.rot[2], 3.6)
+        p.ctr[2] = self.cam.ctr(3.6)
+        p.clip[2] = self.cam.clip()
         fade = min(t / 0.25, 1.0)
         if self.closing_at is not None:
             fade = max(0.0, 1.0 - (t - self.closing_at) / 0.25)
@@ -409,6 +436,14 @@ class DriftMap(Base):
         every = 0.06 if self.hover == WICK else self.rebuild_every       # the label follows the drift
         return self.built_at is None or t - self.built_at >= every
 
+    def render(self, fbo, fps):
+        if self.built_at is not None and self.cam.build_due(self.now()):
+            self.built_at = None                 # labels follow the zoom
+        before = self.built_at
+        super().render(fbo, fps)
+        if self.built_at is not before:
+            self.cam.mark_built(self.built_at)
+
     # ------------------------------------------------------------------ input
     def _pick(self, x, y):
         if self.wick_px and math.hypot(x - self.wick_px[0], y - self.wick_px[1]) < 30 * self.s:
@@ -428,7 +463,9 @@ class DriftMap(Base):
     def click(self, x, y, button):
         self.last_input = self.now()
         if self._in_chart(x, y):
-            self.drag = (x, y, self.yaw, self.pitch, False)
+            pan = self.cam.zoomed != bool(self.mods & 1)        # Shift swaps turn and pan
+            pan = True if button == 2 else False if button == 3 else pan
+            self.drag = (x, y, self.yaw, self.pitch, False, "pan" if pan else "turn", x, y)
             return True
         inside = any(px <= x <= px + w and py <= y <= py + h for (px, py, w, h) in (self.L["side"], self.L["card"]))
         if not inside:
@@ -438,11 +475,14 @@ class DriftMap(Base):
     def motion(self, x, y, buttons):
         self.last_input = self.now()
         if self.drag:
-            x0, y0, yaw, pitch, moved = self.drag
+            x0, y0, yaw, pitch, moved, mode, lx, ly = self.drag
             moved = moved or abs(x - x0) + abs(y - y0) > 4
-            self.yaw = yaw + (x - x0) * 0.006
-            self.pitch = max(0.25, min(1.5, pitch + (y - y0) * 0.005))
-            self.drag = (x0, y0, yaw, pitch, moved)
+            if mode == "pan":
+                self.cam.pan_by(x - lx, y - ly)
+            else:
+                self.yaw = yaw + (x - x0) * 0.006
+                self.pitch = max(0.25, min(1.5, pitch + (y - y0) * 0.005))
+            self.drag = (x0, y0, yaw, pitch, moved, mode, x, y)
             return
         h = self._pick(x, y) if self._in_chart(x, y) else None
         if h != self.hover:
@@ -457,9 +497,27 @@ class DriftMap(Base):
             self.built_at = None
         self.drag = None
 
+    def scroll(self, x, y, dy):
+        if not self._in_chart(x, y):
+            return False
+        self.last_input = self.now()
+        self.cam.wheel(x, y, dy)
+        return True
+
+    def dclick(self, x, y):
+        if self._in_chart(x, y) and self._pick(x, y) is None:
+            self.cam.reset()
+            self.last_input = self.now()
+
     def key(self, name):
         if name in ("Escape", "q"):
             self.close()
+        elif name in ("plus", "equal", "KP_Add"):
+            self.cam.key_zoom(+1)
+        elif name in ("minus", "KP_Subtract"):
+            self.cam.key_zoom(-1)
+        elif name in ("0", "KP_0", "Home"):
+            self.cam.reset()
         elif name in ("Left", "h"):
             self.yaw -= 0.2
         elif name in ("Right", "l"):

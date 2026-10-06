@@ -11,7 +11,12 @@
   * feed events: `recall` lights the recalled memories and documents and pulls them
     toward the core; `file` settles a new memory in from the dark; `forget` burns one out.
 
-Verbs (bromigos-live mind <verb>): focus <text>, space <name>, clear.
+Zoom (scroll toward the cursor): each repo's documents sit close around its hub when
+zoomed out and open up into their own lights as you zoom in; names appear by zoom
+level and by room (spaces always, then repos, then documents and memories).
+
+Verbs (bromigos-live mind <verb>): focus <text>, space <name>, clear. focus and space
+fly the camera to the target.
 """
 import hashlib
 import json
@@ -24,7 +29,9 @@ import urllib.request
 import numpy as np
 
 from .deckkit import TAU, Deck3D, ascii_, frame_panel, wrap
+from . import glkit
 from .glkit import col
+from .zoomcam import lod
 
 from .config import PRIV  # noqa: E402
 GATE = PRIV.url("gnosis_gate")                     # private: endpoints.gnosis_gate
@@ -107,6 +114,7 @@ class MindDeck(Deck3D):
     name = "mind"
     title = "MIND // VECTOR'S MEMORY AND KNOWLEDGE"
     hint = "VECTOR: bromigos-live mind focus <text>"
+    zoom = (0.7, 16.0)
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -213,6 +221,11 @@ class MindDeck(Deck3D):
                     q = hub + np.array([math.cos(da) * dr, (_h(docs[i]["path"], 1) - 0.5) * 0.05, math.sin(da) * dr])
                     lay[f"doc:{i}"] = tuple(q)
         self.layout = lay
+        n = len(docs)
+        q = np.array([lay.get(f"doc:{i}", (0, 0, 0)) for i in range(n)], np.float64).reshape(-1, 3)
+        hub = np.array([lay.get(f"repo:{d['space']}:{d['repo']}", (0, 0, 0)) for d in docs], np.float64).reshape(-1, 3)
+        sc = np.array([lay.get("space:" + d["space"], (0, 0, 0)) for d in docs], np.float64).reshape(-1, 3)
+        self.doc_arr = (q, hub, sc)                # for opening every cluster at once
         self.docs = docs
         self.chunk_doc = {cid: i for i, d in enumerate(docs) for cid in d["ids"]}
         self.built_at = None
@@ -228,12 +241,38 @@ class MindDeck(Deck3D):
                 k = 1 - (1 - k) ** 3
                 base = np.array(st[1]) * (1 - k) + base * k
         else:
-            base = np.array(self.layout.get(node, (0, 0, 0)))
+            base = self._xp(node)
         f = self.flare.get(node)
         if f:
             env = max(0.0, 1.0 - (t - f[0]) / 6.0)
             base = base * (1 - 0.45 * math.sin(min((t - f[0]) / 1.2, 1.0) * math.pi / 2) * env)
         return base
+
+    def _spread(self):
+        """How far clusters are opened at this zoom: (repos around their space, docs around their repo)."""
+        z = self.cam.z if self.cam else 1.0
+        return 0.8 + 0.2 * lod(z, 1.0, 2.2), 0.5 + 0.5 * lod(z, 1.0, 4.0)
+
+    def _doc_positions(self):
+        """Every document's position at this zoom, in one go."""
+        q, hub, sc = getattr(self, "doc_arr", (np.zeros((0, 3)),) * 3)
+        er, ed = self._spread()
+        return sc + (hub - sc) * er + (q - hub) * ed
+
+    def _xp(self, node):
+        """Layout position with the clusters opened as far as the zoom says."""
+        p = np.array(self.layout.get(node, (0, 0, 0)))
+        if node.startswith(("repo:", "doc:")):
+            er, ed = self._spread()
+            if node.startswith("doc:"):
+                d = self.docs[int(node[4:])]
+                hub = np.array(self.layout.get(f"repo:{d['space']}:{d['repo']}", p))
+                sc = np.array(self.layout.get("space:" + d["space"], hub))
+                hub2 = sc + (hub - sc) * er
+                return hub2 + (p - hub) * ed
+            sc = np.array(self.layout.get("space:" + node.split(":")[1], p))
+            return sc + (p - sc) * er
+        return p
 
     # ------------------------------------------------------------------ events and verbs
     def on_event(self, e, t):
@@ -294,6 +333,7 @@ class MindDeck(Deck3D):
             self._turn_to(best)
             self.select(best)
             self.flare[best] = (self.now(), "white")
+            self.fly_to(best, 3.0 if best.startswith("mem:") else 5.0)
             return f"focused {self.label(best)[0]}"
         if verb == "space":
             sp = args if args.startswith("kb-") else "kb-" + args
@@ -301,10 +341,13 @@ class MindDeck(Deck3D):
                 return f"no space {args}"
             self._turn_to("space:" + sp)
             self.select("space:" + sp)
+            self.fly_to("space:" + sp, 2.2)
             return f"showing {sp}"
         if verb == "clear":
             self.select(None)
             self.flare.clear()
+            if self.cam:
+                self.cam.reset()
             return "cleared"
         return "mind verbs: focus <text>, space <name>, clear"
 
@@ -358,6 +401,10 @@ class MindDeck(Deck3D):
             b.text(f"CHARTING {sp.upper()} · {n}/{tot} CHUNKS", x + w / 2, y + 60 * s, col("amber"), font="s",
                    track=2, align="c")
         pts, ids = [], []
+        z = self.cam.z
+        pp = self.stage.painter
+        labels = self.cam.labels(self.stage.atlas, pp, s, cap=70)
+        repo_a, doc_a, mem_a = lod(z, 1.25, 2.0), lod(z, 2.6, 4.5), lod(z, 1.8, 3.0)
         # the core
         b.arc((0, 0, 0), 0, 9 * s, 0, TAU, col("white"), kind=2, space=2, reveal=T + 0.2)
         for k, r in enumerate((0.06, 0.09)):
@@ -375,22 +422,38 @@ class MindDeck(Deck3D):
             b.line((0, 0, 0), c, col(sc, 0.18), space=2, dash=6, reveal=T + 0.3)
             b.arc(c, 0, 5.5 * s, 0, TAU, col(sc), kind=2, space=2, reveal=T + 0.4)
             b.arc(c, 14 * s, 15.4 * s, 0, TAU, col(sc, 0.8), segs=10, gap=0.35, spin=0.2, space=2, reveal=T + 0.4)
-            b.text(sp.upper(), *c[:2], col(sc), font="s", track=2, space=2, z=c[2], dx=20, dy=-12, reveal=T + 0.6)
+            labels.add(10, c, sp.upper(), "s", 2, dx=20, dy=-12, colour=col(sc), reveal=T + 0.6, force=True)
             pts.append(c)
             ids.append(key)
-        for key, c in self.layout.items():
+        ndocs = {}
+        for dd in self.docs:
+            ndocs[(dd["space"], dd["repo"])] = ndocs.get((dd["space"], dd["repo"]), 0) + 1
+        for key in self.layout:
             if key.startswith("repo:"):
-                sp = key.split(":")[1]
+                _, sp, rname = key.split(":", 2)
+                c = tuple(self._xp(key))
                 b.line(self.layout["space:" + sp], c, col(SPACE_COL[sp], 0.16), space=2, reveal=T + 0.5)
                 b.arc(c, 0, 2.6 * s, 0, TAU, col(SPACE_COL[sp], 0.9), kind=2, space=2, reveal=T + 0.5)
+                if repo_a > 0.0:
+                    n = ndocs.get((sp, rname), 0)
+                    labels.add(5 + math.log1p(n), c, ascii_(rname, 28).upper(), "xs", 1.2, dx=8, dy=-6,
+                               colour=col(SPACE_COL[sp], 0.9 * repo_a))
                 pts.append(c)
                 ids.append(key)
-        # documents
+        # documents (labels only for the ones on screen, biggest first)
+        P = self._doc_positions()
+        lab_ok = set()
+        if doc_a > 0.0 and len(P) == len(self.docs):
+            pr = glkit.project(P.astype(np.float32), pp.rot[2], pp.ctr[2])
+            x0, y0, w0, h0 = self.cam.rect
+            on = np.nonzero((pr[:, 0] > x0) & (pr[:, 0] < x0 + w0) & (pr[:, 1] > y0) & (pr[:, 1] < y0 + h0))[0]
+            on = sorted(on.tolist(), key=lambda i: -self.docs[i]["n"])[:240]
+            lab_ok = set(on)
         for i, dd in enumerate(self.docs):
             node = f"doc:{i}"
-            p = self.pos(node, t) if node in self.flare else self.layout.get(node)
-            if p is None:
+            if node not in self.layout:
                 continue
+            p = self.pos(node, t) if node in self.flare else (P[i] if i < len(P) else self._xp(node))
             sc = SPACE_COL[dd["space"]]
             r = (0.8 + 0.55 * math.sqrt(dd["n"])) * s
             f = self.flare.get(node)
@@ -402,6 +465,11 @@ class MindDeck(Deck3D):
                       phase=_h(node))
             else:
                 b.arc(tuple(p), 0, r, 0, TAU, col(sc, 0.55), kind=2, space=2, reveal=T + 0.6 + (i % 50) * 0.01)
+            if i in lab_ok:
+                parts = [x for x in dd["path"].split("/") if x]
+                name = "/".join(([dd["repo"]] + parts)[-2:])          # README.MD alone says nothing
+                labels.add(1 + math.log1p(dd["n"]), tuple(p), ascii_(name, 34).upper(), "xs", 0.8, dx=r / s + 6,
+                           dy=4, colour=col(sc, 0.85 * doc_a))
             pts.append(tuple(p))
             ids.append(node)
         # VECTOR's memories
@@ -420,6 +488,9 @@ class MindDeck(Deck3D):
             if m["id"] in self.settle:
                 b.text(ascii_(m["content"], 40).upper(), *p[:2], col("soft"), font="xs", track=1, space=2, z=p[2],
                        dx=10, dy=-6, reveal=self.settle[m["id"]][0], type_rate=0.01)
+            elif mem_a > 0.0:
+                labels.add(2 + env * 8, p, ascii_(m["content"], 30).upper(), "xs", 0.8, dx=10, dy=-6,
+                           colour=col("white", 0.8 * mem_a))
             pts.append(p)
             ids.append(node)
         self.pick_pts = np.array(pts, np.float32).reshape(-1, 3)
@@ -427,6 +498,7 @@ class MindDeck(Deck3D):
         if self.selected and self.selected in ids:
             p = self.pick_pts[ids.index(self.selected)]
             b.arc(tuple(p), 12 * s, 13.5 * s, 0, TAU, col("white"), segs=4, gap=0.5, spin=1.5, space=2)
+        labels.place(b)
         if self.hover:
             lab, lines = self.label(self.hover)
             self.hover_tip(b, lab, lines, "CLICK FOR THE CARD")

@@ -17,7 +17,11 @@ quiet cue from the live layer's sounds (mute respected). Size grows modestly wit
 long the agent has run (first seen, kept across opens). At most 24 ships; the rest are
 counted per repo.
 
-Verbs: point <repo or agent>, focus <repo or agent>, clear.
+Zoom (scroll toward the cursor): ships keep a readable size and, zoomed into a repo,
+carry their names and status; every repo's name appears as there is room.
+
+Verbs: point <repo or agent>, focus <repo or agent>, clear. point and focus fly the
+camera to the target (and follow a ship while it moves).
 Polling while open: herdr 2 s, git state 60 s, CI 180 s (top repos only, cached 10 min).
 """
 import json
@@ -33,6 +37,7 @@ from . import sources
 from .deckkit import TAU, Deck3D, ascii_, frame_panel, wrap
 from .glkit import col
 from .starship import ShipPainter
+from .zoomcam import lod
 
 STATE = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "bromigos-live",
                      "swarm-seen.json")
@@ -79,6 +84,7 @@ class SwarmDeck(Deck3D):
     name = "swarm"
     title = "SWARM // THE AGENTS AT WORK"
     hint = "VECTOR: bromigos-live swarm point <repo>"
+    zoom = (0.7, 9.0)
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -303,6 +309,7 @@ class SwarmDeck(Deck3D):
             if sh.err_t is not None and t - sh.err_t > 6:
                 a = max(0.0, 1.0 - (t - sh.err_t - 6) / 8)
             scale = 0.15 * (1.0 + 0.35 * min(sh.age_h / 4.0, 1.0))
+            scale *= (self.cam.z if self.cam else 1.0) ** -0.45      # zoomed in: bigger, not huge
             out.append({"pos": tuple(sh.pos), "scale": scale, "rot": (sh.yaw, 0.0, sh.roll), "alpha": a,
                         "lights": L, "colour": colour, "beacon": beacon, "key": k})
         return out
@@ -337,10 +344,14 @@ class SwarmDeck(Deck3D):
             if verb == "point":
                 self.pointer = (tgt, self.now())
             self.select(tgt)
+            if self.cam:
+                self.cam.fly_to(lambda: self._pos_of(tgt), 4.5 if tgt.startswith("ship:") else 3.5)
             return f"{verb}ing at {tgt.split(':', 1)[1].rsplit('/', 1)[-1]}"
         if verb == "clear":
             self.pointer = None
             self.select(None)
+            if self.cam:
+                self.cam.reset()
             return "cleared"
         return "swarm verbs: point <repo|agent>, focus <repo|agent>, clear"
 
@@ -367,6 +378,10 @@ class SwarmDeck(Deck3D):
         x, y, w, h = self.L["panel"]
         frame_panel(b, x, y, w, h, "THE SYSTEM", T + 0.05, sub="SIZE = COMMITS (14 D) · RING = CI · AMBER = UNPUSHED")
         pts, ids = [], []
+        z = self.cam.z
+        pp = self.stage.painter
+        labels = self.cam.labels(self.stage.atlas, pp, s, cap=60)
+        quiet_a, ship_a = lod(z, 1.3, 2.2), lod(z, 1.7, 2.8)
         # orbits and org hubs
         for org, R in RING.items():
             ring = [(math.cos(i / 120 * TAU) * R, 0.0, math.sin(i / 120 * TAU) * R) for i in range(121)]
@@ -375,9 +390,9 @@ class SwarmDeck(Deck3D):
             hub = self.planets.get("org:" + org)
             if hub:
                 b.arc(hub, 0, 4 * s, 0, TAU, col("dim"), kind=2, space=2)
-                b.text(org.upper(), *hub[:2], col("dim"), font="xs", track=2, space=2, z=hub[2], dx=10, dy=-8)
+                labels.add(9, hub, org.upper(), "xs", 2, dx=10, dy=-8, colour=col("dim"), force=True)
         b.arc((0, 0, 0), 0, 10 * s, 0, TAU, col("white", 0.9), kind=2, space=2)
-        b.text("THE WICK", 0, 0, col("soft"), font="xs", track=3, space=2, z=0, dx=14, dy=-10)
+        labels.add(9, (0, 0, 0), "THE WICK", "xs", 3, dx=14, dy=-10, colour=col("soft"), force=True)
         maxc = max([g.get("commits14", 0) for g in self.git.values()] or [1]) or 1
         busy = {}
         for sh in self.ships.values():
@@ -400,10 +415,13 @@ class SwarmDeck(Deck3D):
                       col(cc), space=2, reveal=T + 0.4)
             if g["dirty"] or g["ahead"]:
                 b.arc(p, 0, rad * 2.4, 0, TAU, col("amber", 0.35 + 0.1 * math.sin(t * 1.5)), kind=2, space=2)
-            if g["commits14"] or busy.get(r["path"]) or g["dirty"] or g["ahead"]:
-                lab = r["name"].upper() + (f"  +{busy[r['path']] - FLEET}" if busy.get(r["path"], 0) > FLEET else "")
-                b.text(lab, *p[:2], col("soft" if busy.get(r["path"]) else "dim"), font="xs", track=1.2, space=2,
-                       z=p[2], dx=rad / s + 8, dy=4)
+            lab = r["name"].upper() + (f"  +{busy[r['path']] - FLEET}" if busy.get(r["path"], 0) > FLEET else "")
+            active = g["commits14"] or busy.get(r["path"]) or g["dirty"] or g["ahead"]
+            if active:                       # zoomed out exactly as before; zoomed in, by room
+                labels.add(6 + act + busy.get(r["path"], 0), p, lab, "xs", 1.2, dx=rad / s + 8, dy=4,
+                           colour=col("soft" if busy.get(r["path"]) else "dim"), force=z <= 1.05)
+            elif quiet_a > 0.0:
+                labels.add(2, p, lab, "xs", 1.2, dx=rad / s + 8, dy=4, colour=col("dim", 0.8 * quiet_a))
             pts.append(p)
             ids.append("repo:" + r["path"])
         # warp streaks and arrival flashes
@@ -421,6 +439,12 @@ class SwarmDeck(Deck3D):
             if sh.gone_t is not None and t - sh.gone_t > 1.2:
                 back = tuple(sh.pos - np.array([math.sin(sh.yaw), 0.05, math.cos(sh.yaw)]) * 0.6)
                 b.line(back, tuple(sh.pos), col("soft", 0.7), width=2, space=2)
+            if ship_a > 0.0 and sh.gone_t is None:
+                title = ascii_((sh.agent.get("terminal_title_stripped") or "").lstrip("◐✳◑◒◓●○ "), 28)
+                c_ = {"working": "phosphor", "blocked": "amber", "error": "danger"}.get(sh.status, "soft")
+                hull = 0.15 * (1.0 + 0.35 * min(sh.age_h / 4.0, 1.0)) * z ** 0.55 * self.L["center"][2]  # px
+                labels.add(8, tuple(sh.pos), f"{title.upper() or 'AGENT'} · {sh.status.upper()}", "xs", 1.0,
+                           dx=0.55 * hull + 10, dy=-0.3 * hull - 6, colour=col(c_, 0.95 * ship_a))
             pts.append(tuple(sh.pos))
             ids.append("ship:" + k)
         # VECTOR's pointer
@@ -440,6 +464,7 @@ class SwarmDeck(Deck3D):
                 b.arc(p, 15 * s, 16.4 * s, 0, TAU, col("soft"), segs=4, gap=0.5, spin=-1.2, space=2)
         self.pick_pts = np.array(pts, np.float32).reshape(-1, 3)
         self.pick_ids = ids
+        labels.place(b)
         if self.hover:
             lab, lines = self._describe(self.hover)
             self.hover_tip(b, lab, lines, "CLICK TO FOCUS" if self.hover.startswith("ship:") else "CLICK FOR DETAILS")

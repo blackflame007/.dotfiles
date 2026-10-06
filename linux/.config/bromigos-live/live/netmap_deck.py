@@ -12,7 +12,8 @@ radio (unpoller_device_rate_bytes), the VMs' own node-exporter counters, and thi
 machine's wifi from psutil. Latency: one ping per node every 4 s (the radar's method).
 
 Verb: trace <name|ip> runs a path from this workstation hop by hop, pings each hop and
-lights the slowest one. clear.
+lights the slowest one, and the camera frames the path. clear. Scroll zooms toward
+the cursor; the IP and latency lines and the link rates make way when crowded.
 """
 import concurrent.futures as cf
 import math
@@ -57,6 +58,7 @@ class NetDeck(Deck3D):
     name = "netmap"
     title = "NETWORK // THE LAN AS IT IS WIRED"
     hint = "VECTOR: bromigos-live netmap trace <host>"
+    zoom = (0.7, 5.0)
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -207,10 +209,15 @@ class NetDeck(Deck3D):
                 return f"no path to {nid}"
             import threading
             self.trace = {"path": path, "t0": self.now(), "hops": [], "slow": None}
+            if self.cam and not getattr(self, "clicked", False):   # VECTOR's trace; a click keeps the view
+                pp = self.stage.painter
+                self.cam.fit([self.pos[k] for k in path if k in self.pos], pp.rot[2], self.persp, zmax=2.6)
             threading.Thread(target=self._run_trace, args=(self.trace,), daemon=True).start()
             return f"tracing workstation → {self.nodes[nid]['name'].lower()} ({len(path) - 1} hops)"
         if verb == "clear":
             self.trace = None
+            if self.cam:
+                self.cam.reset()
             return "cleared"
         return "netmap verbs: trace <host>, clear"
 
@@ -245,6 +252,8 @@ class NetDeck(Deck3D):
         x, y, w, h = self.L["panel"]
         frame_panel(b, x, y, w, h, "THE LAN", T + 0.05, sub="PACKETS = LINK TRAFFIC · RING = PING LATENCY")
         pts, ids = [], []
+        pp = self.stage.painter
+        labels = self.cam.labels(self.stage.atlas, pp, s, cap=80)
         on_path = set()
         if self.trace:
             p = self.trace["path"]
@@ -269,7 +278,7 @@ class NetDeck(Deck3D):
                               space=2, end=c if fwd else pc, speed=0.2 + 0.8 * lv, phase=i / npk, reveal=T + 0.5)
                 mid = tuple((np.array(pc) + np.array(c)) / 2)
                 if r is not None:
-                    b.text(fmt_rate(r), *mid[:2], col("dim"), font="xs", track=0.8, space=2, z=mid[2], dx=8, dy=4)
+                    labels.add(3 + lv, mid, fmt_rate(r), "xs", 0.8, dx=8, dy=4, colour=col("dim"))
             ms = self.lat.get(k)
             lc = "static" if ms is None else "phosphor" if ms < 5 else "amber" if ms < 40 else "danger"
             big = v["kind"] in ("gw", "sw", "wan")
@@ -277,11 +286,12 @@ class NetDeck(Deck3D):
                   space=2, reveal=T + 0.3)
             b.arc(c, (14 if big else 11) * s, (15.6 if big else 12.4) * s, 0, TAU, col(lc), segs=12, gap=0.3,
                   spin=0.2, space=2, reveal=T + 0.35)
-            b.text(v["name"], *c[:2], col("soft"), font="s", track=1.5, space=2, z=c[2], dx=18, dy=-6, reveal=T + 0.4)
-            b.text(f"{v['ip']} · {'--' if ms is None else f'{ms:.1f} MS'}", *c[:2], col(lc), font="xs", track=0.8,
-                   space=2, z=c[2], dx=18, dy=12, reveal=T + 0.45)
+            labels.add(9, c, v["name"], "s", 1.5, dx=18, dy=-6, colour=col("soft"), reveal=T + 0.4, force=True)
+            labels.add(6 if big else 5, c, f"{v['ip']} · {'--' if ms is None else f'{ms:.1f} MS'}", "xs", 0.8,
+                       dx=18, dy=12, colour=col(lc), reveal=T + 0.45, force=k == self.hover or k == self.selected)
             pts.append(c)
             ids.append(k)
+        labels.place(b)
         self._trace_fx(b, t)
         self.pick_pts = np.array(pts, np.float32).reshape(-1, 3)
         self.pick_ids = ids
@@ -299,7 +309,11 @@ class NetDeck(Deck3D):
     def select(self, ident):
         super().select(ident)
         if ident:
-            self.command("trace", ident)
+            self.clicked = True
+            try:
+                self.command("trace", ident)
+            finally:
+                self.clicked = False
 
     def _trace_fx(self, b, t):
         s = self.s
