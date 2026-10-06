@@ -261,7 +261,7 @@ The reader is `bromigos-live/live/vfeed.py`: it tails the file only while a holo
 
 ### Driving the holograms
 
-VECTOR (his shell, or a tool) drives them with `bromigos-live <deck> <verb> [args]`. A closed deck opens and then runs the verb; the result line is printed and shown on the deck.
+VECTOR drives them with his `hologram_deck(deck, verb, args)` tool (a fixed argv over this table's verbs; anything else is refused), or from his shell, as `bromigos-live <deck> <verb> [args]`. A closed deck opens and then runs the verb; the result line is printed and shown on the deck.
 
 | Deck (key) | Verbs |
 |------|-------|

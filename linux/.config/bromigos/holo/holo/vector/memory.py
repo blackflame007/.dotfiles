@@ -182,6 +182,7 @@ class Memory:
                 s = m @ q
                 order = np.argsort(-s)[:k]
                 box["local"] = [items[i]["content"] for i in order if s[i] >= MIN_SCORE]
+                box["local_ids"] = [items[i]["id"] for i in order if s[i] >= MIN_SCORE]
             except Exception as e:
                 box["local_err"] = str(e)[:80]
 
@@ -202,6 +203,9 @@ class Memory:
         if src == "none":
             stats["recall_skipped"] = box.get("local_err") or "over budget"
         audit("recall", query=digest(query), source=src, hits=len(lines), ms=stats["recall_ms"])
+        from . import events
+        events.emit("memory.recall", space="vector", ids=box.get("local_ids", [])[:len(lines)] if src == "mirror" else [],
+                    n=len(lines), ms=stats["recall_ms"], source=src)
         self.maybe_refresh()
         return lines, stats
 
@@ -235,6 +239,8 @@ class Memory:
                 audit("remember", content=digest(text), kind=kind, ok=False, err=str(e)[:120])
             self.refresh()                       # swap the pending note for what Gnosis stored
         threading.Thread(target=write, daemon=True, name="memory-write").start()
+        from . import events
+        events.emit("memory.file", space="vector", category=kind)
         return {"ok": True, "filed_under": kind}
 
     def warm(self):
@@ -285,6 +291,8 @@ class Memory:
         if self.last_written and target["id"] in self.last_written:
             self.last_written = None
         audit("forget", query=digest(what), id=target["id"], content=digest(target["content"]))
+        from . import events
+        events.emit("memory.forget", space="vector", n=1, ids=[target["id"]])
         return {"ok": True, "forgot": target["content"][:120]}
 
     def _sweep(self, content, rounds=(0, 12)):

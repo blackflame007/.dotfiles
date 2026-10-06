@@ -399,7 +399,7 @@ def knowledge_search(query, space=None, limit=6):
         score = (x.get("score") or 0) + bonus
         key = (m.get("path"), m.get("heading"), text[:200])
         h = {"space": sp, "score": round(score, 3), "repo": m.get("repo"), "path": m.get("path"),
-             "heading": m.get("heading"), "url": m.get("url"), "text": text[:900]}
+             "heading": m.get("heading"), "url": m.get("url"), "text": text[:900], "id": x.get("memory_id")}
         f = _kb_file(sp, m.get("repo"), m.get("path"))
         if f:
             h["file"] = f                 # the local copy: docs_read takes this, not the url
@@ -411,6 +411,10 @@ def knowledge_search(query, space=None, limit=6):
         seen[key] = h
         hits.append(h)
     hits.sort(key=lambda h: -h["score"])
+    from . import events
+    for sp in sorted({h["space"] for h in hits[:n]}):
+        ids = [h["id"] for h in hits[:n] if h["space"] == sp and h.get("id")]
+        events.emit("memory.recall", space=sp, ids=ids, n=len(ids), ms=None, source="gnosis")
     return {"query": query, "hits": hits[:n]}
 
 
@@ -558,6 +562,28 @@ def scan():
     return {"ok": True, "note": "scanner pass running on the desktop"}
 
 
+DECKS = {  # bromigos-live's holograms (README "Driving the holograms") -> their verbs
+    "mind": {"open", "close", "focus", "space", "clear"},
+    "ops": {"open", "close", "focus", "clear"},
+    "swarm": {"open", "close", "point", "focus", "clear"},
+    "netmap": {"open", "close", "trace", "clear"},
+    "replay": {"open", "close", "pick", "play", "pause", "seek"},
+}
+
+
+def hologram_deck(deck, verb="open", args=""):
+    """Open or drive one of the live layer's holograms (fixed argv, allowlisted verbs)."""
+    if deck not in DECKS:
+        raise ValueError(f"deck must be one of {sorted(DECKS)}")
+    if verb not in DECKS[deck]:
+        raise ValueError(f"{deck} verbs: {sorted(DECKS[deck])}")
+    a = (args or "").strip()
+    if len(a) > 160 or not re.fullmatch(r"[\w .:/@#,+=-]*", a):
+        raise ValueError("args: up to 160 plain characters")
+    out = _run([LIVE, deck, verb] + a.split(), timeout=10).strip()
+    return {"ok": True, "deck": deck, "verb": verb, "result": out[:300]}
+
+
 def time_now():
     now = dt.datetime.now().astimezone()
     return {"local": now.strftime("%A %d %B %Y, %H:%M:%S %Z"), "iso": now.isoformat(timespec="seconds"),
@@ -675,6 +701,13 @@ SPECS = {
                   _p({"path": S, "key": S, "value_from": S, "length": I, "charset": S}, ["path", "key", "value_from"])),
     "vault_copy": ("Copy one Vault key to another path, Vault to Vault: src and dst as secret/homelab/<path>#<key>.",
                    _p({"src": S, "dst": S}, ["src", "dst"])),
+    "hologram_deck": ("Open or drive a live-layer hologram for the host. deck and verbs: mind (focus <memory or doc>, "
+                      "space <kb-name>, clear: your memory and knowledge as a constellation); ops (focus <repo>, clear: your "
+                      "and the host's actions on the lab, pushes, CI, Argo, pods); swarm (point <repo or agent>, focus, clear: "
+                      "repos and herdr agents); netmap (trace <host or ip>, clear: the LAN and latency); replay (pick <latest, "
+                      "biggest, instrument, agent or fill id>, play, pause, seek <0..1>: an ARBITER paper trade). open/close "
+                      "for any. Use it when showing beats telling, or when the host asks to see something.",
+                      _p({"deck": S, "verb": S, "args": S}, ["deck"])),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
