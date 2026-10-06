@@ -10,7 +10,8 @@ command logged. The limits are here, in code, and covered by tools/test-shell.py
    refused) and KUBECONFIG (VECTOR's own `vector-operator` kubeconfig; the operator's
    admin kubeconfig is $HOMELAB_ADMIN_KUBECONFIG, for when that isn't enough). `vault`, `gcloud secrets`, `kubectl … secret(s)`
    (get, describe, -o yaml/json, edit), `kubectl exec` that prints a pod's environment or
-   its mounted ServiceAccount/secret files, Vault's HTTP API, `ansible-vault`,
+   its mounted ServiceAccount/secret files, minting ServiceAccount tokens, changing RBAC
+   (that goes through homelab GitOps), Vault's HTTP API, `ansible-vault`,
    `ansible-inventory` and ad-hoc `ansible -m debug` (they print vars, secrets.yml
    included), and any read of known secret paths (~/.vault-token, ~/.ssh private keys, the desktop's
    key and token files, gcloud, kube config, .env files, gnupg, password stores, browser
@@ -238,8 +239,9 @@ def check(command, cwd=HOME):
     for w in list(words):
         words += _script_words(w, cw, 0)
     lowered = [os.path.basename(w).lower() for w in words]
-    for w in lowered:
-        for part in re.split(r"[\s;|&()`$<>]+", w):
+    for w in [x.lower() for x in words]:          # whole words: a quoted remote command keeps its sudo
+        for part in re.split(r"[\s;|&()`$<>'\"]+", w):
+            part = os.path.basename(part)
             if part in PRIV or part.startswith("pkexec") or part.endswith("polkit-agent-helper-1"):
                 raise Refused(f"privilege escalation ({part}) is not allowed")
     for w in lowered:
@@ -255,6 +257,12 @@ def check(command, cwd=HOME):
     if re.search(r"\b(kubectl|kubecolor)\b.*\b(exec|debug|attach|cp)\b", joined) and re.search(
             r"\b(env|printenv|set|declare|export|compgen)\b|/proc/|/run/secrets|/var/run/secrets|serviceaccount|\btoken\b", joined):
         raise Refused("printing a pod's environment or its mounted secrets is not allowed")
+    if re.search(KUBE_TOOLS, joined) and re.search(r"\bcreate\s+token\b|serviceaccounts?/token|--kubeconfig-token", joined):
+        raise Refused("minting a ServiceAccount token prints a secret; not allowed")
+    if re.search(KUBE_TOOLS, joined) and re.search(
+            r"\b(create|edit|patch|apply|replace|set)\b.*\b(clusterrolebindings?|rolebindings?|clusterroles?|roles?)(\b|/)"
+            r"|\bauth\s+reconcile\b|\bcreate\s+(clusterrolebinding|rolebinding|clusterrole|role)\b", joined):
+        raise Refused("changing RBAC from the terminal is not allowed; RBAC changes go through homelab GitOps, reviewed")
     if re.search(r"/run/secrets/|/var/run/secrets/|/etc/rancher/k3s/k3s\.yaml|/var/lib/rancher/k3s/server/(token|cred|tls)", joined):
         raise Refused("that reads cluster credentials")
     if re.search(r"vault\.homelab\.local|x-vault-token|:8200\b|/v1/(secret|sys|auth)/", joined, re.I):

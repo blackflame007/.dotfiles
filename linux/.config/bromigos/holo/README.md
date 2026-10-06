@@ -30,6 +30,7 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 | `tools/voice-demo.py` | Render a tagged reply to a wav exactly as the desktop would speak it |
 | `holo/shimmer.py` | The projector shimmer DSP (band-limit, swept comb, quiet ring mod, tiny room), streamable, one knob per voice; and the dial scratch between voices |
 | `holo/pilot/` | Compatibility alias for older callers (`holo.pilot.voice` is `holo.vector.voice`) |
+| `holo/vector/act.py`, `vault.py`, `events.py`, `skills.py` | Act tools (cluster, Argo, CI, kb notes), Vault wiring, the event feed, the skills loader and router |
 | `holo/vector/history.py` | Conversation history from `vector-chat.log`: sessions, titles, search, the `conversation_history` tool |
 | `tools/kb-sync.py` | Syncs the operator's docs into the Gnosis knowledge base (`kb-*` spaces); nightly via `bromigos-kb-sync.timer` |
 | `tools/offscreen.py` | Headless renders (EGL) for screenshots and tuning (`HISTORY_OPEN=1` renders the console as it looks under the history panel) |
@@ -77,18 +78,36 @@ stage.draw_callouts(holo, (x, y, w, h))            # leader lines + readouts
 holo.end(target_fbo, bg=(0, 0.02, 0, 0.9))       # bloom, composite, overlay
 ```
 
-## VECTOR's limits
+## What VECTOR can do, and his limits
 
-The infrastructure tools in `holo/vector/tools.py` stay **read-only**, and they remain the fast path for the lab, the cluster, ARBITER, GitHub, Gnosis and the docs:
+He does the task he's given, end to end: he says each state-changing step in one line, does it, verifies it (Ready, Synced and Healthy, CI green) and reports. Every call goes to `~/.local/state/bromigos/vector-audit.log`, the conversation to `vector-chat.log`, and his actions to the event feed; all stay local.
 
-- no shell inside them (fixed argv only);
-- cluster reads through the `pilot-readonly` ServiceAccount (no secrets, configmaps or exec);
-- Prometheus GETs, and `gh` read subcommands for bromigos-org;
-- a fixed table of ARBITER console GETs (nothing that trades or arms);
-- Gnosis through the gnosis-gate with narrow tokens;
-- docs under the repo roots, with secret-looking paths refused.
+**Read tools** (`holo/vector/tools.py`, fixed argv): this machine, the Lab, the cluster through `pilot-readonly`, Prometheus, Argo CD, `gh` reads, a fixed table of ARBITER console GETs, Gnosis through the gnosis-gate, the knowledge base, docs, history, the web.
 
-Writes and actions outside the terminal: his own memory, FIELD NOTES, launching an allowlisted app or an http(s) URL, panels, the den wallpaper, the scanner and holograms. Every call goes to `~/.local/state/bromigos/vector-audit.log`, and the conversation to `vector-chat.log`; both stay local. Keys are read from mode-600 files in `~/.local/share/bromigos/` and never logged.
+**Act tools** (`holo/vector/act.py`, fixed argv; each waits for and checks its result):
+
+| Tool | Does |
+|------|------|
+| `k8s_restart`, `k8s_scale` | rollout restart / scale a deployment, statefulset or daemonset, then wait for Ready |
+| `k8s_delete_pod`, `k8s_run_job` | delete one pod; run a Job now from a CronJob's template |
+| `argocd_sync`, `argocd_refresh`, `argocd_wait` | sync, re-read and wait for Synced + Healthy |
+| `ci_watch` | wait for a commit's or branch's GitHub Actions runs (bromigos-org, nolgiainc, blackflame007) |
+| `kb_write` | file a verified note into a `kb-*` knowledge space |
+| `hologram_deck` | open and drive the live layer's holograms |
+
+Cluster actions run as the ServiceAccount **`vector-operator`** (homelab `helm/vector`, CLAUDE.md "VECTOR operator access"): edit on workloads; no Secrets, RBAC, tokens, node or namespace writes; admission policies keep him out of the privileged namespaces' pod templates and exec, out of other ServiceAccounts, Secret references, hostPath and privileged pods, off `arbiter-live*`, and limit Argo apps to sync and refresh. Its kubeconfig is `~/.local/share/bromigos/vector-operator-kubeconfig` (mode 600; Vault `secret/<vault-path>`).
+
+**Vault** (`holo/vector/vault.py`, AppRole `vector`, homelab CLAUDE.md "VECTOR and Vault"): he wires secrets and never sees them.
+
+- `vault_list` gives folder entries or a secret's key **names**.
+- `vault_put` stores one key with patch semantics, the value either generated in the tool (length, charset) or typed by the operator in a local dialog (`operator_prompt`, zenity).
+- `vault_copy` moves a value Vault to Vault.
+- None returns a value; the audit log and the event feed get path, key and operation only. An app gets its secret through an ExternalSecret he writes in homelab GitOps.
+- Vault's own policy denies `homelab/arbiter*` (real money), `homelab/entitlements`, his own credentials and every policy, auth, mount and token path, whatever the tool does. The `vault` CLI and Vault's API stay refused in his terminal, even though `~/.vault-token` exists.
+
+ARBITER stays read only: there is no paper-side write API, and nudges are the operator's, behind his sign-in.
+
+**Tests.** `tools/test-shell.py` (the terminal's original limits) and `tools/test-act.py` (everything above; `--live` also proves the cluster and Vault deny on their own, bypassing his code, does a real restart of searxng, an Argo refresh and a scratch-branch push, and shows a stored Vault value is absent from the tool results, the chat, shell, audit and sensitive logs and the event feed). Run both with the brain venv's python.
 
 ## Knowledge base
 
@@ -136,20 +155,37 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
 
 `run_shell` (`holo/vector/shell.py`) runs bash on the workstation **as the operator's user, with no approval step**. VECTOR says in one line what he is about to run before anything that changes state, then summarises the result.
 
-**Limits, enforced in code and covered by `tools/test-shell.py`** (45 refusal cases and 7 allowed actions; run it with the brain venv's python):
+**What it carries** (the operator's decision, 2026-10-05: like the bromigo Hermes agent's cluster-admin):
 
-1. **No privilege escalation.** sudo, su, doas, pkexec, run0, systemd-run, machinectl and polkit helpers are refused anywhere in the command: in pipes, `$(…)`, backticks, `sh -c '…'`, `eval`, and the text of a script the command runs. The command is parsed with bashlex; if it can't be parsed, it's refused.
-2. **No secrets.**
-   - The shell's environment is scrubbed of tokens, keys, secrets, passwords, Vault, cloud, GitHub and the SSH agent.
-   - Refused: `vault`, `pass`, `gpg`, `gcloud secrets`, `kubectl`/`helm` on secrets, and reading `/proc/*/environ`.
-   - Refused paths: `~/.vault-token`, `~/.ssh` (except `.pub`, `known_hosts`, `config`), `~/.local/share/bromigos/`, gcloud, kube, aws, docker and gh credentials, `.env*`, gnupg, password stores, keyrings, browser profiles, solana wallets, and secret-looking files.
+- `KUBECONFIG` is his own `vector-operator` kubeconfig; the operator's admin kubeconfig is `$HOMELAB_ADMIN_KUBECONFIG` (homelab `ansible/kubeconfig.yml`, `--context default`), for when his account isn't enough. He says when he uses it.
+- `ansible-playbook` and SSH to the homelab machines (users are in the homelab inventory, e.g. `redacted`).
+- Git over SSH: a non-prompting agent socket (the session's or OpenSSH's, never GCR's, which asks for confirmation and holds a hardware key that waits for a touch) or the operator's key file, which ssh reads itself; `GIT_SSH_COMMAND` runs in batch mode so nothing hangs on a prompt.
+
+**Limits, in code** (`tools/test-shell.py` and `tools/test-act.py`). With admin credentials allowed, these content refusals are the main line of defence; they are best-effort and kept tight:
+
+1. **No privilege escalation.** sudo, su, doas, pkexec, run0, systemd-run, machinectl and polkit helpers are refused anywhere in the command, including a remote command over SSH: in pipes, `$(…)`, backticks, `sh -c '…'`, `eval`, quoted strings, and the text of a script the command runs. The command is parsed with bashlex; if it can't be parsed, it's refused.
+2. **No secret values.**
+   - The environment is scrubbed of tokens, keys, secrets, passwords, Vault, cloud and GitHub credentials; only the SSH agent socket and the kubeconfig paths pass.
+   - Refused: `vault` (CLI) and Vault's HTTP API, `pass`, `gpg`, `gcloud secrets`; Kubernetes secrets in any form (get, describe, `-o yaml/json`, `get all -o …`), a pod's environment or mounted tokens through exec, minting ServiceAccount tokens, k3s credentials on the nodes; `ansible-vault`, `ansible-inventory` and ad-hoc `ansible -m debug` (they print vars, `secrets.yml` included) and `ansible-playbook -vv` or more; `/proc/*/environ`.
+   - Refused paths: `~/.vault-token`, `~/.ssh` (except `.pub`, `known_hosts`, `config`), `~/.local/share/bromigos/`, gcloud, kube, aws, docker and gh credentials, `.env*`, gnupg, password stores, keyrings, browser profiles, solana wallets, and secret-looking files (homelab `secrets.yml` included).
    - Output is redacted (private keys, GitHub, Vault and API tokens, JWTs, `key=value` secrets, Authorization headers) before it reaches the model, the transcript or the log.
-3. **No real money.** Refused: Alpaca live (the paper API is fine), Kalshi, Polymarket and Coinbase order endpoints, ARBITER `/api/live` and arm routes, fund transfers (solana, spl-token, cast) and anything naming wallets or private keys.
-4. **Operation.**
+3. **No RBAC changes** from the terminal (create, edit, patch or apply of roles and bindings, `auth reconcile`): those go through homelab GitOps.
+4. **No real money.** Refused: Alpaca live (the paper API is fine), Kalshi, Polymarket and Coinbase order endpoints, ARBITER `/api/live` (arm, intents, everything) and `/api/intents`, the `arbiter-live` workload under either kubeconfig, `LIVE_OPERATORS` anywhere, fund transfers (solana, spl-token, cast), anything naming wallets or private keys, and a `git push` whose unpushed commits touch ARBITER's real-money code (`engine/internal/live`, venue executors, `evmswap`, `cmd/live|golive|cdp-policy`, live migrations, the live and wallet console pages) or homelab `helm/arbiter/templates/live.yaml`. The operator pushes those himself.
+5. **Sensitive playbooks.** An `ansible-playbook` whose playbook (or its roles' tasks) mentions Vault, ARBITER, venues, wallets or secrets is announced aloud in the notify voice before it runs and logged to `~/.local/state/bromigos/vector-sensitive.log`.
+6. **Operation.**
    - Each command runs in a new session (setsid). The timeout defaults to 60 s; he may ask for up to 600 s. The working directory defaults to `~`. Output is capped at 512 KB, and the model sees at most 6,000 characters (head and tail).
    - While a command runs, the panel shows the live command line with a ■ STOP button. STOP, a barge-in or interrupting the turn kills the whole process group.
    - Kill switch: `bromigos-holo shell off` (also the `shell_off` tool, which VECTOR can use but can never reverse). `bromigos-holo shell on` turns it back on, and `bromigos-holo shell stop` stops the running command.
-5. **Audit.** Every command and every refusal goes to `~/.local/state/bromigos/vector-shell.log` (time, cwd, the redacted command, exit code, duration, output size, or the refusal reason). The transcript shows `$ git status · exit 0`.
+7. **Audit.** Every command and every refusal goes to `~/.local/state/bromigos/vector-shell.log` (time, cwd, the redacted command, exit code, duration, output size, or the refusal reason). The transcript shows `$ git status · exit 0`. A successful `git push` also goes on the event feed (`git.push`).
+
+## Skills
+
+His know-how for kinds of work lives in **`~/.config/bromigos/skills/`** (dotfiles `linux/.config/bromigos/skills/`), one shared directory for everyone who writes them. A skill is Markdown with frontmatter (`name`, `description`, `when_to_use`), flat (`<name>.md`) or `<name>/SKILL.md`.
+
+- `holo/vector/skills.py` turns each into a deferred Pydantic AI capability: the model sees the catalog and can load one with `load_capability`.
+- The models rarely do that by themselves, so a **router** also attaches what a question needs. The question and each skill's description are embedded with the local model; a skill's score is taken against its own baseline (its mean over a few neutral questions, since hub skills like data-sources resemble everything); up to two that clear the margin (0.12, or a clear single winner at 0.08) go into that turn's instructions. Small talk attaches nothing.
+- The catalog is re-read when the directory changes, so a new skill is live on the next question. Loads are in the chat log (`role: skill`) and on the event feed (`skill.load`).
+- Skills today: `homelab-ops` (this stage), and the live layer's `hologram-build`, `live-layer-animation`, `desktop-style-guide` and `data-sources`.
 
 ## Voice
 
