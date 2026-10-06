@@ -33,7 +33,7 @@ WHAT KIND OF THING IT IS
 - A widget, panel, gauge or readout is a widget plugin (make-widget skill).
 - A background effect or animation is a shader layer (live-shader-layer skill); a new summoned view is a deck plugin.
 - Changing something that exists is update-visualization.
-Never edit a core file to register something new: the plugin folders and the model folder are picked up by themselves.
+Never edit a core file to register something new: the plugin folders and the model folder are picked up by themselves. One-off helper scripts live in /tmp, never in the repo; make-holo.py already writes the manifest in its own style.
 
 THE HOST'S RULES (non-negotiable)
 - Every element shows real data or does something; no decorative labels, no fake numbers. Missing data says so.

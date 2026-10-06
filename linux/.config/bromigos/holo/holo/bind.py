@@ -11,12 +11,22 @@ SOURCES = {"workstation": ("local",), "wick": ("lab",), "rack": ("lab",), "emble
 
 
 PREFIX_SOURCE = {"ws.": "local", "wick.": "lab", "rack.": "lab", "emb.": "lab", "arb.": "arbiter"}
-KEYS = {  # every reading a part can bind to (a new model's manifest picks from these)
-    "local": ["ws.cpu", "ws.ram", "ws.gpu", "ws.disks", "ws.fans", "ws.net", "ws.power", "ws.host"],
-    "lab": ["rack.nodes", "rack.switch", "rack.storage", "rack.gpu", "rack.power", "rack.frame", "wick.racks",
-            "wick.solar", "wick.hull", "emb.gap", "emb.ring"],
-    "arbiter": ["arb.referee", "arb.research", "arb.positions", "arb.forward", "arb.agents", "arb.portfolio"],
-}
+def _all_keys():
+    """Every reading a part can bind to, read from this file's own handlers (so the list can't
+    drift from what reading() answers): local (ws.*), lab (wick.*, rack.*, emb.*), arbiter (arb.*)."""
+    import os
+    import re as _re
+    src = open(os.path.abspath(__file__)).read()
+    found = set()
+    for m in _re.finditer(r'key\s*(?:==|in)\s*(\([^)]*\)|"[a-z]+\.[a-z_]+")', src):
+        found.update(_re.findall(r'"([a-z]+\.[a-z_]+)"', m.group(1)))
+    out = {"local": [], "lab": [], "arbiter": []}
+    for k in sorted(found):
+        out[PREFIX_SOURCE.get(k.split(".")[0] + ".", "lab")].append(k)
+    return out
+
+
+KEYS = _all_keys()
 
 
 def sources(name, parts=None):

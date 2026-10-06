@@ -27,16 +27,53 @@ BIND_KEYS = None
 
 
 def bind_keys():
-    """The reading keys the holo renderer knows (holo/holo/bind.py KEYS), read without importing it."""
-    import ast
+    """The reading keys the holo renderer answers (the handlers in holo/holo/bind.py), read
+    from its source without importing it."""
+    import re
     p = os.path.join(os.path.dirname(os.path.dirname(ROOT)), "holo", "holo", "bind.py")
     if not os.path.exists(p):
         p = os.path.expanduser("~/.config/bromigos/holo/holo/bind.py")
-    tree = ast.parse(open(p).read())
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == "KEYS":
-            return {k for v in ast.literal_eval(node.value).values() for k in v}
-    return set()
+    src = open(p).read()
+    keys = set()
+    for m in re.finditer(r'key\s*(?:==|in)\s*(\([^)]*\)|"[a-z]+\.[a-z_]+")', src):
+        keys.update(re.findall(r'"([a-z]+\.[a-z_]+)"', m.group(1)))
+    return keys
+
+
+def _entry_text(name, spec):
+    """One manifest entry in the file's own compact style: one part per line."""
+    head = {k: v for k, v in spec.items() if k not in ("parts", "shapes")}
+    lines = [f'  {json.dumps(name)}: {{']
+    for k, v in head.items():
+        lines.append(f'   {json.dumps(k)}: {json.dumps(v)},')
+    lines.append('   "parts": [')
+    lines += [f'    {json.dumps(p)}' + ("," if i < len(spec["parts"]) - 1 else "") for i, p in enumerate(spec["parts"])]
+    if "shapes" in spec:
+        lines.append('   ],')
+        lines.append('   "shapes": [')
+        lines += [f'    {json.dumps(x)}' + ("," if i < len(spec["shapes"]) - 1 else "") for i, x in enumerate(spec["shapes"])]
+    lines.append('   ]')
+    lines.append('  }')
+    return "\n".join(lines)
+
+
+def write_manifest(man_path, name, spec):
+    """Add or replace one model without reformatting the rest of the file (its comment and
+    layout stay as they are); falls back to a full rewrite only if the text can't be spliced."""
+    text = open(man_path).read()
+    man = json.loads(text)
+    entry = _entry_text(name, spec)
+    if name not in man["models"]:
+        i = text.index('"models"')
+        j = text.index("{", i) + 1
+        new = text[:j] + "\n" + entry + ("," if man["models"] else "") + text[j:]
+    else:
+        man["models"][name] = spec
+        new = json.dumps(man, indent=1) + "\n"
+    if json.loads(new)["models"][name] != json.loads(json.dumps(spec)):
+        raise ValueError("manifest splice didn't round-trip")
+    with open(man_path, "w") as f:
+        f.write(new)
 
 
 def check(name, spec):
@@ -109,9 +146,7 @@ def main():
     except Exception as e:
         print(json.dumps({"ok": False, "errors": [f"bake failed: {type(e).__name__}: {e}"]}))
         sys.exit(1)
-    with open(man_path, "w") as f:
-        json.dump(man, f, indent=1)
-        f.write("\n")
+    write_manifest(man_path, name, spec)
     import numpy
     d = numpy.load(os.path.join(ROOT, "holo", f"{name}.holo.npz"))
     meta = json.loads(bytes(d["meta"]).decode())

@@ -55,10 +55,12 @@ attached parts need their own coordinates computed (rotate the offset yourself).
   `holo/holo/bind.py` KEYS, or "" for pure structure:
   - this machine: `ws.cpu ws.ram ws.gpu ws.disks ws.fans ws.net ws.power ws.host`;
   - the lab: `rack.nodes rack.switch rack.storage rack.gpu rack.power rack.frame
-    wick.racks wick.solar wick.hull emb.gap emb.ring`;
+    wick.racks wick.solar wick.hull wick.wan wick.lan wick.beam wick.vault emb.gap
+    emb.ring emb.flame emb.mast` (WAN rates, LAN clients and ISP latency, the relay beam,
+    the NAS pool);
   - ARBITER (read only): `arb.referee arb.research arb.positions arb.forward arb.agents
     arb.portfolio`.
-  Bind what fits the part (a dish to the network, a solar panel to the solar array).
+  Bind what fits the part (a dish to the WAN, a solar panel to the solar array). The full list is `bind.KEYS`, read from the handlers in `bind.py`.
   make-holo refuses unknown binds and missing hints.
 - `explode`: the direction a part leaves when the model is exploded (away from the
   centre), `distance` 0.2-0.45. One part may be `"rest": true`.
