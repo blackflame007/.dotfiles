@@ -148,7 +148,7 @@ def sources():
         kb = subprocess.run([sys.executable, os.path.join(dot, "linux/.config/bromigos/widgets/keybinds.py")],
                             capture_output=True, text=True, timeout=20).stdout
         if kb.strip():
-            spaces["kb-desktop"].append(("dotfiles", dot, "keybinds (live, from hyprland.conf)", "# Keybinds\n\n" + kb))
+            spaces["kb-desktop"].append(("dotfiles", dot, "keybinds (live, from the Hyprland config)", "# Keybinds\n\n" + kb))
     except Exception:
         pass
     return spaces

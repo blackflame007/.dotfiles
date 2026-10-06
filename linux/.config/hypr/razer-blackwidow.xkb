@@ -1,4 +1,4 @@
-// Keymap for the Razer BlackWidow V4 Pro only (hyprland.conf device blocks).
+// Keymap for the Razer BlackWidow V4 Pro only (its hl.device() entries in hyprland.lua).
 // = `xkbcli compile-keymap --options caps:escape` with FK13-FK22 set back to plain
 // F13-F22: the default layout maps them to XF86Tools/XF86Launch5-9/XF86AudioMicMute/
 // touchpad keysyms, so the M1-M5 and side-button binds (F13-F20) never matched and

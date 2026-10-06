@@ -257,7 +257,7 @@ Where each layer may draw:
   ring draws, the flame lights, it turns, "TRANSMISSION INTERCEPTED" and the sign-off
   type on, then a ghost fades. About 4 s plus a 3 s ghost; the ghost phase never takes
   input.
-- **Shows:** a login (`bromigos-live start --login` from Hyprland's exec-once) or an
+- **Shows:** a login (`bromigos-live start --login` from Hyprland's login autostart) or an
   unlock (the daemon's lock watcher, `live/watch.py`).
 - **Code:** `Intercept` in `live/overlays.py` (timings `HOLD`, `TEAR`, `RING`, `FLAME`;
   `CAPTION`, `SIGN`); cues `hiss` and `signoff`.

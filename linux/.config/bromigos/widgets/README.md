@@ -6,7 +6,7 @@ on the BOTTOM layer-shell layer of the monitor in `layout.json`: above the live
 background, below every window.
 
 **Status:** active. One GTK3 process (system Python, GtkLayerShell, Cairo/Pango,
-psutil), started by Hyprland (`exec-once=~/.config/bromigos/widgets/bromigos-widgets`).
+psutil), started by Hyprland at login (the `hyprland.start` autostart in `hypr/hyprland.lua`).
 
 ## Use
 
@@ -29,7 +29,7 @@ in notes (the full table is generated into `AGENTS.md`).
 | `panels.py` | The panels; each draws real readings only, with a tooltip on every region |
 | `sources.py` | Readers: psutil, NVML, temperatures, wifi signal, ping, storage, the Lab API |
 | `draw.py` | Cairo/Pango primitives in the house style (frames, brackets, gauges, bars) |
-| `keybinds.py` | Reads the binds (live from Hyprland, else `hyprland.conf`) for SHORTCUTS and the rofi cheat sheet (`keybinds.py rofi`); its `EXEC` table names every exec bind. `bromigos-docs keys` uses it to generate the table in `AGENTS.md` |
+| `keybinds.py` | Reads the binds for SHORTCUTS and the rofi cheat sheet (`keybinds.py rofi`, Enter runs it): live from Hyprland (the list `hypr/bromigos/keys.lua` keeps, via `hyprctl repl`), else from the Lua config files through `keybinds-dump.lua` (or the old `hyprland.conf` on the rollback); its `EXEC` table names every exec bind. `bromigos-docs keys` uses it to generate the table in `AGENTS.md` |
 
 ## Panels
 

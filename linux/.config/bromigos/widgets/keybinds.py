@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 """The live keybind list, grouped and described, for the SHORTCUTS panel and rofi.
 
-Source: Hyprland's own bind table (`hyprctl binds -j`), which already resolves
-$mainMod and includes every sourced file. If Hyprland can't be asked, the conf
-files are parsed instead (hyprland.conf and anything it `source`s).
+Source: the running Hyprland. With the Lua config (hypr/hyprland.lua) every bind is made
+through hypr/bromigos/keys.lua, which keeps each bind's keys and action; this asks
+Hyprland for that list (`hyprctl repl ... dump()`), because `hyprctl binds -j` alone can't
+name a Lua bind (its dispatcher is "__lua", and a code:N bind shows no key). With the old
+hyprland.conf (the rollback) it reads `hyprctl binds -j` as before. If Hyprland can't be
+asked, the config files are read instead: keybinds-dump.lua runs the Lua config with a
+stand-in Hyprland (or the .conf is parsed when there is no hyprland.lua).
+
+A bind's action is (kind, payload, old): kind "exec" with a shell command, or "lua" with
+dispatcher source (e.g. 'hl.dsp.window.close()'); old is the (dispatcher, arg) of a bind
+read from the old format, so it still runs there. run() runs one.
 
   keybinds.py            print the grouped list
   keybinds.py rofi       searchable cheat sheet; Enter runs the selected bind
@@ -15,10 +23,13 @@ import re
 import subprocess
 import sys
 
-MOD = "ALT"                     # $mainMod in hyprland.conf
+MOD = "ALT"                     # mainMod in hypr/bromigos/binds.lua ($mainMod in the old .conf)
+HYPRCTL = "/usr/bin/hyprctl"
+HYPR = os.path.expanduser("~/.config/hypr")
+DUMP = os.path.join(os.path.dirname(os.path.realpath(__file__)), "keybinds-dump.lua")
 # Display order. The Bromigos pieces come first, grouped by what they're for; the
 # stock window-manager binds follow. Within a section, rows follow the order of the
-# EXEC / DISPATCH tables below (not the order in hyprland.conf).
+# EXEC / DISPATCH tables below (not the order in the config).
 SECTIONS = ["VECTOR", "HOLOGRAMS", "PANELS + NOTES", "LIVE LAYER",
             "LAUNCH", "CAPTURE", "WINDOWS", "WORKSPACES", "MEDIA", "SYSTEM"]
 BROMIGOS = SECTIONS[:4]
@@ -108,20 +119,28 @@ EXEC = [
     (r"SIGUSR1 waybar", "Show / hide bar", "SYSTEM"),
 ]
 
+# Dispatcher binds, keyed by their Lua source with the spaces taken out.
 DISPATCH = {
-    ("killactive", ""): ("Close window", "WINDOWS"),
-    ("fullscreen", "1"): ("Maximize", "WINDOWS"),
-    ("fullscreen", "0"): ("Fullscreen", "WINDOWS"),
-    ("togglefloating", ""): ("Float / tile window", "WINDOWS"),
-    ("layoutmsg", "swapwithmaster"): ("Swap with master", "WINDOWS"),
-    ("layoutmsg", "cyclenext"): ("Next window", "WINDOWS"),
-    ("layoutmsg", "cycleprev"): ("Previous window", "WINDOWS"),
-    ("mouse", "movewindow"): ("Move window", "WINDOWS"),
-    ("mouse", "resizewindow"): ("Resize window", "WINDOWS"),
-    ("togglespecialworkspace", ""): ("Scratchpad", "WORKSPACES"),
-    ("movetoworkspace", "special"): ("Send window to scratchpad", "WORKSPACES"),
-    ("exit", ""): ("Quit Hyprland", "SYSTEM"),
+    "hl.dsp.window.close()": ("Close window", "WINDOWS"),
+    'hl.dsp.window.fullscreen({mode="maximized"})': ("Maximize", "WINDOWS"),
+    'hl.dsp.window.fullscreen({mode="fullscreen"})': ("Fullscreen", "WINDOWS"),
+    "hl.dsp.window.float()": ("Float / tile window", "WINDOWS"),
+    'hl.dsp.layout("swapwithmaster")': ("Swap with master", "WINDOWS"),
+    'hl.dsp.layout("cyclenext")': ("Next window", "WINDOWS"),
+    'hl.dsp.layout("cycleprev")': ("Previous window", "WINDOWS"),
+    "hl.dsp.window.drag()": ("Move window", "WINDOWS"),
+    "hl.dsp.window.resize()": ("Resize window", "WINDOWS"),
+    "hl.dsp.workspace.toggle_special()": ("Scratchpad", "WORKSPACES"),
+    'hl.dsp.window.move({workspace="special"})': ("Send window to scratchpad", "WORKSPACES"),
+    "hl.dsp.exit()": ("Quit Hyprland", "SYSTEM"),
 }
+MOUSE = {"hl.dsp.window.drag()", "hl.dsp.window.resize()"}    # drag binds: never run from a click
+_FOCUS_DIR = re.compile(r'hl\.dsp\.focus\(\{direction="(\w+)"\}\)$')
+_MOVE_DIR = re.compile(r'hl\.dsp\.window\.move\(\{direction="(\w+)"\}\)$')
+_RESIZE = re.compile(r"hl\.dsp\.window\.resize\(\{x=(-?[\d.]+),")
+_WS_GO = re.compile(r'hl\.dsp\.focus\(\{workspace="?([^,"}]+)"?\}\)$')
+_WS_MOVE = re.compile(r'hl\.dsp\.window\.move\(\{workspace="?([^,"}]+)"?(,follow=(true|false))?\}\)$')
+_FOCUS_MON = re.compile(r"hl\.dsp\.focus\(\{monitor=")
 DIRS = {"l": "left", "r": "right", "u": "up", "d": "down"}
 # Inputs handled outside Hyprland's bind table (so `hyprctl binds` can't list them):
 # (section, keys, description, rank). The dial is read by bromigos-knob.
@@ -130,20 +149,72 @@ _DRANK = {k: len(EXEC) + i for i, k in enumerate(DISPATCH)}
 
 
 # ------------------------------------------------------------------ sources
-def _hypr_binds():
+# Each source returns [(mods, key, action)]; the key-up (release) halves of hold binds are
+# left out.
+def _sig():
     sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
-    if not sig:
-        try:
-            d = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr")
-            sig = sorted(os.listdir(d), key=lambda n: os.path.getmtime(os.path.join(d, n)))[-1]
-        except (OSError, IndexError):
-            return None
-    try:
-        out = subprocess.run(["/usr/bin/hyprctl", "-i", "0", "binds", "-j"], capture_output=True, text=True,
-                             timeout=2, env={**os.environ, "HYPRLAND_INSTANCE_SIGNATURE": sig}).stdout
-        raw = json.loads(out)
-    except (OSError, ValueError, subprocess.TimeoutExpired):
+    d = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "hypr")
+    if sig and os.path.exists(os.path.join(d, sig, ".socket.sock")):
+        return sig
+    try:      # the variable can be stale (Hyprland restarted): the newest live instance
+        live = [n for n in os.listdir(d) if os.path.exists(os.path.join(d, n, ".socket.sock"))]
+        return max(live, key=lambda n: os.path.getmtime(os.path.join(d, n)))
+    except (OSError, ValueError):
         return None
+
+
+def _hyprctl_env():
+    sig = _sig()
+    return {**os.environ, "HYPRLAND_INSTANCE_SIGNATURE": sig} if sig else None
+
+
+def _hyprctl(*args, timeout=2):
+    env = _hyprctl_env()
+    if not env:
+        return None
+    try:
+        return subprocess.run([HYPRCTL, *args], capture_output=True, text=True, timeout=timeout, env=env).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def _split_keys(keys):
+    """'SUPER + SHIFT + K' -> (["SUPER", "SHIFT"], "K"), the mods in the panel's order."""
+    parts = [p.strip() for p in keys.split("+") if p.strip()]
+    alias = {"WIN": "SUPER", "LOGO": "SUPER", "MOD4": "SUPER", "META": "SUPER", "MOD1": "ALT", "CONTROL": "CTRL"}
+    order = ["SUPER", MOD, "CTRL", "SHIFT"]
+    mods = {alias.get(p.upper(), p.upper()) for p in parts[:-1]}
+    return [m for m in order if m in mods] + sorted(mods - set(order)), (parts[-1] if parts else "")
+
+
+def _parse_dump(text):
+    """keys.lua's dump(): release, mouse, keys, kind, payload per line. None if it isn't one."""
+    binds = []
+    for line in (text or "").splitlines():
+        f = line.split("\t", 4)
+        if len(f) != 5 or f[0] not in ("0", "1") or f[3] not in ("exec", "lua"):
+            return None
+        if f[0] == "1":                         # the key-up half of a hold bind
+            continue
+        payload = re.sub(r"\\([\\tn])", lambda m: {"\\": "\\", "t": "\t", "n": "\n"}[m.group(1)], f[4])
+        mods, key = _split_keys(f[2])
+        binds.append((mods, key, (f[3], payload, None)))
+    return binds or None
+
+
+def _lua_live():
+    out = _hyprctl("repl", 'return package.loaded["bromigos.keys"].dump()')
+    return _parse_dump(out)
+
+
+def _legacy_live():
+    """The old format: Hyprland's own table (`hyprctl binds -j`) names every bind."""
+    try:
+        raw = json.loads(_hyprctl("binds", "-j") or "")
+    except ValueError:
+        return None
+    if any(b.get("dispatcher") == "__lua" for b in raw):
+        return None                             # Lua binds: only keys.lua's list names them
     binds = []
     for b in raw:
         mm = b.get("modmask", 0)
@@ -151,11 +222,35 @@ def _hypr_binds():
         if b.get("release"):                   # the key-up half of a hold bind
             continue
         key = b["key"] or (f"code:{b['keycode']}" if b.get("keycode") else "")   # keycode binds (code:N)
-        binds.append((mods, key, b["dispatcher"], b.get("arg", "")))
+        binds.append((mods, key, _from_legacy(b["dispatcher"], b.get("arg", ""))))
     return binds
 
 
-def _conf_binds(path=os.path.expanduser("~/.config/hypr/hyprland.conf"), seen=None):
+def _hypr_binds():
+    return _lua_live() or _legacy_live()
+
+
+def _lua_binds(path=os.path.join(HYPR, "hyprland.lua")):
+    """The Lua config's binds, read from its files (no Hyprland needed). None without one."""
+    if not os.path.exists(path):
+        return None
+    try:
+        out = subprocess.run(["lua", DUMP, path], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return _parse_dump(out)
+
+
+def _file_binds():
+    """Hyprland's own choice of file: hyprland.lua if it exists, else hyprland.conf."""
+    lua = _lua_binds()
+    if lua is not None:
+        return lua
+    return [(mods, key, _from_legacy(disp, arg)) for mods, key, disp, arg in _conf_binds()]
+
+
+def _conf_binds(path=os.path.join(HYPR, "hyprland.conf"), seen=None):
+    """The old format, parsed: [(mods, key, dispatcher, arg)]; bindm rows are ("mouse", arg)."""
     seen = seen or set()
     path = os.path.realpath(path)
     if path in seen or not os.path.exists(path):
@@ -191,62 +286,118 @@ def _conf_binds(path=os.path.expanduser("~/.config/hypr/hyprland.conf"), seen=No
     return binds
 
 
+# ------------------------------------------------------------------ old format -> Lua
+def _lua_str(s):
+    """A Lua string literal for any text (bytes outside a safe set become decimal \\ddd escapes)."""
+    safe = set(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_./:~@%+=,")
+    return '"' + "".join(chr(b) if b in safe else f"\\{b:03d}" for b in s.encode()) + '"'
+
+
+def _lua_ws(a):
+    a = a.strip()
+    return a if a.isdigit() else _lua_str(a)
+
+
+_LEGACY = {   # old dispatcher -> its Lua source (the ones these configs used)
+    "killactive": lambda a: "hl.dsp.window.close()",
+    "fullscreen": lambda a: 'hl.dsp.window.fullscreen({ mode = "%s" })' % ("maximized" if a.strip() == "1" else "fullscreen"),
+    "togglefloating": lambda a: "hl.dsp.window.float()",
+    "layoutmsg": lambda a: f"hl.dsp.layout({_lua_str(a.strip())})",
+    "exit": lambda a: "hl.dsp.exit()",
+    "togglespecialworkspace": lambda a: f"hl.dsp.workspace.toggle_special({_lua_str(a.strip()) if a.strip() else ''})",
+    "movetoworkspace": lambda a: f"hl.dsp.window.move({{ workspace = {_lua_ws(a)} }})",
+    "movetoworkspacesilent": lambda a: f"hl.dsp.window.move({{ workspace = {_lua_ws(a)}, follow = false }})",
+    "workspace": lambda a: f"hl.dsp.focus({{ workspace = {_lua_ws(a)} }})",
+    "focusmonitor": lambda a: f"hl.dsp.focus({{ monitor = {_lua_str(a.strip())} }})",
+    "movefocus": lambda a: f'hl.dsp.focus({{ direction = "{DIRS.get(a.strip(), a.strip())}" }})',
+    "movewindow": lambda a: f'hl.dsp.window.move({{ direction = "{DIRS.get(a.strip(), a.strip())}" }})',
+    "resizeactive": lambda a: "hl.dsp.window.resize({{ x = {}, y = {}, relative = true }})".format(*(a.split() + ["0", "0"])[:2]),
+}
+
+
+def _from_legacy(disp, arg):
+    """An old-format bind's action; its (dispatcher, arg) stays with it so it runs there."""
+    if disp == "exec":
+        return ("exec", arg, (disp, arg))
+    if disp == "mouse":                         # bindm: drag to move / resize
+        return ("lua", "hl.dsp.window.drag()" if arg == "movewindow" else "hl.dsp.window.resize()", None)
+    f = _LEGACY.get(disp)
+    return ("lua", f(arg) if f else f"{disp} {arg}".strip(), (disp, arg))
+
+
 # ------------------------------------------------------------------ describe
 def keyname(k):
     u = k.upper()
     return KEYNAMES.get(u, u)
 
 
-def describe(disp, arg):
+def _norm(source):
+    return re.sub(r"\s+", "", source)
+
+
+def describe(action):
     """(description, section, rank) — rank orders rows inside a section."""
-    if disp == "exec":
+    kind, payload = action[0], action[1]
+    if kind == "exec":
         for i, (pat, desc, sec) in enumerate(EXEC):
-            m = re.search(pat, arg)
+            m = re.search(pat, payload)
             if m:
                 return (desc(m) if callable(desc) else desc), sec, i
-        return (os.path.basename(arg.split()[0]) if arg else "Run"), "LAUNCH", 999
-    if (disp, arg) in DISPATCH:
-        return DISPATCH[(disp, arg)] + (_DRANK[(disp, arg)],)
+        return (os.path.basename(payload.split()[0]) if payload.strip() else "Run"), "LAUNCH", 999
+    src = _norm(payload)
+    if src in DISPATCH:
+        return DISPATCH[src] + (_DRANK[src],)
     n = len(EXEC) + len(DISPATCH)
-    if disp == "movefocus":
-        return f"Focus {DIRS.get(arg, arg)}", "WINDOWS", n
-    if disp == "movewindow":
-        return f"Move window {DIRS.get(arg, arg)}", "WINDOWS", n + 1
-    if disp == "resizeactive":
-        return ("Narrower" if arg.strip().startswith("-") else "Wider"), "WINDOWS", n + 2
-    if disp.startswith("workspace") or disp.startswith("movetoworkspace") or disp == "focusmonitor":
-        return f"{disp} {arg}".strip(), "WORKSPACES", n + 3
-    return f"{disp} {arg}".strip(), "SYSTEM", n + 4
+    m = _FOCUS_DIR.match(src)
+    if m:
+        return f"Focus {DIRS.get(m.group(1), m.group(1))}", "WINDOWS", n
+    m = _MOVE_DIR.match(src)
+    if m:
+        return f"Move window {DIRS.get(m.group(1), m.group(1))}", "WINDOWS", n + 1
+    m = _RESIZE.match(src)
+    if m:
+        return ("Narrower" if m.group(1).startswith("-") else "Wider"), "WINDOWS", n + 2
+    m = _WS_GO.match(src)
+    if m:
+        return f"Go to workspace {m.group(1)}", "WORKSPACES", n + 3
+    m = _WS_MOVE.match(src)
+    if m:
+        return f"Move window to workspace {m.group(1)}", "WORKSPACES", n + 3
+    if _FOCUS_MON.match(src):
+        return payload, "WORKSPACES", n + 3
+    return payload, "SYSTEM", n + 4
 
 
 def shortcuts():
-    """[(section, keys list, description, (dispatcher, arg) or None)] in display order."""
-    binds = _hypr_binds() or _conf_binds()
+    """[(section, keys list, description, action or None)] in display order."""
+    binds = _hypr_binds() or _file_binds()
     by_combo, order = {}, []
-    for mods, key, disp, arg in binds:
+    for mods, key, action in binds:
         combo = (tuple(mods), key.upper())
-        if disp == "focusmonitor" and combo in by_combo:
+        focus_mon = action[0] == "lua" and _FOCUS_MON.match(_norm(action[1]))
+        if focus_mon and combo in by_combo:
             continue
         if combo not in by_combo:
             order.append(combo)
-        if disp == "focusmonitor":               # paired with a workspace bind on the same key
-            by_combo.setdefault(combo, (mods, key, disp, arg))
+        if focus_mon:                           # paired with a workspace bind on the same key
+            by_combo.setdefault(combo, (mods, key, action))
         else:
-            by_combo[combo] = (mods, key, disp, arg)
+            by_combo[combo] = (mods, key, action)
     out, ws_go, ws_move = [], [], []
     for combo in order:
-        mods, key, disp, arg = by_combo[combo]
-        if key.isdigit() and disp == "workspace":
+        mods, key, action = by_combo[combo]
+        src = _norm(action[1]) if action[0] == "lua" else ""
+        if key.isdigit() and _WS_GO.match(src):
             ws_go.append((mods, key))
             continue
-        if key.isdigit() and disp in ("movetoworkspace", "movetoworkspacesilent"):
+        if key.isdigit() and _WS_MOVE.match(src):
             ws_move.append((mods, key))
             continue
-        if disp == "focusmonitor":
+        if _FOCUS_MON.match(src):
             continue
-        desc, sec, rank = describe(disp, arg)
+        desc, sec, rank = describe(action)
         hold = "hold" in desc                   # press-and-hold binds can't be run from a click
-        out.append((sec, mods + [keyname(key)], desc, None if disp == "mouse" or hold else (disp, arg), rank))
+        out.append((sec, mods + [keyname(key)], desc, None if src in MOUSE or hold else action, rank))
     for group, desc in ((ws_go, "Go to workspace"), (ws_move, "Move window to workspace")):
         if group:
             keys = [k for _, k in group]
@@ -255,7 +406,7 @@ def shortcuts():
     for sec, keys, desc, rank in EXTRA:
         if os.path.exists(os.path.expanduser("~/.config/systemd/user/bromigos-knob.service")):
             out.append((sec, keys, desc, None, rank))
-    out.sort(key=lambda s: (SECTIONS.index(s[0]) if s[0] in SECTIONS else 99, s[4]))   # stable: ties keep conf order
+    out.sort(key=lambda s: (SECTIONS.index(s[0]) if s[0] in SECTIONS else 99, s[4]))   # stable: ties keep config order
     merged, seen = [], {}
     for sec, keys, desc, action, _ in out:     # two binds, one job (ALT+C and ALT+SHIFT+C both close)
         if (sec, desc) in seen:
@@ -278,8 +429,23 @@ def _macro(keys):
 
 
 def config_mtime():
-    paths = glob.glob(os.path.expanduser("~/.config/hypr/*.conf"))
-    return max((os.path.getmtime(p) for p in paths), default=0)
+    paths = glob.glob(os.path.join(HYPR, "*.conf")) + glob.glob(os.path.join(HYPR, "**", "*.lua"), recursive=True)
+    return max((os.path.getmtime(p) for p in paths if os.path.exists(p)), default=0)
+
+
+def run(action):
+    """Run a bind's action in Hyprland (detached): the Lua dispatcher, or the old form
+    when the bind came from the old format."""
+    kind, payload, old = action
+    if old:
+        args = ["dispatch", *old]
+    elif kind == "exec":
+        args = ["dispatch", f"hl.dsp.exec_cmd({_lua_str(payload)})"]
+    else:
+        args = ["dispatch", payload]
+    env = _hyprctl_env()
+    if env:
+        subprocess.Popen([HYPRCTL, *args], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
 
 
 # ------------------------------------------------------------------ CLI
@@ -295,8 +461,7 @@ def _rofi():
         return
     _, _, _, action = items[int(r.stdout.strip())]
     if action:
-        subprocess.Popen(["/usr/bin/hyprctl", "dispatch", action[0], action[1]],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run(action)
 
 
 if __name__ == "__main__":

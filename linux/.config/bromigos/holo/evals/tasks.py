@@ -592,8 +592,12 @@ def _app_check(ctx, turns):
 
 
 def _app_teardown(ctx):
+    from holo.vector import desk
     for w in _new_monitors(ctx):
-        subprocess.run(["hyprctl", "dispatch", "closewindow", f"address:{w['address']}"], capture_output=True)
+        try:
+            desk.window("close", w["address"])     # its dispatcher works with either config format
+        except Exception:
+            pass
 
 
 def _snaps():

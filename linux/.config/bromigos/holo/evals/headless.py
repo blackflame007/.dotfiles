@@ -93,7 +93,7 @@ _WRITEISH = re.compile("|".join([
     # python -c only when its code writes or runs things (parsing stdin is a read)
     _CMD + r"python3?\b[^|;&]*\s-c\b[\s\S]*(open\([^)]*['\"][wax]|\.write\(|os\.(remove|unlink|system|rename|replace|"
            r"makedirs|mkdir|rmdir|chmod|kill)|subprocess|shutil|rmtree|urlopen\([^)]*data|requests\.(post|put|delete|patch))",
-    _CMD + r"hyprctl\b[^|;&]*\sdispatch\b",
+    _CMD + r"hyprctl\b[^|;&]*\s(dispatch|eval|repl|keyword|reload)\b",     # repl/eval run Lua: any dispatcher
     # a bromigos-* CLI with a verb that isn't a read (status, list, log, show, help)
     _CMD + r"bromigos-[\w-]+[ \t]+(?!(status|list|log|logs|show|help|--help|-h|--list)\b)[\w-]",
     r"\s-delete\b|-exec(?:dir)?\s+(rm|mv|cp|chmod|chown|sed\s+-i)\b",

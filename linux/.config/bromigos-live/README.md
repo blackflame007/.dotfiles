@@ -7,7 +7,7 @@ event, except the atmosphere and the emblem (`config.toml` marks which is which)
 
 **Status:** active. One GTK3 process (`python -m live.app`, system Python with
 GtkLayerShell, PyOpenGL, numpy, psutil), supervised by `bin/bromigos-live`, started from
-Hyprland (`exec-once=… bromigos-live start --login`). Part of the desktop described in
+Hyprland (`bromigos-live start --login` in the `hyprland.start` autostart of `hypr/bromigos/live.lua`). Part of the desktop described in
 `../bromigos/README.md`.
 
 **Every element of the live wallpaper** (what it looks like, what it means, its data,

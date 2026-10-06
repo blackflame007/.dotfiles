@@ -51,7 +51,7 @@ def prom_range(q, minutes, step=60):
         return json.load(r)["data"]["result"]
 
 
-# The daemon starts from Hyprland's exec-once, whose PATH lacks the user's bin dirs
+# The daemon starts from Hyprland's login autostart, whose PATH lacks the user's bin dirs
 # (herdr lives in ~/.local/bin), so bare command names are resolved against them too.
 _USER_BINS = [os.path.expanduser(p) for p in ("~/.local/bin", "~/.cargo/bin")]
 

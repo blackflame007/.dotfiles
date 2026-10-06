@@ -27,11 +27,31 @@ def _run(argv, timeout=10):
     return r.stdout
 
 
-def _hypr(*args):
-    out = _run(["hyprctl", *args]).strip()
-    if out and out != "ok" and not out.startswith(("{", "[")) and "ok" not in out.split():
+def _lua_str(s):
+    """Any text as a Lua string literal: every byte outside a plain set is a \\ddd escape,
+    so a command can't end the string and add Lua of its own."""
+    safe = set(b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_./:~@%+=,")
+    return '"' + "".join(chr(b) if b in safe else f"\\{b:03d}" for b in s.encode()) + '"'
+
+
+def _dispatch(lua, *old):
+    """One Hyprland dispatcher. hyprland.lua takes the Lua form (hl.dsp.*); the old form
+    runs only if Hyprland is back on the old hyprland.conf (it answers the Lua form
+    "Invalid dispatcher")."""
+    out = _run(["hyprctl", "dispatch", lua]).strip()
+    if out == "Invalid dispatcher" and old:
+        out = _run(["hyprctl", "dispatch", *old]).strip()
+    if out != "ok":
         raise RuntimeError(out[:200])
     return out
+
+
+def _exec(command, workspace=None):
+    """Start a command through Hyprland (sh -c), optionally opening on a workspace silently."""
+    w = _ws(workspace)
+    rules = f", {{ workspace = {_lua_str(w + ' silent')} }}" if w else ""
+    return _dispatch(f"hl.dsp.exec_cmd({_lua_str(command)}{rules})",
+                     "exec", (f"[workspace {w} silent] " if w else "") + command)
 
 
 def apps():
@@ -95,12 +115,13 @@ def app_search(query, limit=8):
 
 
 def _ws(workspace):
+    """A checked workspace name ("" for none)."""
     if workspace in (None, ""):
         return ""
     w = str(workspace).strip()
     if not re.fullmatch(r"\d{1,2}|special(:[\w-]+)?|name:[\w-]+", w):
         raise ValueError("workspace: a number, special, or name:<x>")
-    return f"[workspace {w} silent] "
+    return w
 
 
 def launch_app(name, workspace=None):
@@ -113,7 +134,7 @@ def launch_app(name, workspace=None):
     app = hits[0]
     rule = _ws(workspace)
     if rule:
-        _hypr("dispatch", "exec", f"{rule}gtk-launch {shlex.quote(app['id'])}")
+        _exec(f"gtk-launch {shlex.quote(app['id'])}", rule)
     else:
         subprocess.Popen(["gtk-launch", app["id"]], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
@@ -127,7 +148,7 @@ def run_detached(command, workspace=None):
     if not shell.enabled():
         raise PermissionError("the terminal is switched off (bromigos-holo shell on)")
     shell.audit(event="detached", command=command, cwd=HOME)
-    _hypr("dispatch", "exec", f"{_ws(workspace)}{command}")
+    _exec(command, workspace)
     return {"ok": True, "started": command[:200], **({"workspace": workspace} if workspace not in (None, "") else {})}
 
 
@@ -176,13 +197,15 @@ def window(action, target, workspace=None):
     w = _find(target)
     a = f"address:{w['address']}"
     if action == "focus":
-        _hypr("dispatch", "focuswindow", a)
+        _dispatch(f"hl.dsp.focus({{ window = {_lua_str(a)} }})", "focuswindow", a)
     elif action == "close":
-        _hypr("dispatch", "closewindow", a)
+        _dispatch(f"hl.dsp.window.close({{ window = {_lua_str(a)} }})", "closewindow", a)
     elif action == "move":
         if workspace in (None, ""):
             raise ValueError("move needs a workspace")
-        _hypr("dispatch", "movetoworkspacesilent", f"{_ws(workspace)[11:-8]},{a}")
+        ws = _ws(workspace)
+        _dispatch(f"hl.dsp.window.move({{ window = {_lua_str(a)}, workspace = {_lua_str(ws)}, follow = false }})",
+                  "movetoworkspacesilent", f"{ws},{a}")
     else:
         raise ValueError("action: focus, close or move")
     return {"ok": True, "action": action, "window": f"{w['class']} '{w['title'][:50]}'",

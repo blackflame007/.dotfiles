@@ -27,7 +27,7 @@ process the five holograms of October 2026 were built with. Follow it in order.
 | Models | `~/.config/bromigos/brand/3d/holo/*.holo.npz`, plus `bromigos-live/models/starship.holo.npz` |
 | Headless renders | `bromigos-live/tools/offscreen.py` |
 | The one config | `bromigos-live/config.toml` (reloads on save) |
-| Keys | `linux/.config/hypr/hyprland.conf` (the `BROMIGOS LIVE` block) + `widgets/keybinds.py` `EXEC` rows for SHORTCUTS |
+| Keys | `linux/.config/hypr/bromigos/live.lua` (the `BROMIGOS LIVE` block of the Lua config; skill `hyprland-config`) + `widgets/keybinds.py` `EXEC` rows for SHORTCUTS |
 
 The decks are registered by name in `overlays.kind_class()`: a module
 `live/<name>_deck.py` that ends with `DECK = YourDeck` is found automatically for
@@ -264,8 +264,9 @@ whose buttons hand the job to VECTOR (`bromigos-holo ask "…"`).
 
 ## 9. Wire it in and ship it
 
-1. Key: a `bind=` line in the `BROMIGOS LIVE` block of `hyprland.conf` (check free
-   keys first: `hyprctl binds -j`), plus an `EXEC` row in `widgets/keybinds.py`.
-2. Docs: the key table in `~/.dotfiles/AGENTS.md`, verbs in `holo/README.md`.
+1. Key: a `K.exec("SUPER + …", live .. " <deck>")` line in `hypr/bromigos/live.lua`
+   (check free keys first: `hyprctl binds -j`; skill `hyprland-config`), plus an `EXEC`
+   row in `widgets/keybinds.py`.
+2. Docs: the key table in `~/.dotfiles/AGENTS.md` (`bromigos-docs keys`), verbs in `holo/README.md`.
 3. Restart: `bromigos-live restart`.
 4. Commit in reviewable steps with the house style (`Added:` / `Updated:`), and push.

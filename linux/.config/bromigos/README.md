@@ -113,9 +113,15 @@ PNGs), `gtk/build-gtk-theme.py` and `gtk/build-icons-cursor.py` (themes, cursor)
 
 ## Theme
 
-- **Hyprland:** `hypr/hyprland.conf`. Theme edits sit in fenced `BROMIGOS THEME` blocks
-  (VECTOR's and the gallery's binds are in its keybinds block, under a `bromigos-holo`
-  comment) and the live layer's in the `BROMIGOS LIVE` block.
+- **Hyprland:** a Lua config (Hyprland 0.56; the old `.conf` format goes away in 0.57):
+  `hypr/hyprland.lua` (monitors, autostart, env, look, input, layer and window rules, the
+  Razer keymap, workspace→monitor rules) requires `hypr/bromigos/binds.lua` (keybinds) and
+  `hypr/bromigos/live.lua` (the `BROMIGOS LIVE` block); `hypr/bromigos/keys.lua` holds the
+  bind helpers. Theme edits sit in fenced `BROMIGOS THEME` blocks (VECTOR's and the
+  gallery's binds are in the keybinds block of `binds.lua`, under a `bromigos-holo`
+  comment). How to add a bind or rule, and the Lua form of `hyprctl dispatch`:
+  [`skills/hyprland-config.md`](skills/hyprland-config.md). `hypr/hyprland.conf` is kept
+  only as the rollback (see Operations).
 - **Bar** (`waybar/`): HUD modules with icons from the brand kit, GPU and storage scripts,
   VECTOR's pip (`custom/vector`).
 - **Launcher** (`rofi/`): `bromigos.rasi`, a power menu, quick note, and the searchable
@@ -148,7 +154,8 @@ the Lab token, so `snapshot.py` writes `data.js` every minute from
 
 openrazer (the operator is in the `openrazer` group) puts the BlackWidow V4 Pro in
 driver mode, so M1–M5 send F13–F17, the side buttons F18–F20 and the dial press F24.
-`hypr/razer-blackwidow.xkb` keeps those as plain F-keys for the binds (`hypr/hyprland.conf`):
+`hypr/razer-blackwidow.xkb` keeps those as plain F-keys; the binds (`hypr/bromigos/binds.lua`)
+use their keycodes and listen to the Razer only (its devices carry the `razer-blackwidow` tag):
 
 | Key | Action |
 |-----|--------|
@@ -171,7 +178,8 @@ voice colour, amber when he is concerned, red breathing when alarmed, green at r
 | `bromigos-knob.service` | `bin/bromigos-knob` | `systemctl --user status bromigos-knob` |
 | `bromigos-rgb.service` | `bin/bromigos-rgb` | `systemctl --user status bromigos-rgb` |
 
-The daemons themselves start from Hyprland `exec-once` (`waybar`, `dunst`,
+The daemons themselves start from Hyprland's login autostart (`hl.on("hyprland.start", …)`
+in `hypr/hyprland.lua` and `hypr/bromigos/live.lua`: `waybar`, `dunst`,
 `bromigos-wallpaper apply`, `bromigos-widgets`, `bromigos-live start --login`,
 `hypridle`); the holo daemon starts on first use of its key.
 
@@ -179,9 +187,11 @@ The daemons themselves start from Hyprland `exec-once` (`waybar`, `dunst`,
 
 - **Deploy:** edit in `~/.dotfiles`, `stow linux` for new directories, then restart the
   piece: `bromigos-live restart`, `bromigos-holo restart`,
-  `pkill -f bromigos-widgets$ && hyprctl dispatch exec ~/.config/bromigos/widgets/bromigos-widgets`,
-  `hyprctl reload` for binds. There is no CI for the desktop; test headless first
-  (`bromigos-live/tools/offscreen.py`, `holo/tools/offscreen.py`).
+  `pkill -f bromigos-widgets$ && hyprctl dispatch 'hl.dsp.exec_cmd("~/.config/bromigos/widgets/bromigos-widgets")'`;
+  Hyprland reloads by itself when a `hypr/*.lua` file is saved (`hyprctl configerrors` shows
+  mistakes; `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua` checks first). There
+  is no CI for the desktop; test headless first (`bromigos-live/tools/offscreen.py`,
+  `holo/tools/offscreen.py`).
 - **Health:** `bromigos-live status` (mode, target and measured fps, surface mapped or
   missing, every bromigos layer on the monitor), `bromigos-holo status`,
   `hyprctl layers`.
@@ -190,9 +200,16 @@ The daemons themselves start from Hyprland `exec-once` (`waybar`, `dunst`,
     three daemons now remap themselves within seconds (and every 30 s). If not:
     `bromigos-live status`, then restart that piece.
   - *No notifications at all:* dunst can die on a hotplug; the live layer relaunches it,
-    or run `hyprctl dispatch exec dunst`.
+    or run `hyprctl dispatch 'hl.dsp.exec_cmd("dunst")'`.
   - *LAB panel says no token:* `~/.local/share/bromigos/lab-token` is missing.
 - **Roll back:** `git revert` the commit in `~/.dotfiles` and restart the piece.
+- **Hyprland config format:** `bin/bromigos-hyprconfig status` says which format runs and
+  which file loads at login. `bromigos-hyprconfig conf` rolls back to `hypr/hyprland.conf`
+  (unlinks `hyprland.lua`; log out and back in, since a running 0.56 Hyprland crashes if
+  switched back live; until then an error bar says it can't open `hyprland.lua`);
+  `bromigos-hyprconfig lua` links the Lua config back, checks it and switches the running
+  Hyprland. Scripts that dispatch use `bin/bromigos-dispatch '<Lua>' <old form>` so they
+  work on either.
 
 ## Adding a new piece
 
@@ -200,9 +217,10 @@ The daemons themselves start from Hyprland `exec-once` (`waybar`, `dunst`,
    README that says what it is, why it exists, how to run it and where its state lives.
 2. Follow `skills/desktop-style-guide.md` (real data only, palette tokens, hover hints,
    nothing over windows) and, for anything animated or 3D, `skills/hologram-build.md`.
-3. Keys: a `bind=` in the right fenced block of `hyprland.conf` (check `hyprctl binds`
-   for free keys), an `EXEC` row in `widgets/keybinds.py` for SHORTCUTS, then
-   `bromigos-docs keys` to regenerate the table in `AGENTS.md`.
+3. Keys: a `K.exec(…)` / `K.dsp(…)` line in the right fenced block of
+   `hypr/bromigos/binds.lua` (or `live.lua`; check `hyprctl binds -j` for free keys; see
+   `skills/hyprland-config.md`), an `EXEC` row in `widgets/keybinds.py` for SHORTCUTS,
+   then `bromigos-docs keys` to regenerate the table in `AGENTS.md`.
 4. Secrets: a mode-600 file in `~/.local/share/bromigos/`, sourced from Vault; add its
    path (never its value) to the state table above.
 5. Add a row to "The pieces" here and to the map in `AGENTS.md`; commit

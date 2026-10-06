@@ -4,7 +4,7 @@
 Turning the dial right/left steps VECTOR's voice through
 auto -> Voss (main) -> Sigil (robot) -> Arc (scientist) -> Lynx (floor) -> Lin Yao (notify),
 via `bromigos-holo voice <mode>`, with a quiet notification naming the voice.
-Pressing the dial sends F24 (bound in hyprland.conf to mute VECTOR).
+Pressing the dial sends F24 (bound as code:202 in hypr/bromigos/binds.lua to mute VECTOR).
 
 The dial arrives as horizontal scroll (REL_HWHEEL) on the keyboard's own mouse
 interface, not on any real mouse. That device is grabbed so the turns don't also

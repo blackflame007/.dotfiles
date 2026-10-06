@@ -866,7 +866,7 @@ class ShortcutsPanel(Panel):
     def draw(self, cr, w, h):
         top = D.frame(cr, w, h, self.title, f"{len(self.items)} BINDS · SUPER+SHIFT+K SEARCH")
         self.region(0, 0, w, 34, "Every Hyprland keybind, read live from Hyprland (it refreshes when "
-                    "a hypr .conf changes). Bromigos keys first. Scroll to move; click a Bromigos, launch or capture line to run it. "
+                    "the Hyprland config changes). Bromigos keys first. Scroll to move; click a Bromigos, launch or capture line to run it. "
                     "SUPER+SHIFT+K opens a searchable version.")
         x0, x1 = 16, w - 16
         view_top, view_bot = top, h - 10
@@ -910,10 +910,8 @@ class ShortcutsPanel(Panel):
                 runnable = action and s in self.RUNNABLE
                 tip = f"{' + '.join(keys)}: {desc}." + (" Click to run it now." if runnable else "")
                 if view_top <= y and y + rh <= view_bot:
-                    import subprocess as _sp
                     self.region(x0, y, x1 - x0, rh - 2, tip,
-                                (lambda a=action: _sp.Popen(["/usr/bin/hyprctl", "dispatch", a[0], a[1]],
-                                                            stdout=_sp.DEVNULL, stderr=_sp.DEVNULL)) if runnable else None)
+                                (lambda a=action: self.kb.run(a)) if runnable else None)
             y += rh
         self._content_h = y - y0
         cr.restore()

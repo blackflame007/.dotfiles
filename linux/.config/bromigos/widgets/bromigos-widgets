@@ -4,7 +4,7 @@
 One GTK3 process, one layer-shell surface per panel on the BOTTOM layer of the
 monitor named in layout.json (above any background/live layer, below windows).
 
-  bromigos-widgets                 run (Hyprland exec-once)
+  bromigos-widgets                 run (Hyprland login autostart)
   bromigos-widgets toggle NAME     show/hide one panel (system|network|storage|lab|workbench|shortcuts|notes)
   bromigos-widgets toggle all      show/hide every panel
   bromigos-widgets notes           focus FIELD NOTES for typing (Esc hands focus back)

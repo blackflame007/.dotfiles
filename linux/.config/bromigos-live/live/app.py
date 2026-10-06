@@ -306,10 +306,8 @@ class App:
             if r.unpack()[0] or self.output_gone:
                 return
             import shutil
-            import subprocess
             if shutil.which("dunst"):
-                subprocess.Popen(["/usr/bin/hyprctl", "dispatch", "exec", "dunst"], stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL)
+                hypr.dispatch('hl.dsp.exec_cmd("dunst")', "exec", "dunst")   # a child of Hyprland, not of us
                 log("notification daemon was gone; relaunched dunst")
         except Exception as e:
             log("notifier check failed:", e)

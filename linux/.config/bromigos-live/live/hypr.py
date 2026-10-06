@@ -42,6 +42,16 @@ def request(cmd, as_json=True):
         return None
 
 
+def dispatch(lua, *old):
+    """Run a dispatcher: its Lua form (hl.dsp.*, for hyprland.lua) or, when Hyprland is on
+    the old hyprland.conf (it answers the Lua form "Invalid dispatcher"), the old one.
+    True when Hyprland says ok."""
+    out = request("dispatch " + lua, as_json=False)
+    if out == "Invalid dispatcher" and old:
+        out = request("dispatch " + " ".join(old), as_json=False)
+    return out == "ok"
+
+
 def monitor_state(name):
     """(active workspace has windows, a client there is in TRUE fullscreen, monitor).
     Maximize (fullscreen mode 1) does not count: the layer still shows in the gaps."""

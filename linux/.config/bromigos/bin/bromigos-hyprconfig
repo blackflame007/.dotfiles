@@ -1,0 +1,95 @@
+#!/bin/sh
+# Which Hyprland config format runs, and the one-command switch between them.
+#
+#   bromigos-hyprconfig status   the format Hyprland runs now, and the file it loads at login
+#   bromigos-hyprconfig lua      use hyprland.lua: link it (and hypr/bromigos/) into
+#                                ~/.config/hypr, check it, and switch the running Hyprland
+#   bromigos-hyprconfig conf     roll back to hyprland.conf: unlink hyprland.lua; log out
+#                                and back in to load it
+#
+# Hyprland (0.55+) loads ~/.config/hypr/hyprland.lua when it exists and hyprland.conf only
+# when it doesn't (`Hyprland -c FILE` or $HYPRLAND_CONFIG override both). A running
+# Hyprland keeps the format it started with through a plain `hyprctl reload`. .conf -> Lua
+# switches it live with `hyprctl reload full-reset` (the config is rebuilt; windows, apps
+# and the programs autostart launched stay, and autostart does not run again). Lua -> .conf
+# is never done live: on 0.56.2 that full-reset aborts Hyprland (tested in a nested
+# session), so the rollback leaves the running session alone and applies at the next login.
+# It lasts until `bromigos-hyprconfig lua` or a `stow linux` relinks the file.
+# hyprland.conf support goes away in Hyprland 0.57.
+set -eu
+
+HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
+SRC="${BROMIGOS_HYPR_SRC:-$HOME/.dotfiles/linux/.config/hypr}"
+HYPRCTL=/usr/bin/hyprctl
+
+provider() { "$HYPRCTL" status 2>/dev/null | sed -n 's/^configProvider: //p'; }
+
+next_login() {
+    if [ -n "${HYPRLAND_CONFIG:-}" ]; then echo "$HYPRLAND_CONFIG (HYPRLAND_CONFIG)"
+    elif [ -e "$HYPR/hyprland.lua" ]; then echo "$HYPR/hyprland.lua"
+    else echo "$HYPR/hyprland.conf"; fi
+}
+
+link() {   # link NAME from the dotfiles into $HYPR the way stow does (relative)
+    target=$(realpath --relative-to="$HYPR" "$SRC/$1")
+    if [ -L "$HYPR/$1" ]; then
+        [ "$(readlink "$HYPR/$1")" = "$target" ] && return 0
+        echo "$HYPR/$1 links elsewhere ($(readlink "$HYPR/$1")); leaving it" >&2
+        exit 1
+    elif [ -e "$HYPR/$1" ]; then
+        echo "$HYPR/$1 is a real file or folder, not a link; leaving it" >&2
+        exit 1
+    fi
+    ln -s "$target" "$HYPR/$1"
+}
+
+reload_as() {   # $1 = the provider name expected after reloading
+    "$HYPRCTL" reload ${2:-} >/dev/null
+    sleep 1
+    now=$(provider)
+    errors=$("$HYPRCTL" configerrors 2>/dev/null | sed '/^[[:space:]]*$/d')
+    echo "running: $now"
+    [ -z "$errors" ] || { echo "config errors:"; echo "$errors"; }
+    [ "$now" = "$1" ] && [ -z "$errors" ]
+}
+
+case "${1:-status}" in
+    status)
+        echo "running: $(provider || true)"
+        echo "at login: $(next_login)"
+        ;;
+    lua)
+        link bromigos
+        link hyprland.lua
+        if ! out=$(Hyprland --verify-config -c "$HYPR/hyprland.lua" 2>&1) || ! printf '%s' "$out" | grep -q '^config ok$'; then
+            printf '%s\n' "$out" | sed -n '/Config parsing result/,$p' >&2
+            rm -f "$HYPR/hyprland.lua"
+            echo "hyprland.lua has errors: not switched (still on $(next_login))" >&2
+            exit 1
+        fi
+        case "$(provider)" in
+            "") echo "no running Hyprland; the next login loads $(next_login)" ;;
+            lua) reload_as lua ;;
+            *) reload_as lua full-reset ;;
+        esac
+        ;;
+    conf)
+        [ -e "$HYPR/hyprland.conf" ] || { echo "no $HYPR/hyprland.conf to roll back to" >&2; exit 1; }
+        if [ -L "$HYPR/hyprland.lua" ]; then
+            rm "$HYPR/hyprland.lua"
+        elif [ -e "$HYPR/hyprland.lua" ]; then
+            echo "$HYPR/hyprland.lua is a real file, not a link; move it away yourself" >&2
+            exit 1
+        fi
+        case "$(provider)" in
+            "") echo "no running Hyprland; the next login loads $(next_login)" ;;
+            hyprlang) reload_as hyprlang ;;
+            *) echo "running: $(provider) (left as it is: switching a running Hyprland back to .conf crashes it)"
+               echo "log out and back in to load $(next_login)" ;;
+        esac
+        ;;
+    *)
+        sed -n '2,18p' "$0" >&2
+        exit 2
+        ;;
+esac

@@ -19,7 +19,7 @@ confirm() {
 case "$choice" in
   LOCK)     loginctl lock-session ;;
   SUSPEND)  systemctl suspend ;;
-  LOGOUT)   confirm "LOG OUT OF HYPRLAND" && hyprctl dispatch exit ;;
+  LOGOUT)   confirm "LOG OUT OF HYPRLAND" && ~/.config/bromigos/bin/bromigos-dispatch 'hl.dsp.exit()' exit ;;
   REBOOT)   confirm "REBOOT" && systemctl reboot ;;
   SHUTDOWN) confirm "POWER OFF" && systemctl poweroff ;;
 esac
