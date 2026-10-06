@@ -47,7 +47,7 @@ EXEC = [
     (r"bromigos-holo\b.*\bconversation\b", "VECTOR: conversation mode on/off (hands-free)", "VECTOR"),
     (r"bromigos-holo\b.*\bptt\b", "VECTOR: hold to talk", "VECTOR"),
     (r"bromigos-holo\b.*\bmute\b", "VECTOR: voice on/off", "VECTOR"),
-    (r"vector-converse", "VECTOR: open + conversation on/off", "VECTOR"),
+    (r"vector-converse", "VECTOR: conversation mode on/off (hands-free)", "VECTOR"),
     # HOLOGRAMS: the full-screen decks and 3D views
     (r"bromigos-live\b.*holodeck", "Holo deck (this machine)", "HOLOGRAMS"),
     (r"bromigos-holo\b.*\bgallery\b", "3D model gallery", "HOLOGRAMS"),
