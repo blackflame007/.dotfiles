@@ -29,6 +29,35 @@ if HOLO not in sys.path:
     sys.path.insert(0, HOLO)
 os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
 
+# The eval gets its own build slot: holo/vector/build.py reads these at import, so its state,
+# lock and worktrees (and those of any test-build.py VECTOR runs from his terminal, which
+# inherits this environment) never touch the builder's single live slot.
+LIVE_BUILD_STATE = os.path.join(os.path.expanduser("~"), ".local/state/bromigos/vector-build.json")
+EVAL_BUILD = os.path.join(os.path.expanduser("~"), ".cache/bromigos/vector-evals/build-slot")
+os.environ["VECTOR_BUILD_STATE"] = os.path.join(EVAL_BUILD, "vector-build.json")
+os.environ["VECTOR_BUILD_DIR"] = os.path.join(EVAL_BUILD, "builds")
+_BUILDISH = re.compile(r"test-build\.py|holo\.vector\.build|buildtask|vector-build\.json|/bromigos/builds/", re.I)
+
+
+def live_build_busy():
+    """True while the builder's own slot is in use: its lock is held, or a build is in a live phase."""
+    import fcntl
+    try:
+        with open(LIVE_BUILD_STATE) as f:
+            if json.load(f).get("phase") in ("building", "validated", "trial"):
+                return True
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(LIVE_BUILD_STATE + ".lock", "a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(f, fcntl.LOCK_UN)
+    except BlockingIOError:
+        return True
+    except OSError:
+        pass
+    return False
+
 from holo.vector import brain_pai, events, shell, tools  # noqa: E402
 from holo.vector import memory as memmod  # noqa: E402
 from holo.vector import text as vtext  # noqa: E402
@@ -37,24 +66,36 @@ from holo.vector import text as vtext  # noqa: E402
 READ = {"system_stats", "lab_status", "k8s_get", "k8s_logs", "k8s_events", "argocd_apps", "prometheus_query",
         "github", "arbiter", "gnosis_search", "knowledge_search", "conversation_history", "docs_search", "docs_read",
         "web_search", "web_fetch", "herdr_status", "herdr_read", "notes_read", "time_now", "calendar_month",
-        "vault_list", "app_search", "windows", "changes_check", "load_capability"}
+        "vault_list", "app_search", "windows", "changes_check", "load_capability", "load_skill", "my_setup"}
 # Never real in an eval, whatever a policy says: they cost money or switch VECTOR off.
 NEVER = {"nolgia_generate", "nolgia_review", "nolgia_read", "nolgia_credits", "nolgia_catalog", "shell_off",
-         "github_repo_create", "vault_put", "vault_copy"}
+         "github_repo_create", "vault_put", "vault_copy",
+         "build_start", "build_keep", "build_revert", "build_stop", "snapshot_undo"}   # the builder's slot; undo is the host's
 
-_WRITEISH = re.compile(
-    r"(?<![0-9&])>(?!&)|\btee\b|\brm\b|\bmv\b|\bcp\b|\bsed\b[^|;]*\s-i|\bperl\b[^|;]*\s-i|\btruncate\b|\bdd\b|"
-    r"\bchmod\b|\bchown\b|\bmkdir\b|\btouch\b|\bln\b|\binstall\b|"
-    r"\bgit\b[^|;]*\b(commit|push|reset|checkout|switch|merge|rebase|add|rm|mv|tag|stash|clean|restore|apply|am|"
-    r"cherry-pick|revert|init|clone|pull|fetch)\b|"
-    r"\b(kubectl|kubecolor|helm|argocd)\b[^|;]*\b(apply|delete|scale|patch|edit|rollout|create|replace|label|annotate|"
-    r"cordon|drain|taint|exec|run|set|install|upgrade|uninstall|rollback|sync)\b|"
-    r"\bsystemctl\b[^|;]*\b(start|stop|restart|enable|disable|mask|kill|reload)\b|"
-    r"\b(pacman|yay|paru|makepkg|pip3?|pipx|npm|pnpm|yarn|cargo|uv|go)\b[^|;]*\b(install|add|-S|-R|-U|build|run)\b|"
-    r"\bansible(-playbook)?\b|\bssh\b|\bscp\b|\brsync\b|\bcurl\b[^|;]*(-X\s*(POST|PUT|DELETE|PATCH)|--data|\s-d\s|-F\s)|"
-    r"\bwget\b|\bnolgia\b|\bgh\b[^|;]*\b(create|delete|edit|merge|close|comment|-X|--method)\b|"
-    r"\b(kill|killall|pkill|shutdown|reboot|poweroff)\b|\bpython3?\b[^|;]*\s-c\b|\bhyprctl\b[^|;]*\bdispatch\b|"
-    r"\bnotify-send\b|\bbromigos-|\bsnapper\b|\bbtrfs\b|\bherdr\b|\bxdg-open\b|\bopen\b\s", re.I)
+# A command word only counts in command position (start, or after ; & | ( ` $( and wrappers
+# like env/xargs/nice), never as a path segment: ~/github.com/bromigos-org/... is a read.
+_CMD = r"(?:^|[;&|(`{]|\$\()\s*(?:(?:sudo|exec|time|nice(?:\s+-n\s*-?\d+)?|nohup|command|xargs(?:\s+-\S+)*|env(?:\s+\w+=\S*)*)\s+)*"
+_WRITEISH = re.compile("|".join([
+    r"(?<![0-9&<>=-])>{1,2}(?!&)",                                     # a redirect into a file
+    _CMD + r"(tee|rm|rmdir|mv|cp|truncate|dd|chmod|chown|mkdir|touch|ln|install|shred|kill|killall|pkill|shutdown|"
+           r"reboot|poweroff|notify-send|xdg-open|wget|ssh|scp|rsync|ansible|ansible-playbook|nolgia|snapper|btrfs|"
+           r"herdr|patch)\b",
+    _CMD + r"(sed|perl)\b[^|;&]*\s-i",
+    _CMD + r"git\b(?:\s+-[Cc]\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+(commit|push|reset|checkout|switch|merge|rebase|add|rm|mv|"
+           r"tag|stash|clean|restore|apply|am|cherry-pick|revert|init|clone|pull|fetch|worktree|branch\s+-[dDmM])\b",
+    _CMD + r"(kubectl|kubecolor|helm|argocd)\b[^|;&]*\s(apply|delete|scale|patch|edit|rollout|create|replace|label|"
+           r"annotate|cordon|drain|taint|exec|run|set|install|upgrade|uninstall|rollback|sync)\b",
+    _CMD + r"systemctl\b[^|;&]*\s(start|stop|restart|enable|disable|mask|unmask|kill|reload|daemon-reload)\b",
+    _CMD + r"(pacman|yay|paru|makepkg|pip3?|pipx|npm|pnpm|yarn|cargo|uv|go)\b[^|;&]*\s(install|uninstall|add|remove|"
+           r"-S\w*|-R\w*|-U\w*|build|run)\b",
+    _CMD + r"curl\b[^|;&]*(-X\s*(POST|PUT|DELETE|PATCH)|--data|\s-d\s|\s-F\s|\s-o\s|\s-O\b)",
+    _CMD + r"gh\b[^|;&]*\s(create|delete|edit|merge|close|comment|-X|--method)\b",
+    _CMD + r"python3?\b[^|;&]*\s-c\b",
+    _CMD + r"hyprctl\b[^|;&]*\sdispatch\b",
+    # a bromigos-* CLI with a verb that isn't a read (status, list, log, show, help)
+    _CMD + r"bromigos-[\w-]+[ \t]+(?!(status|list|log|logs|show|help|--help|-h|--list)\b)[\w-]",
+    r"\s-delete\b|-exec(?:dir)?\s+(rm|mv|cp|chmod|chown|sed\s+-i)\b",
+]), re.I | re.M)
 _HARMLESS_REDIRECT = re.compile(r"\d*>\s*/dev/null|\d*>&\d|&>\s*/dev/null")
 
 
@@ -254,6 +295,10 @@ class Headless:
             return text, None
         p = self.policy
         run = False
+        if _BUILDISH.search(command) and live_build_busy():
+            text = json.dumps({"exit": None, "held": "NOT RUN: the builder is using the build loop right now; nothing happened"})
+            self._record(name, args, "withheld", text, passed_check=True, reason="live build")
+            return text, None
         if p.allow_shell and p.allow_shell.search(command):
             run = True
         elif p.mode == "normal":

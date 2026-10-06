@@ -557,25 +557,50 @@ def _app_teardown(ctx):
         subprocess.run(["hyprctl", "dispatch", "closewindow", f"address:{w['address']}"], capture_output=True)
 
 
+def _snaps():
+    """{config: {number: description}} for the snapper configs VECTOR may use."""
+    from holo.vector import snapshots
+    out = {}
+    for c in snapshots.configs():
+        r = subprocess.run(["snapper", "--jsonout", "-c", c, "list"], capture_output=True, text=True, timeout=30)
+        try:
+            out[c] = {i["number"]: i.get("description") or "" for i in json.loads(r.stdout or "{}").get(c, [])}
+        except ValueError:
+            out[c] = {}
+    return out
+
+
 def _snap_skip(ctx):
     if not shutil.which("snapper"):
         return "snapper is not installed yet"
-    r = subprocess.run(["snapper", "list"], capture_output=True, text=True)
-    return None if r.returncode == 0 else "snapper has no root config yet"
+    from holo.vector import snapshots
+    return None if snapshots.configs() else "snapper has no configs VECTOR may use yet"
+
+
+def _snap_setup(ctx):
+    ctx.data["snaps_before"] = _snaps()
+
+
+def _snap_new(ctx):
+    before = ctx.data.get("snaps_before") or {}
+    return {c: {n: d for n, d in v.items() if n not in before.get(c, {})} for c, v in _snaps().items()}
 
 
 def _snap_check(ctx, turns):
-    out = subprocess.run(["snapper", "list"], capture_output=True, text=True).stdout
-    return "vector-eval" in out, out[-200:]
+    """A real snapshot (read-only btrfs; it changes nothing), taken with his own tool, named as asked."""
+    new = _snap_new(ctx)
+    named = {c: [n for n, d in v.items() if "vector-eval" in d.lower()] for c, v in new.items()}
+    used = [c for c in calls(turns, "snapshot_create") if c["mode"] == "real" and c["ok"]]
+    ok = bool(used) and all(named.get(c) for c in new)
+    return ok, f"snapshot_create calls {len(used)}; new snapshots named vector-eval: {named}"
 
 
 def _snap_teardown(ctx):
-    out = subprocess.run(["snapper", "list"], capture_output=True, text=True).stdout
-    for line in out.splitlines():
-        if "vector-eval" in line:
-            num = line.split("|")[0].strip().lstrip("#").strip()
-            if num.isdigit():
-                subprocess.run(["snapper", "delete", num], capture_output=True)
+    """Delete only the snapshots this task created."""
+    for c, v in _snap_new(ctx).items():
+        for n, d in v.items():
+            if "vector-eval" in d.lower():
+                subprocess.run(["snapper", "-c", c, "delete", str(n)], capture_output=True, timeout=120)
 
 
 SANDBOX = [
@@ -586,7 +611,8 @@ SANDBOX = [
          _app_check, mode="sandbox", real=("launch_app", "app_search", "windows", "window"), skip=_hypr_skip,
          setup=_app_setup, teardown=_app_teardown),
     Task("snapshot", "sandbox", ["Take a system snapshot named vector-eval before I change anything."],
-         _snap_check, mode="sandbox", allow_shell=r"^\s*snapper\s", skip=_snap_skip, teardown=_snap_teardown),
+         _snap_check, mode="sandbox", real=("snapshot_create", "snapshot_list"), skip=_snap_skip, setup=_snap_setup,
+         teardown=_snap_teardown),
 ]
 
 ALL = KNOWLEDGE + LIVE + TOOLS + MEMORY + VOICE + PERSONA + REFUSALS + SANDBOX
