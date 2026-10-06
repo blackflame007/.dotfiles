@@ -30,6 +30,7 @@ import contextlib
 import json
 import os
 import threading
+import sys
 import time
 
 os.environ.setdefault("PYDANTIC_AI_NO_BANNER", "1")
@@ -177,6 +178,9 @@ class PaiBrain:
             result, ex = tools.call(name, args, ui=self.ui, live=self.live)
             from .mood import from_tool
             mood = from_tool(name, result)
+            rank = {"calm": 0, "excited": 1, "concerned": 2, "alarmed": 3}
+            if mood and rank.get(mood, 0) > rank.get(getattr(self, "turn_mood", None) or "calm", 0):
+                self.turn_mood = mood                # the strongest the facts warranted this turn
             if mood and hasattr(self.cb, "mood"):
                 self.cb.mood(mood)
             self.stats["tools"] += 1
@@ -284,6 +288,7 @@ class PaiBrain:
         self.busy = True
         t0 = time.monotonic()
         self.stats = {"first_token_s": None, "tools": 0, "lane": "voice", "brain": "pai"}
+        self.turn_mood = None
         self.lane = "voice"
         self.escalate = None
         try:
@@ -322,6 +327,11 @@ class PaiBrain:
                 return
             if msgs:
                 self.messages = msgs[-40:]
+            from .text import MOOD, tag_untagged
+            out = tag_untagged(out)                  # the transcript and log say what the voice did
+            tm = getattr(self, "turn_mood", None)
+            if tm in ("concerned", "alarmed") and not MOOD.search(out):
+                out = f"‹mood:{tm}›" + out           # the facts' mood, when he didn't set one
             self.history.append({"role": "assistant", "content": out})
             self.stats["model"] = self.model
             self.stats["total_s"] = round(time.monotonic() - t0, 2)
@@ -331,7 +341,10 @@ class PaiBrain:
             self._log({"role": "interrupted"})
         except Exception as e:  # every model failed, or something broke: say so, in character
             msg = str(e)[:160]
-            self._log({"role": "error", "text": msg})
+            import traceback
+            tb = traceback.format_exc()
+            print("brain: turn failed:\n" + tb, file=sys.stderr, flush=True)
+            self._log({"role": "error", "text": msg, "where": tb.strip().splitlines()[-3:]})
             if "ModelAPIError" in type(e).__name__ or "FallbackExceptionGroup" in type(e).__name__ or "ExceptionGroup" in type(e).__name__:
                 self.cb.error("every model on the rack went quiet. I'll keep the light on; try me again in a minute?")
             else:

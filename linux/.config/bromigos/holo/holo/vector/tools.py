@@ -598,6 +598,37 @@ def hologram_deck(deck, verb="open", args=""):
     return {"ok": True, "deck": deck, "verb": verb, "result": out[:300]}
 
 
+def my_setup():
+    """VECTOR's own configuration, read live from his code and config files (never remembered)."""
+    import json as _j
+    holo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    try:
+        vj = _j.load(open(os.path.join(holo, "voice.json")))
+    except (OSError, ValueError):
+        vj = {}
+    from . import brain_pai, build, history, skills
+    try:
+        cap = _j.load(open(os.path.join(holo, "nolgia.json"))).get("daily_credits")
+    except (OSError, ValueError):
+        cap = None
+    voices = {r: {"speaker": v.get("name"), "marker": v.get("marker"), "use": v.get("use")} for r, v in (vj.get("voices") or {}).items()}
+    lanes = brain_pai.lanes()
+    return {
+        "brain": {"framework": "Pydantic AI", "voice_lane": lanes[0], "deep_lane": lanes[1],
+                  "first_byte_timeout_s": brain_pai.FIRST_BYTE, "stream_silence_timeout_s": brain_pai.IDLE_GAP,
+                  "failed_model_cooldown_s": brain_pai.COOLDOWN, "thinking": "off on every route"},
+        "speech_to_text": (vj.get("stt") or {}).get("model"), "stt_device": (vj.get("stt") or {}).get("device"),
+        "text_to_speech": {"engine": vj.get("engine"), "fallback": vj.get("fallback"), "speed": vj.get("speed")},
+        "voices": voices, "conversation_mode": vj.get("conversation"),
+        "memory": "Gnosis (homelab), own space, through the gnosis-gate; recall capped at 0.2 s from a local mirror",
+        "knowledge_spaces": sorted(KB_SPACES.values()), "knowledge_sync": "nightly at 03:30 (bromigos-kb-sync.timer)",
+        "history": f"chat log kept locally; a new session after {history.GAP // 60} quiet minutes",
+        "nolgia_daily_credit_cap": cap, "build_trial_seconds": build.TRIAL_S,
+        "skills": [x["name"] for x in skills.load()],
+        "tools": len(SPECS),
+    }
+
+
 def time_now():
     now = dt.datetime.now().astimezone()
     return {"local": now.strftime("%A %d %B %Y, %H:%M:%S %Z"), "iso": now.isoformat(timespec="seconds"),
@@ -768,6 +799,9 @@ SPECS = {
     "build_stop": ("Stop the background build now (its worktree is removed; a trial is rolled back).", _p({})),
     "load_skill": ("Load one of your skills by name (the catalog is in your instructions) when a task needs its know-how.",
                    _p({"name": S}, ["name"])),
+    "my_setup": ("Your own configuration, read live: your models and lanes, the first-byte and silence timeouts, "
+                 "speech-to-text and voice engines, your voices, memory, knowledge spaces and sync time, the nolgia "
+                 "credit cap, the build trial length, your skills. Call it for any question about how you work.", _p({})),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }

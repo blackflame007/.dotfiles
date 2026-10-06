@@ -194,3 +194,30 @@ class VoiceSplitter:
         if mood:
             self.mood = mood
         return voice, text, mood
+
+
+TAG = {"robot": "robot", "scientist": "sci", "floor": "floor", "notify": "notify"}
+
+
+def tag_untagged(text):
+    """A reply the model left without voice markers, marked the way the voice will speak it
+    (the same sentence heuristic), so the transcript, the log and the voice agree. A reply
+    that already has markers is returned unchanged."""
+    if not text or MARK.search(text):
+        return text
+    units = VoiceSplitter().feed(text, final=True)
+    if not any(v != "main" for v, _, _ in units):
+        return text
+    out, cur, run = [], None, []
+
+    def close():
+        if run:
+            body = " ".join(run)
+            out.append(f"‹{TAG[cur]}›{body}‹/{TAG[cur]}›" if cur in TAG else body)
+    for voice, sent, _ in units:
+        if voice != cur:
+            close()
+            cur, run = voice, []
+        run.append(sent)
+    close()
+    return " ".join(out)
