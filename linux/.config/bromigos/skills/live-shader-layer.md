@@ -8,7 +8,26 @@ when_to_use: "Adding a new animation, shader effect or ambient visual to the des
 
 How the live layer animates in general (loops, decks, pause rules, frame budgets) is in
 `live-layer-animation.md`; read it first. This is the plugin route, which needs no core
-edits.
+edits. Every existing wallpaper element, and the full recipe for adding one to the core
+background, is in `linux/.config/bromigos-live/docs/ELEMENTS.md`.
+
+## Plugin or core?
+
+- **Plugin layer** (below): a self-contained effect over the whole background that needs
+  only load, network and health (`u_load`, `u_net`, `u_health`). No core edit, its own
+  GPU budget, switches itself off if it misbehaves. Prefer this.
+- **Core element** (`live/scene.py` + `shaders/bg.frag`): anything fitted to the den's
+  screens or desk, needing other data, or interacting with existing layers. Follow
+  ELEMENTS.md "Adding a new element": fit the rect in plate pixels (2560×1440), pack
+  uniforms into a vec4, set them in `Background.render()`, draw in a function called
+  from `main()` or `den()` (with `glass()` for a screen), add a config key, test with
+  `tools/offscreen.py bg`, and add the element's row and section to ELEMENTS.md.
+
+Worked example (core): a disk-activity lamp on the desk. Add `"lamp": (x, y, w, h)` to
+`DEN`; in `render()` ease `self.lamp_v` toward `log10(1 + disk write bytes/s) / 8` from
+`d["disks"]` and set `u_lamp` (the scaled rect) and `u_lamp_v`; in `den()`:
+`m = glass(px, u_lamp, uv, g); if (m > 0.0) c = mix(c, g + AMBER * u_lamp_v * exp(-dot(uv - 0.5, uv - 0.5) * 8.0), m);`.
+The full version is in ELEMENTS.md "Worked examples".
 
 ## A shader layer
 

@@ -10,6 +10,10 @@ GtkLayerShell, PyOpenGL, numpy, psutil), supervised by `bin/bromigos-live`, star
 Hyprland (`exec-once=… bromigos-live start --login`). Part of the desktop described in
 `../bromigos/README.md`.
 
+**Every element of the live wallpaper** (what it looks like, what it means, its data,
+code, config key and how to change it, plus how to add one) is catalogued in
+[docs/ELEMENTS.md](docs/ELEMENTS.md).
+
 ## Use
 
 ```bash

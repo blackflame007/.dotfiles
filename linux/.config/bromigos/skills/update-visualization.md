@@ -16,6 +16,7 @@ when_to_use: "The host asks to change, fix, restyle or extend an existing panel,
 | The gallery (SUPER+O), models | `holo/holo/gallery.py`, `stage.py`, `render.py`; models `brand/3d/` | `holo/tools/offscreen.py gallery out.png <model>` |
 | Background, decks (SUPER+H, Mind, Ops, …) | `linux/.config/bromigos-live/live/` | `bromigos-live/tools/offscreen.py <kind> out.png` |
 | A background shader layer | `bromigos-live/layers/` | `python3 -m live.plugins test-layer` |
+| An element of the live wallpaper (meters, scope, relay beam, rain, …) | `bromigos-live/docs/ELEMENTS.md` names its code, uniforms and config key | `bromigos-live/tools/offscreen.py bg out.png 3` |
 
 Ask `knowledge_search` (space desktop) when unsure; the desktop map is
 `linux/.config/bromigos/README.md`.
@@ -36,6 +37,24 @@ Ask `knowledge_search` (space desktop) when unsure; the desktop map is
 Core files are restarted for the trial (widgets reload, the live layer restarts, a change
 to VECTOR's own console restarts him: say so in `say`). The trial watcher rolls back if a
 host crashes, errors repeat, or nobody keeps it in 10 minutes.
+
+## Worked example: the den's left meter shows RAM instead of CPU
+
+1. Look it up: `docs_read linux/.config/bromigos-live/docs/ELEMENTS.md` ("Meters"):
+   the left meter is `meter0`, fed by `cpu` in `Background.render()` (`live/scene.py`);
+   memory is already in the snapshot as `mem` (percent, psutil, every 1 s).
+2. `build_begin`; render before: `tools/offscreen.py bg /tmp/before.png 3`, `look` at the
+   desk crop.
+3. The change is one word in `live/scene.py`:
+   `for i, k in enumerate(("cpu", "gpu"))` becomes `for i, k in enumerate(("mem", "gpu"))`.
+   The needle, easing and shader stay as they are.
+4. Update the "Meters" row and section of `docs/ELEMENTS.md` (left = memory in use).
+5. Render after, compare, `build_apply` "Updated: the den's left meter shows memory
+   instead of CPU". The trial restarts the live layer.
+
+The answer to "what does X on my wallpaper mean?" is the element's "Shows" line in
+`docs/ELEMENTS.md`, said plainly with its current state if you can read it (for the
+relay beam: whether the lab is all green right now).
 
 You can't change VECTOR's safety code (the terminal's limits, tools, the brain's wiring,
 the build loop, the plugin isolation); the build loop refuses it.

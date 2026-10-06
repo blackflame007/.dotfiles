@@ -18,6 +18,13 @@ when_to_use: "Adding or changing anything that moves on the desktop: a backgroun
   ARBITER, Drift map, timeline, Mind, Ops, Swarm, Network, Replay).
 - **One config**: `config.toml`, reloaded on save. It marks which layers are data
   and which are decoration.
+- **The catalog**: `linux/.config/bromigos-live/docs/ELEMENTS.md` lists every element
+  of the wallpaper (oscilloscope, relay map, emblem monitor, meters, rain and bursts,
+  floor pulses, ships, stars, relay beam, health tint, X-ray sweep, wipe, intercept,
+  transmission, codec calls, screensaver, loops, plugin layers, sounds) with what it
+  means, its data source and rate, its code and uniforms, its config key and how to
+  change it, plus the den plate fitting rules and how to add a new element. Read the
+  element's section before you touch it, and update the section when you change it.
 
 Nothing ever draws over application windows: no CRT pass, no scanlines, no tint.
 Overlays are either summoned by the operator or brief event animations that leave

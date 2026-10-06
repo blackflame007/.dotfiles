@@ -114,7 +114,7 @@ The Hyprland desktop is the operator's control center, styled as the Wick (BLACK
 | Brand kit: palette, the burn-in emblem, logos, portraits, icons, wallpapers, 3D models | `bromigos/brand/`, `bromigos/identity.json`, `bromigos/bin/bromigos-emblem` | `bromigos/brand/README.md`, `brand/3d/README.md` |
 | Theme: Hyprland, bar, launcher, notifications, lock/idle, GTK/Qt themes, cursor | `hypr/`, `waybar/`, `rofi/`, `dunst/`, `bromigos/gtk/`, `../.local/share/` | `bromigos/README.md` "Theme" |
 | Widgets: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS | `bromigos/widgets/` | `bromigos/widgets/README.md` |
-| Live layer: background, decks (holo deck, ARBITER, Drift map, timeline), VECTOR's holograms (Mind, Ops, Swarm, Network, Replay), intercept, transmissions, codec calls, screensaver, sounds | `bromigos-live/` | `bromigos-live/README.md` |
+| Live layer: background, decks (holo deck, ARBITER, Drift map, timeline), VECTOR's holograms (Mind, Ops, Swarm, Network, Replay), intercept, transmissions, codec calls, screensaver, sounds | `bromigos-live/` | `bromigos-live/README.md`; every wallpaper element: `bromigos-live/docs/ELEMENTS.md` |
 | VECTOR (the desktop AI) and the holo daemon (shared 3D renderer, gallery) | `bromigos/holo/` | `bromigos/holo/README.md`, "VECTOR" below |
 | Skills (VECTOR's know-how, also the best guide for humans) | `bromigos/skills/` | the files themselves |
 | Start page (browser home, with its own switchboard) | `bromigos/startpage/` | `bromigos/README.md` "Start page" |
