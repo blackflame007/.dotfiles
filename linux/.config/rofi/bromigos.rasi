@@ -150,7 +150,16 @@ element-icon {
 element-text {
     vertical-align: 0.5;
     text-color: inherit;
-    highlight: bold #39ff14;
+    /* matched letters: bright phosphor + underline on the dark rows... */
+    highlight: bold underline #39ff14;
+}
+/* ...and void-dark on the selected row, whose background is phosphor (green on green
+   made the match invisible). */
+element-text selected, element-text selected.normal, element-text selected.active {
+    highlight: bold underline #000500;
+}
+element-text selected.urgent {
+    highlight: bold underline #000500;
 }
 
 box-footer {
