@@ -1,0 +1,12 @@
+[Unit]
+Description=VECTOR health exporter: Prometheus metrics from his logs and event feed (port 9478)
+Documentation=file://%h/.config/bromigos/holo/tools/vector-exporter.py
+
+[Service]
+ExecStart=%h/.local/share/bromigos/venv-exporter/bin/python %h/.config/bromigos/holo/tools/vector-exporter.py --port 9478
+Restart=always
+RestartSec=10
+Nice=10
+
+[Install]
+WantedBy=default.target

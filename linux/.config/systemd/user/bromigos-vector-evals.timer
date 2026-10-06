@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly VECTOR evals, off-peak (after the 03:30 knowledge-base sync)
+
+[Timer]
+OnCalendar=*-*-* 04:20
+RandomizedDelaySec=10min
+# not Persistent: a missed night is skipped rather than run during the day
+Persistent=false
+
+[Install]
+WantedBy=timers.target

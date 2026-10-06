@@ -298,6 +298,8 @@ class Voice:
             out = self._req({"op": "stt", "pcm": path}, 60)
             self.last_stats.update(stt_ms=out.get("ms"), stt_roundtrip_ms=int((time.monotonic() - t0) * 1000),
                                    audio_s=out.get("seconds"), heard=(out.get("text") or "")[:60])
+            from . import events
+            events.emit("voice.stt", ms=out.get("ms"), audio_s=out.get("seconds"))   # health exporter
             text = (out.get("text") or "").strip()
             if len(re.sub(r"\W", "", text)) < 2:
                 GLib.idle_add(self._heard_nothing)
@@ -483,6 +485,9 @@ class Voice:
                 if first:
                     self.last_stats["tts_first_audio_ms"] = int((time.monotonic() - t0) * 1000)
                     first = False
+                    from . import events
+                    events.emit("voice.first_audio", ms=self.last_stats["tts_first_audio_ms"], role=role,
+                                cached=bool(head.get("cached")))
                 buf.put(b, role)
         except OSError:
             pass

@@ -12,6 +12,7 @@
 #   bromigos-holo conversation       hands-free conversation mode on/off (SUPER+SHIFT+E)
 #   bromigos-holo shell off|on|stop  VECTOR's terminal: kill switch, or stop the running command
 #   bromigos-holo status | stop | restart | log
+#   bromigos-holo evals [--only CAT] [--task ID] [--list]   run VECTOR's eval suite now (headless)
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 RUN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
@@ -68,5 +69,6 @@ case "${1:-status}" in
     stop) send stop >/dev/null 2>&1; sleep 0.3; echo stopped ;;
     restart) send stop >/dev/null 2>&1; sleep 0.6; start && echo started ;;
     log) tail -n 40 "$LOG" ;;
-    *) sed -n '2,12p' "$0"; exit 1 ;;
+    evals) shift; cd "$HERE" && exec nice -n 10 "$PY" -m evals.run "$@" ;;
+    *) sed -n '2,13p' "$0"; exit 1 ;;
 esac

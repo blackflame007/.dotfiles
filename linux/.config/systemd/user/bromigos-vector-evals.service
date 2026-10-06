@@ -1,0 +1,14 @@
+[Unit]
+Description=VECTOR's nightly eval suite (headless, local models only; never touches the hologram)
+Documentation=file://%h/.config/bromigos/holo/evals/run.py
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/.config/bromigos/holo
+Environment=PYDANTIC_AI_NO_BANNER=1
+ExecStart=%h/.local/share/bromigos/venv-brain/bin/python -m evals.run
+Nice=15
+IOSchedulingClass=idle
+CPUSchedulingPolicy=batch
+TimeoutStartSec=90min
