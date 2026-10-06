@@ -1,0 +1,33 @@
+# Privacy guard on every push and PR: the same check as .githooks/pre-commit, over the
+# whole tracked tree, plus gitleaks over the pushed commits. This repo is public.
+# The lab-specific patterns come from the PRIVACY_PATTERNS repo secret (one regex per
+# line; the same list as guard.patterns in the encrypted overlay).
+name: privacy
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: private details and sops encryption
+        env:
+          PRIVACY_PATTERNS: ${{ secrets.PRIVACY_PATTERNS }}
+        run: python3 linux/.config/bromigos/lib/privacy_guard.py check-tree .
+      - name: gitleaks (pushed commits)
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          BEFORE: ${{ github.event.before }}
+        run: |
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz gitleaks
+          range="${BEFORE:-}"
+          if [ -n "$range" ] && [ "$range" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$range" 2>/dev/null; then
+            ./gitleaks git --redact --no-banner --log-opts="$range..HEAD" .
+          else
+            ./gitleaks dir --redact --no-banner .
+          fi

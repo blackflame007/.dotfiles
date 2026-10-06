@@ -47,7 +47,7 @@ ALLOW_MARK = "privacy: allow"
 # generic shapes that look private but aren't: Kubernetes' cluster domain, placeholder MACs
 GENERIC = re.compile(r"(?i)svc\\?\.cluster\\?\.local|cluster\\?\.local|\b(?:AA:BB:CC:DD:EE:FF|00(?::00){5}|FF(?::FF){5})\b")
 OVERLAY = os.path.expanduser("~/.config/bromigos/private/config.json")
-SOPS_FILE = re.compile(r"(^|/)[^/]*\.sops\.(ya?ml|json)$")
+SOPS_FILE = re.compile(r"(^|/)[^/]+\.sops\.(ya?ml|json)$")
 SKIP_FILE = re.compile(r"(^|/)(\.sops\.yaml|privacy_guard\.py)$|\.(png|jpe?g|gif|webp|ico|svg|wav|mp3|ogg|glb|ttf|otf|woff2?)$|(^|/)package-lock\.json$", re.I)
 
 
