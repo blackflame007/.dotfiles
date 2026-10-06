@@ -12,6 +12,7 @@ import json
 import os
 import re
 import ssl
+import shutil
 import subprocess
 import time
 import urllib.parse
@@ -50,7 +51,20 @@ def prom_range(q, minutes, step=60):
         return json.load(r)["data"]["result"]
 
 
+# The daemon starts from Hyprland's exec-once, whose PATH lacks the user's bin dirs
+# (herdr lives in ~/.local/bin), so bare command names are resolved against them too.
+_USER_BINS = [os.path.expanduser(p) for p in ("~/.local/bin", "~/.cargo/bin")]
+
+
+def _resolve(cmd):
+    if os.sep in cmd:
+        return cmd
+    path = os.pathsep.join([os.environ.get("PATH", "")] + _USER_BINS)
+    return shutil.which(cmd, path=path) or cmd
+
+
 def run(args, timeout=15, cwd=None):
+    args = [_resolve(args[0])] + list(args[1:])
     r = subprocess.run(args, capture_output=True, text=True, timeout=timeout, cwd=cwd)
     return r.stdout if r.returncode == 0 else ""
 
