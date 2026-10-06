@@ -45,7 +45,10 @@ K.exec(mainMod .. " + SHIFT + Y", "~/.config/bromigos/bin/bromigos-shot screen")
 K.exec("XF86AudioMute", "pactl set-sink-mute @DEFAULT_SINK@ toggle")
 K.exec("XF86AudioLowerVolume", "pactl set-sink-volume @DEFAULT_SINK@ -5%")
 K.exec("XF86AudioRaiseVolume", "pactl set-sink-volume @DEFAULT_SINK@ +5%")
-K.exec("XF86AudioMicMute", "pactl set-source-mute @DEFAULT_SOURCE@ toggle")
+-- Not from the Razer: its side button 3 (F20) can arrive as XF86AudioMicMute under the
+-- default layout, which muted the mic every time recording was started from it.
+K.exec("XF86AudioMicMute", "pactl set-source-mute @DEFAULT_SOURCE@ toggle",
+       { device = { inclusive = false, list = { "razer-blackwidow" } } })
 K.exec("XF86MonBrightnessUp", "brightnessctl -q set +5%")   -- increase screen brightness
 K.exec("XF86MonBrightnessDown", "brightnessctl -q set 5%-") -- decrease screen brightness
 K.exec("XF86AudioPlay", "playerctl play-pause")             -- Toggle Media
