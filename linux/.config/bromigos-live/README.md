@@ -34,6 +34,7 @@ The full verb list is the header of `bin/bromigos-live`. Keys are in `AGENTS.md`
 | `live/plate.py` | The clean plate: baked steam and streaks removed in memory so loops can redraw them (the wallpaper file is never changed) |
 | `live/overlays.py` | The overlay renderer and the built-in overlays: intercept, transmission, holo deck, screensaver, radial menu; `make()` opens any of them |
 | `live/deckkit.py` | The base for 3D decks: drag, drift, picking, hover readouts, the Tab cycle, verbs, pollers that live only while a deck is open |
+| `live/zoomcam.py` | Zoom and pan for the maps (toward the cursor, eased, fly-to and fit for VECTOR's verbs), the zoom readout, and label placement by room |
 | `live/*_deck.py`, `arbiter_deck.py`, `drift_map.py`, `timeline.py` | The decks (below) |
 | `live/glkit.py`, `stage.py`, `gadgets.py` | Vector primitives (lines, arcs, glyphs), render targets and bloom, HUD panels and gauges |
 | `live/holoview.py` | A compact model from the shared `bromigos/holo` renderer, embedded in a deck |
@@ -60,6 +61,13 @@ The full verb list is the header of `bin/bromigos-live`. Keys are in `AGENTS.md`
 | replay | SUPER+R | An ARBITER paper round trip as a price ribbon with its causes | `pick …`, `play`, `pause`, `seek` |
 
 Tab cycles holodeck → arbiter → timeline → mind → ops → swarm → netmap → replay.
+
+The maps (Mind, Swarm, Netmap, Drift map) zoom (`live/zoomcam.py`): scroll toward the
+cursor, drag pans while zoomed in (Shift+drag or the right button turns), `+`/`-`,
+double-click empty space or `0` resets. Detail grows with zoom: Mind's clusters open
+into their documents, Swarm's ships get names, the Drift map's minor entries get
+labels, and labels only appear where there is room. VECTOR's `focus`, `point`,
+`space` and `trace` verbs fly the camera to their target.
 
 ## State
 

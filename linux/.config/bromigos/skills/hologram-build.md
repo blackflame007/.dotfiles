@@ -135,6 +135,50 @@ readouts on everything (`hover_tip(b, label, lines, "CLICK TO …")`: what it is
 its live values, what a click does), palette tokens only, reveals on open
 (`reveal=T + k`, `type_rate`) so panels assemble.
 
+### Maps: zoom and level of detail
+
+Any deck that is a map (a starfield, a constellation, a network, a system of
+bodies) zooms. Mind, Swarm, Network and the Drift map all do it the same way, with
+`live/zoomcam.py`; build new maps the same way.
+
+- **Turn it on.** On a `Deck3D`, set `zoom = (min, max)` on the class (Mind
+  `(0.7, 16)`, Swarm `(0.7, 9)`, Network `(0.7, 5)`). You get: scroll zooms toward
+  the point under the cursor (eased, frame-rate independent, fine steps from touchpad
+  deltas), left-drag pans while zoomed in and turns at 1×, Shift+drag or the right
+  button turns, `+`/`-` zoom, double-click on empty space or `0` resets, a zoom
+  readout in the panel's corner, and the 3D space clipped to the panel below its
+  title. A deck that is not a `Deck3D` (the Drift map) holds a `ZoomCam` itself and
+  forwards `scroll`, `dclick`, `+`/`-`/`0` and the pan drag to it, as `drift_map.py`
+  does.
+- **Detail grows with zoom, not with size.** Markers are drawn in pixels (`arc`
+  radii times `s`), so zooming spreads points apart instead of inflating them. Read
+  `self.cam.z` in `build()` and use `lod(z, z0, z1)` (0 below z0, 1 above z1) to fade a
+  class of detail in. Clusters expand instead of spiderfying: Mind keeps each repo's
+  documents close around their hub when zoomed out and opens them out as you zoom in
+  (`_spread()`, `_doc_positions()`, computed for every document at once with numpy).
+  Things drawn in model units that should stay readable rather than huge (Swarm's
+  ships) scale by `z ** -0.45`.
+- **Labels by room.** Never draw every label. Hand candidates to
+  `labels = self.cam.labels(self.stage.atlas, self.stage.painter, self.s, cap=…)`
+  with a priority, then `labels.place(b)` once: the highest priorities that land
+  inside the panel without overlapping are drawn, up to the cap. `force=True` for the
+  few that must always show (space names, the hovered or selected thing). Zoomed
+  out only the important names fit; zooming in makes room for the rest. Cull first:
+  project the points with numpy and only offer labels for what is on screen
+  (Mind offers at most 240 document names).
+- **Rebuilds follow the camera.** `Deck3D.render` rebuilds while the view moves, at
+  most 12 times a second, and once when it settles; keep `build()` cheap (Mind: 5–7
+  ms at any zoom, the others 1–2 ms).
+- **VECTOR's verbs move the camera.** `self.fly_to(pick_id, zoom)` eases to centre a
+  picked thing and follows it while it moves (Swarm passes a function of the ship's
+  live position: `self.cam.fly_to(lambda: self._pos_of(tgt), 4.5)`);
+  `self.cam.fit(points, rot, persp, zmax=…)` frames a set (Network frames a traced
+  path); `clear` calls `self.cam.reset()`. A click by the operator does not move the
+  camera.
+- **Hover keeps working.** Picking projects with the live camera, so hover readouts
+  work at every zoom; keep `pick_pts` in sync with what you draw (expanded positions,
+  not the layout's).
+
 ## 7. Test headless, then on screen
 
 Render without touching the desktop (NVIDIA EGL device):
@@ -146,7 +190,15 @@ OFF_SCRIPT="1.0 cmd trace k8s-gpu-worker" tools/offscreen.py netmap /tmp/x/net_%
 OFF_SCRIPT='1.0 event {"type":"recall","ids":["..."]}' tools/offscreen.py mind /tmp/x/m_%.png 1.5
 BROMIGOS_VECTOR_EVENTS=/tmp/x/test.jsonl ...      # keep test events out of VECTOR's real feed
 tools/offscreen.py ops /tmp/x/ops.mp4 12 30        # a clip
+# maps: zoom, pan, reset and hover (2560x1440 coordinates; DY > 0 zooms out)
+OFF_SCRIPT="2 wheel 1344 659 -5; 4 wheel 1344 659 -6; 6 drag 1100 680 900 600; 7 hover 890 706; 8 dclick 300 300" \
+  tools/offscreen.py mind /tmp/x/z_%.png 1 2 3 4 5 6 7 8 9
 ```
+
+For a map, render at least 1×, about 2.5× and the maximum, and a verb that flies
+the camera; check that labels appear with zoom, never pile up, and stay inside the
+panel. Ask for times one second apart when the deck moves things (ships), so the
+animation runs between frames.
 
 A deck with `ready()` is waited for (real data first). Look at every render
 (downscale to 1280×720 to check legibility at 1080p): overlaps, clipped labels,
