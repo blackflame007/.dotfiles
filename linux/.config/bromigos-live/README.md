@@ -52,7 +52,7 @@ The full verb list is the header of `bin/bromigos-live`. Keys are in `AGENTS.md`
 
 ## Decks
 
-One deck is up at a time: opening another (by key, the radial menu, a verb or VECTOR) closes the one showing (`App.is_deck`, deck plugins included).
+One deck is up at a time: opening another (by key, the radial menu, a verb or VECTOR) closes the one showing (`App.is_deck`, deck plugins included). Decks sit on the top layer (still over every window); the overlay layer above them is for VECTOR's console, notifications and the radial menu.
 
 | Deck | Key | Shows | Verbs |
 |------|-----|-------|-------|

@@ -979,7 +979,10 @@ def make(app, kind, **kw):
         return r
     if kind == "transmission":
         holder["rect"] = notification_rect(mon)
-    win = GLWindow(app, GtkLayerShell.Layer.OVERLAY, f"bromigos-live-{kind}", make_renderer,
+    # decks go on the top layer (still over every window) so VECTOR's console, on the
+    # overlay layer, stays in front of them while he walks the host through one
+    layer = GtkLayerShell.Layer.TOP if app.is_deck(kind) else GtkLayerShell.Layer.OVERLAY
+    win = GLWindow(app, layer, f"bromigos-live-{kind}", make_renderer,
                    keyboard=keyboard, alpha=True, input_ok=input_ok, **win_kw)
 
     class Handle:

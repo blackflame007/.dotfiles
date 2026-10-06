@@ -403,7 +403,7 @@ class App:
         self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
         # the chat box (transcript side + its controls) can fold away, leaving VECTOR alone
         self.chat_widgets = (self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.voicebtn, self.histpanel)
-        self.chat_override = None            # None: automatic (hidden in conversation mode); True/False: chosen
+        self.chat_override = None            # None: the default (folded away); True/False: pinned
         self.chat_hover = False
         self.chat_leave_timer = None
         self.chat_anim = None
@@ -977,10 +977,11 @@ class App:
         self._apply_chat()
 
     # ------------------------------------------------------------------ chat box
-    # Conversation mode needs no chat box: it folds away and VECTOR stands alone on his
-    # table. The pointer over him (or the chat box) brings it back while it stays there;
-    # a click on him, SUPER+ALT+V or `bromigos-holo chat` pins it shown or hidden, in any
-    # mode, until conversation mode is next switched on or off.
+    # By default (the operator's choice) the chat box is folded away and VECTOR stands
+    # alone on his table at the right edge. The pointer over him (or the chat box) brings
+    # it back while it stays there, and so does typing to him (SUPER+E puts the caret in
+    # the box); a click on him, SUPER+ALT+V or `bromigos-holo chat` pins it shown or
+    # hidden until conversation mode is next switched on or off.
     CHAT_HOT = (60, 90, 420, 530)            # VECTOR and his table with the chat box shown (x, y, w, h)
 
     def _chat_hot(self, shown):
@@ -992,9 +993,7 @@ class App:
         return (x, y, rw, rh)
 
     def _chat_base(self):
-        if self.chat_override is not None:
-            return self.chat_override
-        return not self.conversation_on()
+        return bool(self.chat_override)
 
     def chat_visible(self):
         return self._chat_base() or self.chat_hover or (self.focused and self.chat_override is not False)

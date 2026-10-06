@@ -324,9 +324,11 @@ Push-to-talk only: `pw-record` runs while SUPER+V is held (cut at 30 s if a rele
   - Total silence went from 6.8 s to 0.9 s, and the longest pause from 2.0 s to 0.14 s, with no underruns.
   - Speaking pace is now about 290 wpm over the reply. Qwen's Voss clone is already brisk at 1.0, so lower `speed` if it feels rushed.
 
+**The chat box.** Folded away by default: VECTOR stands alone on his table at the right edge of his console. Point at him and it opens (he steps left to make room) and stays while the pointer is on the console; typing to him (SUPER+E) keeps it open too. A click on him or SUPER+ALT+V (`bromigos-holo chat`) pins it shown or hidden until conversation mode is next switched. His console is on the overlay layer and the live layer's decks on the top layer, so he is always in front of a hologram he's showing you.
+
 **Conversation mode** (SUPER+SHIFT+E, the ◉ CONVERSATION button on the panel, or `bromigos-holo conversation`).
 
-- **Just VECTOR on screen.** The chat box folds away and he slides to the right edge, alone on his table. Point at him and it comes back while the pointer stays on the console; click him or press SUPER+ALT+V (`bromigos-holo chat`) to pin it shown or hidden, in any mode, until conversation mode is next switched. His console draws above the live layer's holograms (Hyprland layer rule `order = 10`), so he can walk you through them.
+- **Just VECTOR on screen.** His chat box is folded away by default, in any mode: see "The chat box" below.
 - **How it works.** Hands-free and local. While it's on, VECTOR listens on the echo-cancelled mic. Silero VAD (2 MB ONNX on the CPU, `~/.local/share/bromigos/voice/silero_vad.onnx`) finds where you stop: `conversation.end_of_turn_ms`, 700 ms by default. The utterance goes to the same local speech-to-text, he replies, then he listens again.
 - **Barge-in.** Talking over him stops him and cancels the turn. While he plays (`conversation.BargeIn`, voice.json `conversation`):
   - the first 300 ms after playback starts never count (`barge_in_grace_ms`), while the canceller converges;

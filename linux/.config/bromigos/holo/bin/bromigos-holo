@@ -10,7 +10,7 @@
 #   bromigos-holo mute               VECTOR's voice on/off
 #   bromigos-holo voice [auto|main|robot|scientist|floor|notify|cycle]   pin a voice, or auto
 #   bromigos-holo conversation       hands-free conversation mode on/off (SUPER+SHIFT+E)
-#   bromigos-holo chat               VECTOR's chat box shown/hidden (SUPER+ALT+V; hidden in conversation mode until you point at him)
+#   bromigos-holo chat               VECTOR's chat box pinned shown/hidden (SUPER+ALT+V; folded away by default until you point at him)
 #   bromigos-holo shell off|on|stop  VECTOR's terminal: kill switch, or stop the running command
 #   bromigos-holo status | stop | restart | log
 #   bromigos-holo evals [--only CAT] [--task ID] [--list]   run VECTOR's eval suite now (headless)
