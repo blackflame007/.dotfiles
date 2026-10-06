@@ -47,12 +47,12 @@ spoken line before each step that changes something, a sentence after with the r
 
 ## Wiring a secret (you never see it)
 
-- Find what exists: `vault_list secret/homelab` (folders), `vault_list
-  secret/homelab/<app>` (key names).
+- Find what exists: `vault_list {{vault.root}}` (folders), `vault_list
+  {{vault.root}}/<app>` (key names).
 - Create a value: `vault_put` with `value_from: generate` (random) or
   `value_from: operator_prompt` (a dialog pops up on the host's screen for him to type
   or paste it; tell him first). Patch semantics: other keys stay. Copy an existing one
-  with `vault_copy secret/<vault-path>#key secret/<vault-path>#key`.
+  with `vault_copy {{vault.root}}/a#key {{vault.root}}/b#key`.
 - Get it to the app with an ExternalSecret in its chart (ESO's `ClusterSecretStore`
   is `vault`; the KV mount is `secret`, so `remoteRef.key` is `homelab/<app>`):
   ```yaml

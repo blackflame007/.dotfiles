@@ -90,7 +90,8 @@ flowchart LR
 
 | What | Where | Made by | If lost |
 |------|-------|---------|---------|
-| Keys and tokens | `~/.local/share/bromigos/*-token`, `*-key`, `*-kubeconfig`, `vault-vector-*` | the operator, from Vault (`secret/<vault-path>`, `secret/<vault-path>`, …) | re-copy from Vault; see `holo/README.md` |
+| Private values (internal URLs, LAN hosts, Vault paths, netmap) | `../private.sops.yaml` (encrypted, in git) → `~/.config/bromigos/private/` (`config.json`, `env`, `NOTES.md`) | `bromigos-private decrypt` (at login) | `bromigos-private decrypt`; the age key at `~/.config/sops/age/keys.txt` is backed up in Vault (see the private notes) |
+| Keys and tokens | `~/.local/share/bromigos/*-token`, `*-key`, `*-kubeconfig`, `vault-vector-*` | `bromigos-secrets sync`, from Vault (paths in the private overlay's `secrets:` manifest) | `bromigos-secrets sync`; see AGENTS.md, "Private values" |
 | Python environments | `~/.local/share/bromigos/venv` (3D model baking), `venv-brain` (VECTOR's Pydantic AI brain, with system site packages), `venv-tts` (speech: Python 3.12, torch) | by hand | `venv`: the `uv` command in `brand/3d/README.md`; `venv-brain` and `venv-tts`: their packages are listed in `holo/README.md` (no one-line recreate script yet) |
 | Voice models | `~/.local/share/bromigos/voice/` (Kokoro, Silero VAD), `voices/` (VECTOR's voice references) | `holo/voices/make-refs.py` | re-render (`holo/voices/README.md`) |
 | FIELD NOTES | `~/.local/share/bromigos/notes.md` | the operator | not recoverable: back it up |

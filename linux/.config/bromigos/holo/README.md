@@ -39,10 +39,10 @@ The desktop's Stark-lab hologram system: one renderer, two faces.
 
 VECTOR keeps a long-term memory in Gnosis, the homelab memory service (`holo/vector/memory.py`). His scope is tenant `bromigos`, space `vector`, agent `vector`, user `operator`, `private_user`.
 
-- **Tokens.** Every call goes through the homelab's **gnosis-gate** (`helm/gnosis-gate`, at `https://gnosis.redacted/gate/`) with two narrow tokens. Gnosis itself has only one service token for everyone, and its operator tokens share that value, so the desktop never holds it.
+- **Tokens.** Every call goes through the homelab's **gnosis-gate** (a small proxy in front of Gnosis; URL: the private overlay's `endpoints.gnosis_gate`) with two narrow tokens. Gnosis itself has only one service token for everyone, and its operator tokens share that value, so the desktop never holds it.
   - `gnosis-vector-write-token`: add, search, list, context and delete in his own scope only.
   - `gnosis-vector-read-token`: read his scope, and search `arbiter-research` and `arbiter-signals`.
-  - Both live in Vault `secret/<vault-path>` and as mode-600 files in `~/.local/share/bromigos/`.
+  - Both live in Vault (path in the private overlay, `vault.paths.gnosis`) and as mode-600 files in `~/.local/share/bromigos/`.
 - **Recall, before every turn.** Recall starts when the typed text is submitted or the transcript is final. Push-to-talk-down warms the mirror and the embedding path.
   - It is capped at 0.2 s. Gnosis's `/v1/memory/context` takes about 6 s with its LLM legs and about 0.35 s without, so the hot path races it against a local mirror of his Gnosis space, embedded with the same local qwen3-embedding model Gnosis uses and ranked by cosine. The mirror answers in about 0.05 s.
   - Up to five lines go into the prompt as "WHAT YOU REMEMBER". On a timeout the turn simply goes without; `recall_ms`, `recall_source` and `recalled` are in the reply stats.
@@ -95,7 +95,7 @@ He does the task he's given, end to end: he says each state-changing step in one
 | `kb_write` | file a verified note into a `kb-*` knowledge space |
 | `hologram_deck` | open and drive the live layer's holograms |
 
-Cluster actions run as the ServiceAccount **`vector-operator`** (homelab `helm/vector`, CLAUDE.md "VECTOR operator access"): edit on workloads; no Secrets, RBAC, tokens, node or namespace writes; admission policies keep him out of the privileged namespaces' pod templates and exec, out of other ServiceAccounts, Secret references, hostPath and privileged pods, off `arbiter-live*`, and limit Argo apps to sync and refresh. Its kubeconfig is `~/.local/share/bromigos/vector-operator-kubeconfig` (mode 600; Vault `secret/<vault-path>`).
+Cluster actions run as the ServiceAccount **`vector-operator`** (set up in the homelab repo; its CLAUDE.md, "VECTOR operator access"): edit on workloads; no Secrets, RBAC, tokens, node or namespace writes; admission policies keep him out of the privileged namespaces' pod templates and exec, out of other ServiceAccounts, Secret references, hostPath and privileged pods, off `arbiter-live*`, and limit Argo apps to sync and refresh. Its kubeconfig is `~/.local/share/bromigos/vector-operator-kubeconfig` (mode 600; from Vault through `bromigos-secrets sync`).
 
 **Vault** (`holo/vector/vault.py`, AppRole `vector`, homelab CLAUDE.md "VECTOR and Vault"): he wires secrets and never sees them.
 
@@ -155,8 +155,8 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
 
 `holo/vector/reach.py`.
 
-- **`web_search`** queries the homelab's SearXNG (`https://search.redacted/search?format=json`, homelab CA) in about 1 s. It takes an optional category (`general`, `it`, `science`, `news`); when one comes back empty it tries the others before giving up, and it returns SearXNG's infobox when there is one. If SearXNG is down it fails cleanly with a one-line message.
-- **`web_fetch`** returns a page's readable text, extracted with trafilatura and capped at 8,000 characters. Only http and https; LAN hosts are refused (checked after DNS too, including on redirects), except `*.redacted`.
+- **`web_search`** queries the homelab's SearXNG (the private overlay's `endpoints.searxng` + `/search?format=json`, homelab CA) in about 1 s. It takes an optional category (`general`, `it`, `science`, `news`); when one comes back empty it tries the others before giving up, and it returns SearXNG's infobox when there is one. If SearXNG is down it fails cleanly with a one-line message.
+- **`web_fetch`** returns a page's readable text, extracted with trafilatura and capped at 8,000 characters. Only http and https; LAN hosts are refused (checked after DNS too, including on redirects), except the lab's own domain (the private overlay's `lan.domain`).
 - **herdr** (the operator's workspace manager for AI coding agents) through fixed argv:
   - `herdr_status`: agents with working, idle or blocked status, from `herdr api snapshot`;
   - `herdr_read`: recent output;
@@ -172,8 +172,8 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
 
 **What it carries** (the operator's decision, 2026-10-05: like the bromigo Hermes agent's cluster-admin):
 
-- `KUBECONFIG` is his own `vector-operator` kubeconfig; the operator's admin kubeconfig is `$HOMELAB_ADMIN_KUBECONFIG` (homelab `ansible/kubeconfig.yml`, `--context default`), for when his account isn't enough. He says when he uses it.
-- `ansible-playbook` and SSH to the homelab machines (users are in the homelab inventory, e.g. `redacted`).
+- `KUBECONFIG` is his own `vector-operator` kubeconfig; the operator's admin kubeconfig is `$HOMELAB_ADMIN_KUBECONFIG` (path: the private overlay's `paths.admin_kubeconfig`, `--context default`), for when his account isn't enough. He says when he uses it.
+- `ansible-playbook` and SSH to the homelab machines (users and addresses are in the homelab inventory; the private notes have them).
 - Git over SSH: a non-prompting agent socket (the session's or OpenSSH's, never GCR's, which asks for confirmation and holds a hardware key that waits for a touch) or the operator's key file, which ssh reads itself; `GIT_SSH_COMMAND` runs in batch mode so nothing hangs on a prompt.
 
 **Limits, in code** (`tools/test-shell.py` and `tools/test-act.py`). With admin credentials allowed, these content refusals are the main line of defence; they are best-effort and kept tight:

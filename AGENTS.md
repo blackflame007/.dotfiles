@@ -70,7 +70,19 @@ Each top-level directory mirrors `$HOME`. Running `stow common` creates symlinks
 - **Font**: MesloLGM Nerd Font, 16pt in the terminals (kitty + alacritty); Geist Mono for the desktop HUD
 - **Color theme**: the Bromigos palette (`linux/.config/bromigos/brand/palette.*`; kitty includes `bromigos.conf`), tokyonight-night (neovim)
 - **Commit style**: `Added:`, `Updated:`, `Removed:`, `Fixed:` prefix
-- **Public repo**: never commit secret values; tokens live in mode-600 files under `~/.local/share/bromigos/` and in Vault (paths only in docs)
+- **Public repo**: no private infrastructure details and no secrets in plaintext; see "Private values" below
+
+## PRIVATE VALUES (this repo is public)
+
+The rule, for every helper and for VECTOR: nothing that maps the operator's lab goes into a tracked file in plaintext. That means LAN addresses, internal hostnames (`*.<lab domain>`), Vault paths, device, node and host names, cluster layout, personal identifiers beyond the GitHub handle, and anything token-shaped. Code, generic defaults, the brand and docs that say *how* things work are fine.
+
+- **Where private values live:** `linux/.config/bromigos/private.sops.yaml`, committed **encrypted** with sops + age (recipient pinned in `.sops.yaml`). Keys stay readable and values are `ENC[...]`. At login `bromigos-private.service` decrypts it to `~/.config/bromigos/private/` (gitignored, 0600): `config.json` (all of it), `env` (its `env:` section, sourced by `zsh-exports`) and `NOTES.md` (the private runbook: addresses, hosts, which Vault path holds what). `bromigos-private.path` re-decrypts after a `git pull` changes the file. The age private key is `~/.config/sops/age/keys.txt` (0600, never committed). A backup is in Vault; the private notes say where and how to restore it.
+- **Add or change a value:** `bromigos-private edit` (this is `sops edit` on the file, then decrypt), then commit the encrypted file. Sections: `endpoints.*` (base URLs: `lab`, `arbiter`, `prometheus`, `grafana`, `argocd`, `litellm`, `gnosis_gate`, `searxng`, `tts`, `vault`), `lan.*` (`domain`, `ping` list for the radar, `ssh_host`), `netmap.*` (gateway/switch/AP models and IPs, `roles`, `aliases`, `show_prefixes`, `show_hosts`), `vault.root`, `vault.paths.*`, `paths.*` (`admin_kubeconfig`, `homelab_repo`), `env.*`, `secrets` (the manifest below), `guard.patterns`, `docs.*`.
+- **Read them in code** through `linux/.config/bromigos/lib/bromigos_private.py`: `P.url("lab", "/api/status")`, `P.get("lan.ping", [])`, `P.vault("lab_api")`, `P.path("admin_kubeconfig")`. The holo package has `holo/private.py` (`PRIV`, plus `fill()` for `{{endpoints.lab}}` placeholders in prompts), and bromigos-live has `live/config.py` (`PRIV`; radial items take `endpoint = "<name>"`). Every caller passes a neutral default (empty), so a fresh clone without the key runs and just shows "not configured".
+- **Docs and skills** name the key instead of the value, e.g. "the Lab URL is `endpoints.lab`". Skills can write `{{endpoints.lab}}`; VECTOR's skill loader fills it in, and other readers find the value in `~/.config/bromigos/private/config.json`.
+- **Real secrets never go in the repo, not even encrypted.** Tokens, keys and kubeconfigs stay in Vault. `bromigos-secrets sync` copies each one to a 0600 file in `~/.local/share/bromigos/`, using the `secrets:` manifest (file → Vault path#key) that sits inside the encrypted file. It logs in with `$VAULT_TOKEN`, then the operator's `~/.vault-token`, then VECTOR's AppRole. It never prints a value and never blanks a file it can't read. `bromigos-secrets.service` runs it at login, and `bromigos-secrets status` lists the files.
+- **The guard:** `.githooks/pre-commit` (turn it on with `.githooks/install`, which sets `core.hooksPath`; `./install` does this) runs `lib/privacy_guard.py check-staged` on every commit. It blocks private IPv4 addresses, internal DNS names, MAC addresses, token shapes (plus gitleaks when installed) and the lab's own names from `guard.patterns`. It also checks that every `*.sops.*` file carries sops metadata and only `ENC[...]` values. `.github/workflows/privacy.yml` runs the same check over the whole tree, plus gitleaks over the pushed commits, with the lab patterns from the `PRIVACY_PATTERNS` repo secret. VECTOR's build guard and shell push check use the same patterns. A reviewed false positive can end its line with `privacy: allow`. Never use `--no-verify` to get real details in.
+- **Commit hygiene with several helpers in one checkout:** `git pull --rebase` first, stage only your own paths (`git commit -- <paths>`), and never commit whatever happens to be in the index.
 
 ## ANTI-PATTERNS
 
@@ -128,7 +140,7 @@ The Hyprland desktop is the operator's control center, styled as the Wick (BLACK
 - Custom image, video and audio assets are made with the operator's `nolgia` CLI (or procedurally).
 - Hover hints on everything hoverable. Heavy reads only while visible.
 - Real money stays the operator's: nothing on the desktop trades or arms; ARBITER is shown as paper.
-- The LAB panel reads EchoCraft Lab's `/api/status` with a read-only token (`~/.local/share/bromigos/lab-token`, from Vault `secret/<vault-path>`).
+- The LAB panel reads EchoCraft Lab's `/api/status` with a read-only token (`~/.local/share/bromigos/lab-token`, from Vault via `bromigos-secrets sync`); its URL is the private overlay's `endpoints.lab`.
 
 ### Key binds
 
@@ -311,5 +323,5 @@ pacman -Qqe > linux/.pacman.list
 - Tmux history: 20,000 lines, sessions auto-saved/restored via continuum
 - Zsh history: 1,000,000 lines at `~/.zsh_history`
 - `.mypy_cache/` exists at root — likely from a Python script, gitignored
-- `private/` submodule contains notes and sensitive settings — never commit secrets to main repo
+- `private/` submodule (`blackflame007/private`) holds older notes; the desktop's private values are the encrypted overlay (see "Private values")
 - Neovim requires >= 0.11.1, Node.js, Python 3, Rust, Nerd Font

@@ -22,7 +22,7 @@ cd ~/.dotfiles
 git submodule update --init --recursive
 ```
 
-Then link what you want, or run `./install` (it detects the OS, installs the basics — stow, git, zsh, neovim — and stows every directory):
+Then link what you want, or run `./install` (it detects the OS, installs the basics — stow, git, zsh, neovim, sops, age, gitleaks — and stows every directory):
 
 ```bash
 stow common linux zsh   # shared, Linux and shell configs
@@ -32,7 +32,14 @@ stow zsh                # just the shell
 Each top-level directory mirrors `$HOME` (for example `linux/.config/hypr/` becomes
 `~/.config/hypr/`). Remove links with `stow -D <dir>`, or everything with `./uninstall`.
 
-The Bromigos desktop also needs secrets and Python environments that are not in git;
+Run `.githooks/install` once per clone (`./install` does it): a pre-commit guard keeps
+private details out of this public repo.
+
+The Bromigos desktop's private values (internal URLs, LAN hosts, Vault paths) are committed
+encrypted (`linux/.config/bromigos/private.sops.yaml`, sops + age). With the operator's age key
+at `~/.config/sops/age/keys.txt`, `bromigos-private decrypt` unlocks them and `bromigos-secrets sync`
+fetches the secrets from Vault. Without the key everything runs with neutral defaults. AGENTS.md
+("Private values") explains it. The desktop also needs Python environments that are not in git;
 `linux/.config/bromigos/README.md` ("Where state lives") lists each one and how to get it.
 
 ## Packages

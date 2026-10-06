@@ -20,7 +20,7 @@ spoken line per state change; a short report at the end.
    - established libraries over hand-rolled plumbing;
    - UIs: Next.js, charts with ECharts (no watermarked chart libraries);
    - AI agents and model calls: Pydantic AI, through the homelab LiteLLM
-     (`https://litellm.redacted/v1`), local models first;
+     (`{{endpoints.litellm}}/v1`), local models first;
    - every hoverable element explains itself; chart marker groups split on zoom;
    - the desktop: see `desktop-style-guide.md`; data: see `data-sources.md`.
 4. `git status` first. Files already modified are the host's work in progress: never
