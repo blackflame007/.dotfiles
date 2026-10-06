@@ -682,15 +682,19 @@ SPECS = {
                  "decisions, lab facts or recurring problems.", _p({"text": S, "category": S}, ["text"])),
     "forget": ("Remove something from your own long-term memory when the host asks you to forget it. what: a description "
                "of it, or 'that' for the last thing you filed.", _p({"what": S})),
-    "set_voice": ("Choose your voice on the line: auto (you pick per sentence, the default), or pin one of main, robot, "
-                  "scientist, floor, notify. Use when the host asks, e.g. 'use the robot voice' or 'back to normal' (auto).",
+    "set_voice": ("Pin your voice on the line: auto (you pick per sentence, the default), or one of main, robot, scientist, "
+                  "floor, notify. ALWAYS call this when the host asks to switch or change your voice ('switch to your robot "
+                  "voice', 'back to normal' = auto); a marker in your reply does not switch it.",
                   _p({"mode": S}, ["mode"])),
     "show_hologram": ("Put a model hologram on your side table: workstation, wick, rack, monolith, emblem; optional part ids to call out.",
                       _p({"model": S, "parts": {"type": "array", "items": S}}, ["model"])),
     "open_gallery": ("Open the full hologram gallery on a model.", _p({"model": S})),
     "k8s_restart": ("Rollout-restart a deployment, statefulset or daemonset and wait until it's Ready again (as vector-operator). "
-                    "Say what you're restarting first.", _p({"namespace": S, "name": S, "kind": S, "wait": B}, ["namespace", "name"])),
-    "k8s_scale": ("Scale a deployment or statefulset to replicas (0-20) and wait for it. Say it first.",
+                    "namespace: the workload's real Kubernetes namespace, usually named after the app (searxng lives in "
+                    "namespace searxng); 'the homelab' or 'the lab' is the cluster, never a namespace. If unsure, look it "
+                    "up with k8s_get first. Say what you're restarting first.", _p({"namespace": S, "name": S, "kind": S, "wait": B}, ["namespace", "name"])),
+    "k8s_scale": ("Scale a deployment or statefulset to replicas (0-20) and wait for it. namespace: the real one, usually "
+                  "the app's own name (never 'homelab'); k8s_get first if unsure. Say it first.",
                   _p({"namespace": S, "name": S, "replicas": I, "kind": S}, ["namespace", "name", "replicas"])),
     "k8s_delete_pod": ("Delete one pod (e.g. a stuck one; its controller replaces it). Say it first.",
                        _p({"namespace": S, "pod": S}, ["namespace", "pod"])),

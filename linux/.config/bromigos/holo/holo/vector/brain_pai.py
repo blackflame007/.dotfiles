@@ -130,7 +130,7 @@ class PaiBrain:
         ctx = ssl.create_default_context(cafile=CA) if os.path.exists(CA) else ssl.create_default_context()
         self.http = httpx.AsyncClient(verify=ctx, timeout=httpx.Timeout(connect=5.0, read=IDLE_GAP, write=10.0, pool=5.0))
         provider = OpenAIProvider(base_url=BASE, api_key=key, http_client=self.http)
-        self.settings = OpenAIChatModelSettings(temperature=0.7, max_tokens=900,
+        self.settings = OpenAIChatModelSettings(temperature=0.5, max_tokens=900,   # 0.5: steadier tool choice (evals)
                                                 extra_body={"chat_template_kwargs": {"enable_thinking": False}})
         voice, deep = lanes()
         mk = lambda names: FallbackModel(*[Guard(OpenAIChatModel(n, provider=provider), self) for n in names],  # noqa: E731
