@@ -4,19 +4,30 @@ command logged. The limits are here, in code, and covered by tools/test-shell.py
 1. No privilege escalation: sudo, su, doas, pkexec, run0 and polkit helpers are refused
    anywhere in the command, including inside `sh -c '...'`, pipes, $(...), and the text
    of a script the command runs. A command that can't be parsed is refused.
-2. No secrets: the shell's environment is scrubbed of tokens, keys, secrets, passwords,
-   Vault, cloud and GitHub credentials. `vault`, `gcloud secrets`, `kubectl … secret(s)`
-   and any read of known secret paths (~/.vault-token, ~/.ssh private keys, the desktop's
+2. No secret values: the shell's environment is scrubbed of tokens, keys, secrets,
+   passwords, Vault, cloud and GitHub credentials. Credentials that sign or authenticate
+   without exposing a value do pass: SSH_AUTH_SOCK (the operator's agent; ~/.ssh stays
+   refused) and KUBECONFIG (VECTOR's own `vector-operator` kubeconfig; the operator's
+   admin kubeconfig is $HOMELAB_ADMIN_KUBECONFIG, for when that isn't enough). `vault`, `gcloud secrets`, `kubectl … secret(s)`
+   (get, describe, -o yaml/json, edit), `kubectl exec` that prints a pod's environment or
+   its mounted ServiceAccount/secret files, Vault's HTTP API, `ansible-vault`,
+   `ansible-inventory` and ad-hoc `ansible -m debug` (they print vars, secrets.yml
+   included), and any read of known secret paths (~/.vault-token, ~/.ssh private keys, the desktop's
    key and token files, gcloud, kube config, .env files, gnupg, password stores, browser
    profiles, git/docker/netrc credentials, wallets) are refused. Anything secret-looking in
    the output is redacted before it reaches the model, the transcript or the log.
 3. No real money: live venue order endpoints (Alpaca live, Kalshi, Polymarket, Coinbase),
-   ARBITER live/arm routes, fund transfers and wallet keys are refused. Paper and read
-   endpoints are fine.
+   ARBITER live/arm/intents routes, the arbiter-live workload, LIVE_OPERATORS, fund
+   transfers and wallet keys are refused. A `git push` whose unpushed commits touch
+   ARBITER's real-money code (engine/internal/live, venue executors, cmd/live, the live
+   console pages, homelab helm/arbiter/templates/live.yaml) is refused too. Paper and
+   read endpoints are fine.
 4. Each command runs in a new session (killable as a group), default 60 s timeout (up to
    10 min on request), cwd ~ by default, output capped. `bromigos-holo shell off|on` is
    the kill switch; while off nothing runs. Barge-in or STOP kills the running group.
 5. Audit: ~/.local/state/bromigos/vector-shell.log, one JSON line per command or refusal.
+   An Ansible playbook that touches Vault, ARBITER or venue secrets is also written to
+   vector-sensitive.log and announced aloud (on_notice) before it runs.
 """
 import json
 import os
@@ -56,7 +67,18 @@ MONEY = [
     (re.compile(r"/api/live(/|\b)|/live/(arm|enable|go|start|orders?)\b|\barm[-_ ]?live\b|\blive[-_ ]?arm", re.I), "ARBITER live/arm"),
     (re.compile(r"\b(solana\s+transfer|spl-token\s+transfer|cast\s+send|cast\s+wallet|seth\s+send|bitcoin-cli\s+send)", re.I), "moving funds"),
     (re.compile(r"\b(wallet|keypair|mnemonic|seed[-_ ]?phrase|private[-_ ]?key)\b", re.I), "wallet keys"),
+    (re.compile(r"live[-_ ]?operators?", re.I), "the real-money operator list (LIVE_OPERATORS)"),
+    (re.compile(r"\barbiter-live\b", re.I), "the arbiter-live service (real money)"),
+    (re.compile(r"/api/(live|intents)\b", re.I), "ARBITER live/intents routes"),
 ]
+KUBE_TOOLS = r"\b(kubectl|kubecolor|k9s|helm|oc)\b"
+# ARBITER's real-money code: a push whose unpushed commits touch these is refused
+MONEY_CODE = {
+    "arbiter": re.compile(r"^(engine/internal/live/|engine/internal/venue/|engine/internal/evmswap/|engine/cmd/(live|golive|cdp-policy)/|"
+                          r"engine/migrations/[^/]*live|console/lib/live/|console/app/[^/]+/(live|wallet)/|"
+                          r"console/components/wallet/|console/e2e/live/)"),
+    "homelab": re.compile(r"^helm/arbiter/templates/live\.yaml$"),
+}
 REDACT = [
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "[redacted private key]"),
     (re.compile(r"\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b"), "[redacted github token]"),
@@ -73,6 +95,23 @@ REDACT = [
 ENV_DROP = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSWD|_KEY$|KEY_ID|PRIVATE|CREDENTIAL|^VAULT_|^AWS_|^GH_|^GITHUB_|"
                       r"^GOOGLE_|^GCLOUD|^AZURE_|^OPENAI|^ANTHROPIC|^NOLGIA|^HF_TOKEN|^KUBECONFIG$|SSH_AUTH_SOCK|^GPG_|"
                       r"^DBUS_SESSION_BUS_ADDRESS$)", re.I)
+VECTOR_KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/vector-operator-kubeconfig")
+ADMIN_KUBECONFIG = os.path.join(HOME, "github.com/bromigos-org/homelab/ansible/kubeconfig.yml")
+SENSITIVE = os.path.join(STATE, "vector-sensitive.log")
+SENSITIVE_PLAY = re.compile(r"vault|arbiter|kalshi|alpaca|coinbase|polymarket|wallet|secrets?\b|live[-_]operators", re.I)
+
+
+def ssh_agent():
+    """An SSH agent socket that never prompts: the session's own, else OpenSSH's user
+    agent. Not GCR's (gcr/ssh): it asks for confirmation in a dialog and holds a hardware
+    key that waits for a touch, so a push would hang. With no usable agent identity ssh
+    falls back to the operator's key file, which ssh reads itself (the shell still
+    refuses any command that names ~/.ssh)."""
+    run = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    for p in (os.environ.get("SSH_AUTH_SOCK"), os.path.join(run, "ssh-agent.socket")):
+        if p and os.path.exists(p) and "/gcr/" not in p:
+            return p
+    return None
 
 
 class Refused(Exception):
@@ -209,8 +248,23 @@ def check(command, cwd=HOME):
     joined = " ".join(words)
     if re.search(r"\bgcloud\b.*\bsecrets?\b", joined):
         raise Refused("gcloud secrets is not allowed")
-    if re.search(r"\b(kubectl|kubecolor|k9s|helm)\b", joined) and re.search(r"\bsecrets?\b|\bsecret/", joined, re.I):
+    if re.search(KUBE_TOOLS, joined) and re.search(r"\bsecrets?\b|\bsecret/|\bsealedsecrets?\b", joined, re.I):
         raise Refused("reading Kubernetes secrets is not allowed")
+    if re.search(KUBE_TOOLS, joined) and re.search(r"\bget\b.*\ball\b.*(-o|--output)", joined):
+        raise Refused("kubectl get all with an output format can include secrets; name the kinds you need")
+    if re.search(r"\b(kubectl|kubecolor)\b.*\b(exec|debug|attach|cp)\b", joined) and re.search(
+            r"\b(env|printenv|set|declare|export|compgen)\b|/proc/|/run/secrets|/var/run/secrets|serviceaccount|\btoken\b", joined):
+        raise Refused("printing a pod's environment or its mounted secrets is not allowed")
+    if re.search(r"/run/secrets/|/var/run/secrets/|/etc/rancher/k3s/k3s\.yaml|/var/lib/rancher/k3s/server/(token|cred|tls)", joined):
+        raise Refused("that reads cluster credentials")
+    if re.search(r"vault\.homelab\.local|x-vault-token|:8200\b|/v1/(secret|sys|auth)/", joined, re.I):
+        raise Refused("Vault's API is reached only through the vault tools (vault_list, vault_put, vault_copy)")
+    if re.search(r"\bansible-(vault|inventory)\b", joined):
+        raise Refused("ansible-vault and ansible-inventory print secret values")
+    if re.search(r"\bansible\b(?!-)", joined) and re.search(r"\bdebug\b|-m\s*(shell|command|raw)\b.*\b(env|printenv|cat)\b", joined):
+        raise Refused("ad-hoc ansible that prints variables or environments is not allowed")
+    if re.search(r"\bansible-playbook\b", joined) and re.search(r"(^|\s)-v{2,}\b|--verbose\s+--verbose", joined):
+        raise Refused("ansible-playbook at -vv or more prints module arguments (tokens included); use -v at most")
     if re.search(r"\b(env|printenv|export|set|declare)\b", joined) and re.search(r"/proc/\d+/environ|/proc/self/environ", joined):
         raise Refused("reading another process's environment is not allowed")
     if re.search(r"/proc/[^\s/]+/environ", joined):
@@ -234,7 +288,94 @@ def clean_env():
     env["SYSTEMD_PAGER"] = ""
     env["NO_COLOR"] = "1"
     env["SUDO_ASKPASS"] = "/bin/false"
+    sock = ssh_agent()
+    if sock:
+        env["SSH_AUTH_SOCK"] = sock
+    env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o ConnectTimeout=15"   # never wait on a prompt
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    if os.path.exists(VECTOR_KUBECONFIG):
+        env["KUBECONFIG"] = VECTOR_KUBECONFIG
+    if os.path.exists(ADMIN_KUBECONFIG):
+        env["HOMELAB_ADMIN_KUBECONFIG"] = ADMIN_KUBECONFIG
     return env
+
+
+# ------------------------------------------------------------------ pushes and playbooks
+def _git_dirs(words, cwd):
+    """Repos a git command acts on: -C <dir> or the working directory."""
+    dirs = []
+    for i, w in enumerate(words):
+        if os.path.basename(w) == "git" and i + 2 < len(words) and words[i + 1] == "-C":
+            dirs.append(os.path.realpath(os.path.join(cwd, os.path.expanduser(words[i + 2]))))
+    return dirs or [cwd]
+
+
+def _repo_name(d):
+    try:
+        url = subprocess.run(["git", "-C", d, "remote", "get-url", "origin"], capture_output=True, text=True,
+                             timeout=5).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(r"[:/]([\w.-]+)/([\w.-]+?)(\.git)?$", url)
+    return m.group(2) if m else None
+
+
+def check_push(words, cwd):
+    """A push of commits that touch ARBITER's real-money code is refused."""
+    if not any(os.path.basename(w) == "git" for w in words) or "push" not in words:
+        return None
+    for d in _git_dirs(words, cwd):
+        rule = MONEY_CODE.get(_repo_name(d) or "")
+        if not rule:
+            continue
+        try:
+            files = subprocess.run(["git", "-C", d, "log", "--name-only", "--format=", "--branches", "--not", "--remotes"],
+                                   capture_output=True, text=True, timeout=15).stdout.split()
+        except (OSError, subprocess.TimeoutExpired):
+            raise Refused("couldn't check what that push contains") from None
+        hit = sorted({f for f in files if rule.search(f)})
+        if hit:
+            raise Refused(f"no real money: the push touches real-money code ({', '.join(hit[:4])}); the host pushes that himself")
+    return None
+
+
+def sensitive_playbook(words, cwd):
+    """An ansible-playbook whose playbook mentions Vault, ARBITER or venue secrets -> its name."""
+    if not any(os.path.basename(w) == "ansible-playbook" for w in words):
+        return None
+    for w in words:
+        if w.endswith((".yml", ".yaml")):
+            p = os.path.realpath(os.path.join(cwd, os.path.expanduser(w)))
+            try:
+                with open(p, errors="replace") as f:
+                    text = f.read(512 * 1024)
+            except OSError:
+                text = w
+            roles = re.findall(r"^\s*-\s*(?:role:\s*)?([\w.-]+)\s*$", text, re.M)
+            for r in roles:      # the roles' task files, shallowly
+                rp = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(p))), "roles", r, "tasks", "main.yml")
+                try:
+                    with open(rp, errors="replace") as f:
+                        text += f.read(512 * 1024)
+                except OSError:
+                    pass
+            if SENSITIVE_PLAY.search(text) or SENSITIVE_PLAY.search(w):
+                return os.path.basename(w)
+    return None
+
+
+def _push_event(words, cwd, ok):
+    from . import events
+    for d in _git_dirs(words, cwd):
+        try:
+            g = lambda *a: subprocess.run(["git", "-C", d] + list(a), capture_output=True, text=True,  # noqa: E731
+                                          timeout=5).stdout.strip()
+            url = g("remote", "get-url", "origin")
+            m = re.search(r"[:/]([\w.-]+/[\w.-]+?)(\.git)?$", url)
+            events.emit("git.push", repo=m.group(1) if m else os.path.basename(d), branch=g("rev-parse", "--abbrev-ref", "HEAD"),
+                        sha=g("rev-parse", "--short=8", "HEAD"), ok=ok)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
 
 
 # ------------------------------------------------------------------ running
@@ -243,6 +384,7 @@ class Runner:
         self.lock = threading.Lock()
         self.current = None        # {"proc", "command", "cwd", "t0"}
         self.on_change = None      # callback(current or None) for the UI
+        self.on_notice = None      # callback(text): said aloud before a sensitive command
 
     def kill(self, why="stopped"):
         with self.lock:
@@ -269,9 +411,20 @@ class Runner:
             return {"error": f"no such directory: {cwd}"}
         try:
             check(command, cwd)
+            words = words_of(command)
+            check_push(words, cwd)
+            play = sensitive_playbook(words, cwd)
         except Refused as e:
             audit(event="refused", command=command, cwd=cwd, reason=str(e))
             return {"refused": str(e)}
+        if play:
+            rec = {"t": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "event": "sensitive_playbook", "playbook": play,
+                   "command": redact(command), "cwd": cwd}
+            with open(SENSITIVE, "a") as f:
+                f.write(json.dumps(rec) + "\n")
+            audit(event="sensitive", command=command, cwd=cwd, reason=f"playbook {play} touches Vault, ARBITER or venue secrets")
+            if self.on_notice:
+                self.on_notice(f"Running the {play.rsplit('.', 1)[0]} playbook; it touches secrets. Logged.")
         t0 = time.monotonic()
         proc = subprocess.Popen(["/bin/bash", "-c", command], cwd=cwd, env=clean_env(), stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
@@ -311,6 +464,8 @@ class Runner:
         shown = text if len(text) <= MODEL_CHARS else (text[:MODEL_CHARS // 2] + f"\n…[{len(text) - MODEL_CHARS} chars cut]…\n" + text[-MODEL_CHARS // 2:])
         audit(event="ran", command=command, cwd=cwd, exit=proc.returncode, seconds=dur, out_bytes=total,
               killed=cur.get("killed"))
+        if "push" in words and any(os.path.basename(w) == "git" for w in words):
+            _push_event(words, cwd, proc.returncode == 0)
         out = {"exit": proc.returncode, "seconds": dur, "output": shown}
         if cur.get("killed"):
             out["killed"] = cur["killed"]

@@ -381,6 +381,7 @@ class App:
         self.stopbtn.connect("clicked", lambda b: self.shell_stop())
         from .vector.shell import RUNNER
         RUNNER.on_change = lambda cur: GLib.idle_add(self._shell_changed, cur)
+        RUNNER.on_notice = lambda text: GLib.idle_add(self._herdr_notice, text)   # spoken in the notify voice
         self.vector = HoloWindow("bromigos-vector", self.pscene, (1180, 640), "br", {"r": 24, "b": 24},
                                 keyboard_exclusive=False, overlay_children=[self.histpanel, self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn],
                                 input_widgets=[self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.histpanel])

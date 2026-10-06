@@ -1,9 +1,15 @@
-"""VECTOR's tools. Read-only by construction, a few safe desktop actions, nothing else.
+"""VECTOR's tools: fast read tools, act tools for the homelab, Vault wiring, desktop actions.
+His full terminal is separate (run_shell, holo/vector/shell.py, with its own limits).
 
 Hard limits (enforced here, not by the prompt):
-  * no shell: every subprocess is a fixed argv from an allowlist, never a shell string;
-  * the cluster through the `pilot-readonly` ServiceAccount kubeconfig only (get/list/
+  * every subprocess here is a fixed argv from an allowlist, never a shell string;
+  * reads: the cluster through the `pilot-readonly` ServiceAccount kubeconfig (get/list/
     watch, no secrets/configmaps/exec); verbs used: get, logs, top;
+  * acts (act.py): restart, scale, delete a pod, run a Job from a CronJob, Argo sync/
+    refresh/wait, as `vector-operator` (RBAC + admission policies in homelab helm/vector),
+    never arbiter-live*; CI watch through gh; notes into the kb-* knowledge spaces;
+  * Vault (vault.py): AppRole `vector`; list names, put a generated or operator-typed
+    value, copy Vault to Vault; never returns or logs a value;
   * Prometheus: GET /api/v1/query and query_range only;
   * GitHub: `gh` read subcommands only, repos under bromigos-org;
   * ARBITER: a fixed table of console GET paths (no trading, no arming, no live/*);
@@ -95,6 +101,9 @@ EXHIBIT = {
     "argocd_apps": ("rack", ["frame"]), "prometheus_query": ("rack", ["nodes", "gpu"]),
     "arbiter": ("monolith", ["plinth", "slab3", "crown"]), "gnosis_search": ("monolith", ["slab4"]),
     "scan": ("workstation", ["cpu", "gpu"]),
+    "k8s_restart": ("rack", ["nodes"]), "k8s_scale": ("rack", ["nodes"]), "k8s_delete_pod": ("rack", ["nodes"]),
+    "k8s_run_job": ("rack", ["nodes"]), "argocd_sync": ("rack", ["frame"]), "argocd_refresh": ("rack", ["frame"]),
+    "argocd_wait": ("rack", ["frame"]),
 }
 
 
@@ -475,6 +484,9 @@ def shell_off():
 
 from .reach import (herdr_read, herdr_send, herdr_start, herdr_status, herdr_wait,  # noqa: E402
                     web_fetch, web_search)
+from .act import (argocd_refresh, argocd_sync, argocd_wait, ci_watch, k8s_delete_pod,  # noqa: E402
+                  k8s_restart, k8s_run_job, k8s_scale, kb_write)
+from .vault import vault_copy, vault_list, vault_put  # noqa: E402
 
 
 def notes_read(last_lines=60):
@@ -636,6 +648,33 @@ SPECS = {
     "show_hologram": ("Put a model hologram on your side table: workstation, wick, rack, monolith, emblem; optional part ids to call out.",
                       _p({"model": S, "parts": {"type": "array", "items": S}}, ["model"])),
     "open_gallery": ("Open the full hologram gallery on a model.", _p({"model": S})),
+    "k8s_restart": ("Rollout-restart a deployment, statefulset or daemonset and wait until it's Ready again (as vector-operator). "
+                    "Say what you're restarting first.", _p({"namespace": S, "name": S, "kind": S, "wait": B}, ["namespace", "name"])),
+    "k8s_scale": ("Scale a deployment or statefulset to replicas (0-20) and wait for it. Say it first.",
+                  _p({"namespace": S, "name": S, "replicas": I, "kind": S}, ["namespace", "name", "replicas"])),
+    "k8s_delete_pod": ("Delete one pod (e.g. a stuck one; its controller replaces it). Say it first.",
+                       _p({"namespace": S, "pod": S}, ["namespace", "pod"])),
+    "k8s_run_job": ("Run a Job now from a CronJob's template (namespace, cronjob); wait=true waits up to 9 minutes.",
+                    _p({"namespace": S, "cronjob": S, "wait": B}, ["namespace", "cronjob"])),
+    "argocd_sync": ("Sync an Argo CD app now and wait until Synced and Healthy (after a push to homelab master, Argo "
+                    "applies it by itself; sync only to hurry it).", _p({"app": S, "wait": B}, ["app"])),
+    "argocd_refresh": ("Make Argo CD re-read an app's source (hard=true also re-renders).", _p({"app": S, "hard": B}, ["app"])),
+    "argocd_wait": ("Wait until an Argo CD app is Synced and Healthy (up to timeout_s, default 300).",
+                    _p({"app": S, "timeout_s": I}, ["app"])),
+    "ci_watch": ("Wait for GitHub Actions on a commit (sha) or a branch's latest run, in a repo under bromigos-org, "
+                 "nolgiainc or blackflame007 (owner/name, or a bromigos-org name). Returns each run's conclusion.",
+                 _p({"repo": S, "sha": S, "branch": S, "timeout_s": I}, ["repo"])),
+    "kb_write": ("Add a verified note to the knowledge base (space: bromigos, nolgia, personal, desktop, homelab) "
+                 "so it can be found later: how something works, where something lives. Never secrets.",
+                 _p({"space": S, "title": S, "text": S}, ["space", "title", "text"])),
+    "vault_list": ("Homelab Vault: a folder's entries or a secret's key NAMES (never values). path under secret/homelab.",
+                   _p({"path": S})),
+    "vault_put": ("Store one key in the homelab Vault (patch: other keys untouched). value_from: generate (random; "
+                  "length, charset alnum|hex|urlsafe|strong) or operator_prompt (a dialog pops up for the host to "
+                  "type or paste it; say so first). You never see the value.",
+                  _p({"path": S, "key": S, "value_from": S, "length": I, "charset": S}, ["path", "key", "value_from"])),
+    "vault_copy": ("Copy one Vault key to another path, Vault to Vault: src and dst as secret/homelab/<path>#<key>.",
+                   _p({"src": S, "dst": S}, ["src", "dst"])),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
@@ -646,10 +685,25 @@ def schemas():
     return [{"type": "function", "function": {"name": n, "description": d, "parameters": p}} for n, (d, p) in SPECS.items()]
 
 
+def _outcome(res):
+    """One short line for the event feed (never the whole result)."""
+    if isinstance(res, dict):
+        for k in ("refused", "error", "ready", "rollout", "all_green", "sync", "exit", "ok"):
+            if k in res:
+                return f"{k}={str(res[k])[:80]}"
+        return f"{len(res)} fields"
+    if isinstance(res, list):
+        return f"{len(res)} items"
+    return f"{len(str(res))} chars"
+
+
 def call(name, args, ui=None, live=None):
     """Run a tool; returns (result_text, exhibit or None). ui handles the UI-only tools."""
     t0 = time.monotonic()
     args = args or {}
+    from . import events
+    eid = events.next_id()
+    events.emit("tool.start", id=eid, name=name, args="(private)" if name in PRIVATE_ARGS else events.summary(args))
     try:
         if name in ("show_hologram", "open_gallery", "set_voice", "remember", "forget"):
             if ui is None:
@@ -662,9 +716,15 @@ def call(name, args, ui=None, live=None):
         else:
             raise ValueError(f"unknown tool {name}")
         text = _short(res)
-        _audit(name, args, True, int((time.monotonic() - t0) * 1000), len(text))
+        ms = int((time.monotonic() - t0) * 1000)
+        _audit(name, args, True, ms, len(text))
+        events.emit("tool.end", id=eid, name=name, ok=True, ms=ms, outcome=_outcome(res))
+        if name.startswith("vault_"):
+            events.emit("vault.op", op=name[6:], path=args.get("path") or args.get("dst"), key=args.get("key"))
         ex = EXHIBIT.get(name)
         return text, ex
     except Exception as e:
-        _audit(name, args, False, int((time.monotonic() - t0) * 1000), err=e)
+        ms = int((time.monotonic() - t0) * 1000)
+        _audit(name, args, False, ms, err=e)
+        events.emit("tool.end", id=eid, name=name, ok=False, ms=ms, outcome=f"{type(e).__name__}: {str(e)[:100]}")
         return json.dumps({"error": f"{type(e).__name__}: {str(e)[:300]}"}), None
