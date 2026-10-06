@@ -44,18 +44,38 @@ pacman -S --needed --noconfirm snapper snap-pac grub-btrfs inotify-tools btrbk n
 # Container images are rebuildable and can be 100+ GB; as their own subvolumes they
 # are skipped by root snapshots and by the off-drive copy (snapshots don't cross
 # subvolume boundaries). The copy uses reflinks, so it's instant and needs no space.
+unmount_under() {                                   # stale buildkit/overlay mounts block the copy
+  findmnt -rn -o TARGET | awk -v p="$1" 'index($0, p) == 1' | sort -r | while read -r m; do
+    umount -l "$m" 2>/dev/null || true
+  done
+}
 for d in /var/lib/docker /var/lib/containers; do
-  [ -d "$d" ] || continue
-  if [ "$(stat -f -c %T "$d")" = btrfs ] && btrfs subvolume show "$d" >/dev/null 2>&1; then
+  [ -d "$d" ] || [ -d "$d.old" ] || continue
+  svc=""; case "$d" in */docker) svc="docker.service docker.socket containerd.service";; esac
+  # Recover an interrupted earlier run: drop the partial subvolume, put the original back.
+  if [ -d "$d.old" ]; then
+    echo "--- recovering an interrupted move of $d"
+    [ -n "$svc" ] && systemctl stop $svc 2>/dev/null || true
+    unmount_under "$d.old"; unmount_under "$d"
+    if btrfs subvolume show "$d" >/dev/null 2>&1; then btrfs subvolume delete "$d"; else rm -rf "$d"; fi
+    mv "$d.old" "$d"
+  fi
+  if btrfs subvolume show "$d" >/dev/null 2>&1; then
     continue                                        # already a subvolume
   fi
   echo "--- making $d its own subvolume ($(du -sh "$d" | cut -f1))"
-  svc=""; case "$d" in */docker) svc="docker.service docker.socket containerd.service";; esac
   [ -n "$svc" ] && systemctl stop $svc 2>/dev/null || true
+  unmount_under "$d"
+  rm -rf "$d/buildkit/executor"                      # transient build sandboxes, never needed after a stop
   mv "$d" "$d.old"
   btrfs subvolume create "$d"
-  cp -a --reflink=always "$d.old/." "$d/"
-  rm -rf "$d.old"
+  if cp -a --reflink=always "$d.old/." "$d/"; then
+    rm -rf "$d.old"
+  else                                               # never leave Docker half-moved: put it back
+    echo "!!! copy into the new $d subvolume failed; restoring the original and carrying on"
+    btrfs subvolume delete "$d"
+    mv "$d.old" "$d"
+  fi
   [ -n "$svc" ] && systemctl start docker.service 2>/dev/null || true
 done
 echo "--- root without container images: $(du -sxh / 2>/dev/null | cut -f1)"
