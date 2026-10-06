@@ -88,6 +88,7 @@ K.exec("SUPER + O", "~/.config/bromigos/holo/bin/bromigos-holo gallery")
 K.exec("SUPER + V", "~/.config/bromigos/holo/bin/bromigos-holo ptt on")
 K.exec("SUPER + V", "~/.config/bromigos/holo/bin/bromigos-holo ptt off", { release = true })
 K.exec("SUPER + SHIFT + V", "~/.config/bromigos/holo/bin/bromigos-holo mute")
+K.exec("SUPER + ALT + V", "~/.config/bromigos/holo/bin/bromigos-holo chat")
 -- The Razer gets its own keymap so F13-F22 stay F13-F22: its hl.device() entries are in
 -- hyprland.lua (see razer-blackwidow.xkb).
 -- Razer BlackWidow V4 Pro macro keys, bound by keycode (code:N = evdev code + 8) so no keymap

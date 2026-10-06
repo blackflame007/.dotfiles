@@ -155,17 +155,21 @@ class HoloWindow:
         import cairo
         rects = []
         for w in self.input_widgets:
-            if not w.get_visible() or not w.get_realized():
+            if not w.get_visible() or not w.get_realized() or w in self.input_skip:
                 continue
             a = w.get_allocation()
             xy = w.translate_coordinates(self.win, 0, 0)
             if xy:
                 rects.append(cairo.RectangleInt(int(xy[0]) - 2, int(xy[1]) - 2, a.width + 4, a.height + 4))
+        for x, y, rw, rh in self.hot_rects:
+            rects.append(cairo.RectangleInt(int(x), int(y), int(rw), int(rh)))
         gw.input_shape_combine_region(cairo.Region(rects), 0, 0)
         self.input_rects = [(r.x, r.y, r.width, r.height) for r in rects]
         return False
 
     input_rects = ()
+    input_skip = frozenset()   # listed widgets that are faded out: clicks go through them
+    hot_rects = ()             # extra pointer areas (x, y, w, h), e.g. VECTOR himself for hover
 
     def keyboard(self, mode):
         GtkLayerShell.set_keyboard_mode(self.win, {
@@ -397,6 +401,18 @@ class App:
                                 input_widgets=[self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.histpanel, self.voicebtn])
         self.vector.win.connect("key-press-event", self._vector_key)
         self.vector.win.connect("notify::has-toplevel-focus", self._vector_focus)
+        # the chat box (transcript side + its controls) can fold away, leaving VECTOR alone
+        self.chat_widgets = (self.entry, self.minbtn, self.convbtn, self.histbtn, self.stopbtn, self.voicebtn, self.histpanel)
+        self.chat_override = None            # None: automatic (hidden in conversation mode); True/False: chosen
+        self.chat_hover = False
+        self.chat_leave_timer = None
+        self.chat_anim = None
+        self.chat_conv = False
+        self.vector.win.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK)
+        self.vector.win.connect("enter-notify-event", self._chat_enter)
+        self.vector.win.connect("leave-notify-event", self._chat_leave)
+        self.vector.area.connect("button-press-event", self._chat_click)
+        GLib.timeout_add(300, self._chat_watch)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
         try:
             from .vector.memory import Memory
@@ -958,6 +974,113 @@ class App:
     def _vector_focus(self, win, *a):
         self.focused = win.props.has_toplevel_focus
         self.pscene.typing = self.focused
+        self._apply_chat()
+
+    # ------------------------------------------------------------------ chat box
+    # Conversation mode needs no chat box: it folds away and VECTOR stands alone on his
+    # table. The pointer over him (or the chat box) brings it back while it stays there;
+    # a click on him, SUPER+ALT+V or `bromigos-holo chat` pins it shown or hidden, in any
+    # mode, until conversation mode is next switched on or off.
+    CHAT_HOT = (60, 90, 420, 530)            # VECTOR and his table with the chat box shown (x, y, w, h)
+
+    def _chat_hot(self, shown):
+        """VECTOR's own patch of the window: he stands at the left end of the console with
+        the chat box shown, and slides to the right edge (the window's anchor) without it."""
+        x, y, rw, rh = self.CHAT_HOT
+        if not shown:
+            x += self.vector.win.get_allocated_width() - self.pscene.left_w * self.pscene.scale
+        return (x, y, rw, rh)
+
+    def _chat_base(self):
+        if self.chat_override is not None:
+            return self.chat_override
+        return not self.conversation_on()
+
+    def chat_visible(self):
+        return self._chat_base() or self.chat_hover or (self.focused and self.chat_override is not False)
+
+    def _apply_chat(self):
+        if not self.vector:
+            return
+        shown = self.chat_visible()
+        self.pscene.panel_to = 1.0 if shown else 0.0
+        self.vector.input_skip = frozenset() if shown else frozenset(self.chat_widgets)
+        if self._chat_base():
+            self.vector.hot_rects = ()
+        elif shown:      # opened by the pointer: the whole console holds it, so moving from him to the box keeps it open
+            self.vector.hot_rects = ((0, 0, self.vector.win.get_allocated_width(), self.vector.win.get_allocated_height()),)
+        else:
+            self.vector.hot_rects = (self._chat_hot(False),)
+        self.vector.update_input_region()
+        if not shown and self.focused:
+            self.release_keyboard()
+        if self.chat_anim is None:
+            self.chat_anim = GLib.timeout_add(33, self._chat_fade)
+        if self.vector.visible:
+            self.vector.set_fps(60)
+
+    def _chat_fade(self):
+        """The GTK controls follow the scene's fade (the scene eases pscene.panel)."""
+        a = self.pscene.panel
+        for w in self.chat_widgets:
+            w.set_opacity(a)
+        if abs(a - self.pscene.panel_to) > 0.01:
+            return True
+        for w in self.chat_widgets:
+            w.set_opacity(self.pscene.panel_to)
+        self.chat_anim = None
+        return False
+
+    def _chat_enter(self, w, ev):
+        if self.chat_leave_timer:
+            GLib.source_remove(self.chat_leave_timer)
+            self.chat_leave_timer = None
+        if not self.chat_hover:
+            self.chat_hover = True
+            self._apply_chat()
+        return False
+
+    def _chat_leave(self, w, ev):
+        if ev.detail == Gdk.NotifyType.INFERIOR:   # into the entry or a button: still over VECTOR
+            return False
+        if self.chat_leave_timer:
+            GLib.source_remove(self.chat_leave_timer)
+
+        def unhover():
+            self.chat_leave_timer = None
+            self.chat_hover = False
+            self._apply_chat()
+            return False
+        self.chat_leave_timer = GLib.timeout_add(900, unhover)
+        return False
+
+    def _chat_click(self, w, ev):
+        x, y, rw, rh = self._chat_hot(self.pscene.panel_to > 0.5)
+        if ev.button == 1 and x <= ev.x <= x + rw and y <= ev.y <= y + rh and self.vector.hot_rects:
+            self.toggle_chat()
+            return True
+        return False
+
+    def toggle_chat(self):
+        """Pin the chat box shown or hidden (SUPER+ALT+V, a click on VECTOR)."""
+        self.ensure_vector()
+        if not self._vector_shown():
+            self.chat_override = True
+            self.show_vector(focus=False, greet=False)
+        else:
+            self.chat_override = not self._chat_base()
+            self.chat_hover = False
+        self._apply_chat()
+        return "chat box " + ("shown" if self.chat_visible() else "hidden")
+
+    def _chat_watch(self):
+        """Conversation mode switched (by key, button, voice or its quiet timeout): back to automatic."""
+        on = self.conversation_on()
+        if on != self.chat_conv:
+            self.chat_conv = on
+            self.chat_override = None
+            self._apply_chat()
+        return True
 
     def release_keyboard(self):
         """Give keyboard focus back to the window behind; clicking the entry takes it again."""
@@ -1178,6 +1301,8 @@ class App:
             self.show_vector()
         elif verb == "vector-hide":
             self.hide_vector()
+        elif verb == "chat":
+            return self.toggle_chat()
         elif verb == "ask":
             self.ask(arg)
         elif verb == "gallery":

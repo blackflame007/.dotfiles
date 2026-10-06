@@ -132,6 +132,9 @@ for _, namespace in ipairs({ "waybar", "rofi", "notifications", "bromigos-widget
                              "bromigos-vector", "bromigos-holo-gallery" }) do
     hl.layer_rule({ match = { namespace = namespace }, blur = true, ignore_alpha = 0.2 })
 end
+-- VECTOR stays in front of the live layer's holograms (same overlay layer; higher order draws on top),
+-- so he can walk the host through them.
+hl.layer_rule({ match = { namespace = "^(bromigos-vector)$" }, order = 10 })
 -- ---- END BROMIGOS THEME: layer rules --------------------------------------------
 
 -- Window rules (anonymous, applied top to bottom). Add one with

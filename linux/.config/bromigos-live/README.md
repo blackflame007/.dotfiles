@@ -52,6 +52,8 @@ The full verb list is the header of `bin/bromigos-live`. Keys are in `AGENTS.md`
 
 ## Decks
 
+One deck is up at a time: opening another (by key, the radial menu, a verb or VECTOR) closes the one showing (`App.is_deck`, deck plugins included).
+
 | Deck | Key | Shows | Verbs |
 |------|-----|-------|-------|
 | holodeck | SUPER+H | This machine's arc rings, the lab constellation, a compact 3D model; FIELD NOTES (N) | — |

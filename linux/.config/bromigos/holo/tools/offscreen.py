@@ -4,6 +4,7 @@ without touching the desktop. For screenshots and tuning.
 
   offscreen.py gallery OUT.png [model] [explode 0..1] [iso part id] [t seconds]
   offscreen.py vector OUT.png [state] [exhibit] [t seconds]
+      (env OFF_CHAT=0 folds the chat box away; OFF_CONV=1 shows conversation mode)
 """
 import ctypes
 import os
@@ -109,6 +110,8 @@ def main():
         tt = float(args[2]) if len(args) > 2 else 3.0
         p.demo_transcript()
         p.history_open = os.environ.get("HISTORY_OPEN") == "1"
+        p.conversation = os.environ.get("OFF_CONV") == "1"          # conversation mode's notice
+        p.panel = p.panel_to = float(os.environ.get("OFF_CHAT", 1))  # 0: chat box folded away
         p.fade = 1.0
         for k in range(int(tt * 30)):
             p.advance(1 / 30)

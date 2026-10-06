@@ -331,12 +331,25 @@ class App:
             return
         if cur:
             cur.close()
+        if self.is_deck(kind):
+            # one hologram at a time: the next one takes over instead of stacking on top
+            for other, ov in list(self.overlays.items()):
+                if other != kind and self.is_deck(other):
+                    ov.close()
         try:
             self.overlays[kind] = overlays.make(self, kind, **kw)
         except Exception:
             import traceback
             traceback.print_exc()
         self.refresh_state()
+
+    DECKS = ("holodeck", "arbiter", "driftmap", "timeline", "mind", "ops", "swarm", "netmap", "replay")
+
+    @classmethod
+    def is_deck(cls, kind):
+        """A full-screen hologram (built in or a deck plugin), as opposed to the radial
+        menu, notifications, the codec panel or the screensaver."""
+        return kind in cls.DECKS or kind.startswith("plugin:")
 
     def overlay_closed(self, kind, obj):
         if self.overlays.get(kind) is obj:
