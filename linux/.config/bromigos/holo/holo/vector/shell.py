@@ -454,7 +454,9 @@ class Runner:
             return True
         return False
 
-    def run(self, command, cwd=None, timeout_s=60):
+    def run(self, command, cwd=None, timeout_s=60, writable_only=None):
+        """writable_only: a folder; when given, the command runs under bubblewrap with the live
+        ~/.dotfiles read-only and only that folder (and git's own .git) writable."""
         cwd = os.path.realpath(os.path.expanduser(cwd or "~"))
         timeout_s = max(1, min(int(timeout_s or 60), 600))
         if not enabled():
@@ -484,7 +486,12 @@ class Runner:
             if self.on_notice:
                 self.on_notice(f"Running the {play.rsplit('.', 1)[0]} playbook; it touches secrets. Logged.")
         t0 = time.monotonic()
-        proc = subprocess.Popen(["/bin/bash", "-c", command], cwd=cwd, env=clean_env(), stdin=subprocess.DEVNULL,
+        argv = ["/bin/bash", "-c", command]
+        if writable_only:
+            dot = os.path.realpath(os.path.join(HOME, ".dotfiles"))
+            argv = ["bwrap", "--dev-bind", "/", "/", "--ro-bind", dot, dot, "--bind", os.path.join(dot, ".git"),
+                    os.path.join(dot, ".git"), "--bind", writable_only, writable_only, "--die-with-parent", "--"] + argv
+        proc = subprocess.Popen(argv, cwd=cwd, env=clean_env(), stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         cur = {"proc": proc, "command": command, "cwd": cwd, "t0": t0}
         with self.lock:

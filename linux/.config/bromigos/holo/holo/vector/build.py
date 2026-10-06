@@ -200,7 +200,8 @@ def listdir(path="linux/.config/bromigos"):
 def run(command, timeout_s=120):
     _, wt = _wt()
     from .shell import RUNNER
-    return RUNNER.run(command, cwd=wt, timeout_s=timeout_s)
+    # bubblewrap: the live dotfiles are read-only here, only this build's worktree is writable
+    return RUNNER.run(command, cwd=wt, timeout_s=timeout_s, writable_only=os.path.realpath(wt))
 
 
 # ------------------------------------------------------------------ diff and validation
