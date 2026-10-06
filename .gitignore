@@ -15,3 +15,5 @@ fonts/.local/share/fonts/.uuid
 
 # Python bytecode
 __pycache__/
+# fontconfig cache markers
+.uuid
