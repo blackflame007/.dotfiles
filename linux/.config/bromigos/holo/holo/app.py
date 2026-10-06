@@ -397,6 +397,9 @@ class App:
             self.memory = None
         self.summarized_at = 0               # history length at the last end-of-conversation summary
         try:                                 # herdr agents waiting on the host / finishing -> a spoken notice
+            from .vector import briefing
+            briefing.BRIEFING = briefing.Briefing(lambda text, voice: GLib.idle_add(self._speak_up, text, voice),
+                                                  lambda text: GLib.idle_add(self.pscene.note, text))
             from .vector.eyes import WATCH
             WATCH.on_change = lambda st: GLib.idle_add(self._watch_changed, st)
             from .vector.guard import Sentinel
@@ -566,6 +569,18 @@ class App:
         self.pscene.watching = st if st.get("on") else None
         if was and not st.get("on"):
             self._herdr_notice("I've stopped watching your screen.")
+        self._publish_state()
+        return False
+
+    def _speak_up(self, text, voice="main"):
+        """Something VECTOR says on his own (a return brief, an explained alert): on the console,
+        aloud unless muted, and as a notification when he's minimized or muted."""
+        self.pscene.note(text)
+        if self.voice and not self.voice.muted and not self.voice.rec:
+            self.voice.say(text, role=voice)
+        if not self._vector_shown() or not self.voice or self.voice.muted:
+            self.unread += 1
+            self._notify("VECTOR", text)
         self._publish_state()
         return False
 

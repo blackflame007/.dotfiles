@@ -28,6 +28,21 @@ RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCK = os.path.join(RUNTIME, "bromigos-live.sock")
 
 
+def _vector_alive():
+    """VECTOR's daemon answering on its socket (then he explains lab alerts himself)."""
+    import socket as _s
+    try:
+        c = _s.socket(_s.AF_UNIX)
+        c.settimeout(0.3)
+        c.connect(os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "bromigos-holo.sock"))
+        c.sendall(b"status")
+        ok = bool(c.recv(64))
+        c.close()
+        return ok
+    except OSError:
+        return False
+
+
 def log(*a):
     print("bromigos-live:", *a, flush=True)
 
@@ -497,7 +512,9 @@ class App:
             if self.bg and self.bg.renderer:
                 self.bg.renderer.burst(1 if kind == "arbiter_fill" else 2)
             cc = self.cfg.get("codec", {})
-            if kind == "cluster_alert" and cc.get("on_lab_alert", True):
+            # VECTOR explains lab alerts himself (holo/vector/briefing.py, through this codec channel);
+            # while his daemon answers, the raw count call stands down
+            if kind == "cluster_alert" and cc.get("on_lab_alert", True) and not _vector_alive():
                 if info.get("node_down"):
                     self.codec.offer("LAB", "Lab here. A node dropped out of Ready. Check the cluster.")
                 else:

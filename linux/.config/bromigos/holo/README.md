@@ -213,6 +213,19 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
 - **Watch mode** is opt-in (`watch on`, "follow along while I debug"): a glance at the focused window every 10-120 s (20 by default), kept only as a few lines of text for his next answers, never pixels. While it's on, the bar pip shows **◉ WATCHING** (with the time left) and his console shows "◉ WATCHING YOUR SCREEN"; it pauses while a blocked window is in view and turns itself off after 15 minutes.
 - **On MCP** for his brain on Hermes: `look`, `read_screen_text` and `active_window` (not watch, which lives in the desktop daemon).
 
+## Speaking up, bounded (`holo/vector/briefing.py`)
+
+He speaks up on his own for two things only:
+
+- **Explained alerts.** Every 60 s he reads the lab's firing alerts (Prometheus `/api/v1/alerts`, with their annotations; `Watchdog` and `InfoInhibitor` always fire by design and are ignored). For alerts that newly fire he says, in one or two lines, what is wrong, where and how serious, through the live layer's LAB codec call (its gap, hourly cap and dedupe still apply). While his daemon answers, the live layer's raw "alerts firing went up, now N" call stands down (`bromigos-live/live/app.py` `_vector_alive`). Resolved alerts are noted in the transcript.
+- **Return briefs.** After an unlock (the screen was locked 10 minutes or more) or the first input after 2 hours without any, he gives three or four sentences: what broke or failed first, then lab health, ARBITER's paper results, CI failures since he left. At most once an hour.
+
+Never during fullscreen windows, games or screen recording; text only (a notification) when muted. `quiet(minutes)` ("be quiet for an hour") silences both; `briefing_now` ("brief me", "what did I miss?") gathers the facts on request. State: `~/.local/state/bromigos/vector-briefing.json`.
+
+## Undo (`holo/vector/snapshots.py`)
+
+His terminal wraps every system-level command (user-space package installs, pip/npm/cargo installs, `systemctl --user enable/disable/mask`, ansible against this machine, edits under `/etc` or `~/.config` outside the dotfiles) in a snapper pre/post pair on the `root` and `home` configs, described with the command; the numbers come back with the result and go in his `VECTOR-CHANGELOG.md` entry. "VECTOR, undo that" is `snapshot_undo` (`snapper undochange` on the last pair; files only, a service may need a restart). A whole-system rollback is the operator's: boot the snapshot from the GRUB menu, then `snapper rollback`. Until `~/.config/bromigos/system/setup-snapshots.sh` has run (it needs sudo), everything here skips and says so.
+
 ## MCP: his tools for the brain on Hermes
 
 `holo/vector/mcp_server.py` builds the server; `mcp_lan.py` serves it on the LAN behind a token. The local stdio server publishes the 18 read tools; the LAN server adds `ACT`, his desktop actions (cluster actions as vector-operator, Argo, CI, kb notes, Vault wiring, programs and windows, the done-check and new repos, nolgia, eyes, `my_setup`, `load_skill`, `conversation_history`, `hologram_deck`), 50 in all. Every call goes through `tools.call()`, so the limits are inside the tools: an approval that needs the operator's answer (a nolgia spend over the cap, keeping a build trial) only counts an answer on the desktop line, so over MCP it fails closed. Not published: the terminal (`run_shell`), the desktop's UI and voice tools, memory writes, the build loop.

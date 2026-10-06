@@ -506,6 +506,7 @@ from .track import changes_check, github_repo_create  # noqa: E402
 from .skills import load_skill  # noqa: E402
 from .eyes import active_window, look, read_screen_text, watch  # noqa: E402
 from .snapshots import snapshot_create, snapshot_list, snapshot_undo  # noqa: E402
+from .briefing import briefing_now, quiet  # noqa: E402
 from .nolgia import nolgia_catalog, nolgia_credits, nolgia_generate, nolgia_read, nolgia_review  # noqa: E402
 
 
@@ -824,6 +825,10 @@ SPECS = {
     "snapshot_undo": ("Undo your last system-level change (snapper undochange on its pre/post pair), or a given pair "
                       "'home:12..13'. For 'VECTOR, undo that'. A whole-system rollback is the host's (the GRUB "
                       "snapshot menu): explain it, don't do it.", _p({"pair": S})),
+    "briefing_now": ("The facts for a brief right now (\"brief me\", \"what did I miss?\"): lab health, Argo problems, "
+                     "firing alerts, ARBITER's paper results, CI failures in the last hours. Lead with what's broken.", _p({})),
+    "quiet": ("Be quiet: no explained-alert calls and no return briefs for this many minutes (\"be quiet for an hour\" = "
+              "60; 0 to speak up again). Answers to the host still work.", _p({"minutes": I}, ["minutes"])),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }

@@ -39,11 +39,11 @@ ACT = ["k8s_restart", "k8s_scale", "k8s_delete_pod", "k8s_run_job", "argocd_sync
        "open_path", "windows", "window", "changes_check", "github_repo_create", "nolgia_catalog", "nolgia_credits",
        "nolgia_read", "nolgia_generate", "nolgia_review", "look", "read_screen_text", "active_window",
        "conversation_history", "my_setup", "load_skill", "hologram_deck", "snapshot_create", "snapshot_list",
-       "snapshot_undo"]
+       "snapshot_undo", "briefing_now", "quiet"]
 DESTRUCTIVE = {"k8s_delete_pod", "window", "vault_put", "vault_copy", "github_repo_create", "run_detached"}
 READ_ALSO = {"vault_list", "app_search", "windows", "changes_check", "nolgia_catalog", "nolgia_credits", "nolgia_read",
              "nolgia_review", "look", "read_screen_text", "active_window", "conversation_history", "my_setup",
-             "load_skill", "argocd_wait", "ci_watch", "snapshot_list"}
+             "load_skill", "argocd_wait", "ci_watch", "snapshot_list", "briefing_now"}
 
 
 def _wrap(name):
