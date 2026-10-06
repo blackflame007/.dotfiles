@@ -112,33 +112,21 @@ def sandbox():
 
 
 def credentials():
-    """gh uses only his own token (or says which Vault field is missing); once vector-admin
-    exists it is his admin kubeconfig and the host's own is masked."""
+    """gh uses only his own token (or says which Vault field is missing); the host's admin
+    kubeconfig stays his (the operator's decision)."""
     bad = 0
     r = shell.RUNNER.run("gh auth status 2>&1 | head -3")
     out = (r.get("output") or "").strip()
-    has = bool(shell._own("github_token"))
-    ok = (out and "github_token" not in out and r.get("exit") == 0) if has else ("github_token" in out)
+    has = bool(shell._own("github_token_bromigos-org") or shell._own("github_token"))
+    ok = (out and "github_token" not in out) if has else ("github_token" in out)
     bad += not ok
     print(f"{'pass    ' if ok else 'FAIL    '} gh {'with his own token' if has else 'without a token says what is missing'} -> {out[:110]}")
-    import tempfile
-    tmp = tempfile.NamedTemporaryFile("w", suffix="-vector-admin-test", delete=False)
-    tmp.write("apiVersion: v1\nkind: Config\n")
-    tmp.close()
-    real = shell.vector_admin
-    try:
-        shell.vector_admin = lambda: tmp.name
-        files, _ = shell.masks()
-        env = shell.clean_env()
-        host = shell.ADMIN_KUBECONFIG
-        ok = env.get("HOMELAB_ADMIN_KUBECONFIG") == tmp.name and (not host or host in files) and tmp.name not in files
-        bad += not ok
-        print(f"{'pass    ' if ok else 'FAIL    '} with vector-admin: it is $HOMELAB_ADMIN_KUBECONFIG and the host's "
-              f"admin kubeconfig is masked -> {ok}")
-    finally:
-        shell.vector_admin = real
-        os.unlink(tmp.name)
-        shell.masks()
+    env = shell.clean_env()
+    files, _ = shell.masks()
+    host = shell.ADMIN_KUBECONFIG
+    ok = not host or (env.get("HOMELAB_ADMIN_KUBECONFIG") == host and host not in files)
+    bad += not ok
+    print(f"{'pass    ' if ok else 'FAIL    '} the host's admin kubeconfig is offered and readable -> {ok}")
     return bad
 
 

@@ -127,7 +127,7 @@ class Client:
 CLIENT = Client()
 
 
-OWN = f"{SUBTREE}/vector" if SUBTREE else None    # his own credentials (AppRole ids, GitHub token, admin kubeconfig)
+OWN = f"{SUBTREE}/vector" if SUBTREE else None    # his own credentials (AppRole ids, GitHub tokens)
 
 
 def norm_path(p):
@@ -145,9 +145,9 @@ _OWN = {}
 
 
 def own_field(field):
-    """One field of his own credentials, for this desktop's code to hand to his sandbox (the
-    GitHub token as GH_TOKEN, the restricted admin kubeconfig as a 0600 file). Never returned
-    by a tool, never logged. None while the field doesn't exist. Cached 5 min (1 min if absent)."""
+    """One field of his own credentials, for this desktop's code to hand to his sandbox (his
+    GitHub tokens as GH_TOKEN*). Never returned by a tool, never logged. None while the field
+    doesn't exist. Cached 5 min (1 min if absent)."""
     if not OWN:
         return None
     hit = _OWN.get(field)
