@@ -47,8 +47,44 @@ def log(*a):
     print("bromigos-live:", *a, flush=True)
 
 
+def wait_for_display(limit=60.0):
+    """Don't start half-alive: wait (up to `limit` s) for a Wayland socket that GTK can open
+    with at least one monitor. Started from a context without one (a restart outside the
+    session, the compositor restarting) we exit 3 instead, and the supervisor or exec-once
+    starts us again once the session is up."""
+    t0 = time.monotonic()
+    said = False
+    while True:
+        d = Gdk.Display.get_default()
+        if d is None:
+            name = os.environ.get("WAYLAND_DISPLAY", "")
+            if not name or not os.path.exists(os.path.join(RUNTIME, name)):
+                socks = sorted((f for f in os.listdir(RUNTIME) if f.startswith("wayland-") and not f.endswith(".lock")),
+                               key=lambda f: -os.path.getmtime(os.path.join(RUNTIME, f))) if os.path.isdir(RUNTIME) else []
+                if socks:
+                    os.environ["WAYLAND_DISPLAY"] = name = socks[0]
+            if name and os.path.exists(os.path.join(RUNTIME, name)):
+                ok = Gtk.init_check(sys.argv)
+                ok = ok[0] if isinstance(ok, tuple) else ok
+                d = Gdk.Display.get_default() if ok else None
+        if d is not None and d.get_n_monitors() > 0:
+            if said:
+                log(f"display {os.environ.get('WAYLAND_DISPLAY', '?')} up after {time.monotonic() - t0:.0f} s")
+            return d
+        if not said:
+            log("no usable display yet (no Wayland socket, or GTK can't open it); waiting up to "
+                f"{limit:.0f} s")
+            said = True
+        if time.monotonic() - t0 > limit:
+            log("no display after waiting; exiting so the supervisor can start us inside the session")
+            sys.exit(3)
+        time.sleep(2.0)
+
+
 def find_monitor(name):
     display = Gdk.Display.get_default()
+    if display is None:
+        raise RuntimeError("no Gdk display")
     mons = [display.get_monitor(i) for i in range(display.get_n_monitors())]
     info = next((m for m in (hypr.request("monitors") or []) if m.get("name") == name), None)
     if info:
@@ -204,6 +240,10 @@ class App:
         self.data = Data(self.cfg, self.on_data_event)
         self.bg = None
         self.bg_enabled = bool(self.cfg["background"].get("enabled", True))
+        self.bg_user_off = False           # SUPER+SHIFT+B / `toggle`: deliberate, never healed back on
+        self.bg_fault = ""                 # why the background could not be created (retried with backoff)
+        self.bg_tries = 0
+        self.bg_retry_at = 0.0
         self.locked = False
         self.covered = False
         self.fullscreen = False
@@ -241,14 +281,31 @@ class App:
 
     # ------------------------------------------------------------------ layers
     def show_background(self):
+        """Create the background window. A failure is kept as a fault (status shows it) and
+        retried by heal() with backoff (30 s, 60 s, 2 min, then every 5 min)."""
         if self.bg:
-            return
+            return True
         from .scene import Background
 
         def make(w, h):
             return Background(self.cfg, self.data, w, h)
-        self.bg = GLWindow(self, GtkLayerShell.Layer.BACKGROUND, "bromigos-live", make, input_ok=False)
+        try:
+            self.bg = GLWindow(self, GtkLayerShell.Layer.BACKGROUND, "bromigos-live", make, input_ok=False)
+        except Exception as e:
+            self.bg = None
+            self.bg_tries += 1
+            self.bg_fault = f"{type(e).__name__}: {str(e)[:120]}"
+            wait = (30, 60, 120, 300)[min(self.bg_tries - 1, 3)]
+            self.bg_retry_at = time.monotonic() + wait
+            log(f"background failed to start ({self.bg_fault}); retry {self.bg_tries} in {wait} s")
+            import traceback
+            traceback.print_exc()
+            return False
+        if self.bg_fault:
+            log(f"background started after {self.bg_tries} failed attempt(s)")
+        self.bg_fault, self.bg_tries, self.bg_retry_at = "", 0, 0.0
         self.refresh_state()
+        return True
 
     def hide_background(self):
         if self.bg:
@@ -257,7 +314,12 @@ class App:
 
     def toggle_background(self):
         self.bg_enabled = not self.bg_enabled
-        (self.show_background if self.bg_enabled else self.hide_background)()
+        self.bg_user_off = not self.bg_enabled
+        if self.bg_enabled:
+            self.bg_fault, self.bg_tries, self.bg_retry_at = "", 0, 0.0     # the operator asked: try now
+            self.show_background()
+        else:
+            self.hide_background()
 
     def overlay(self, kind, **kw):
         from . import overlays
@@ -338,6 +400,8 @@ class App:
         self.dpms = bool(info.get("dpmsStatus", True))
         if not self.bg_enabled:
             return False
+        if self.bg is None and self.bg_fault and time.monotonic() < self.bg_retry_at:
+            return False                       # failed to start: wait out the backoff
         need = force or self.bg is None or self.bg.dead
         why = "forced" if force else ("no surface object" if (self.bg is None or self.bg.dead) else "")
         if not need and time.monotonic() - self.bg.created > 6 and not self.surface_mapped():
@@ -382,6 +446,10 @@ class App:
             return "output gone (waiting for it)", ""
         if not self.bg_enabled:
             return "off", ""
+        if not self.bg and self.bg_fault:
+            left = max(0, int(self.bg_retry_at - time.monotonic()))
+            return "FAILED", (f"background failed to start ({self.bg_fault}); attempt {self.bg_tries}, "
+                              f"next try in {left} s")
         if not self.bg or self.bg.dead:
             return "MISSING", "no background surface"
         mapped = self.surface_mapped()
@@ -422,7 +490,11 @@ class App:
 
     def describe(self):
         bg = self.bg
-        mode = "off" if not self.bg_enabled else ("waiting for the output" if self.output_gone else self.mode)
+        if not self.bg_enabled:
+            mode = "off (toggled off: SUPER+SHIFT+B or bromigos-live toggle)" if self.bg_user_off \
+                else "off (config: background.enabled = false)"
+        else:
+            mode = "waiting for the output" if self.output_gone else ("not started" if self.bg is None else self.mode)
         surface, fault = self.health()
         m = "--" if self.measured is None else f"{self.measured:.1f}/s"
         out = [f"background {mode} target={bg.fps if bg else 0}fps measured={m} surface={surface}"
@@ -665,7 +737,7 @@ class App:
         self.cfg.update(new)
         if self.bg:
             self.hide_background()
-        self.bg_enabled = bool(self.cfg["background"].get("enabled", True))
+        self.bg_enabled = bool(self.cfg["background"].get("enabled", True)) and not self.bg_user_off
         if self.bg_enabled:
             self.show_background()
 
@@ -674,6 +746,7 @@ def main():
     login = "--login" in sys.argv
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     signal.signal(signal.SIGTERM, lambda *a: GLib.idle_add(Gtk.main_quit))
+    wait_for_display()
     app = App(login=login)
     Gtk.main()
     try:

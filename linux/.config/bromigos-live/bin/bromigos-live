@@ -56,6 +56,12 @@ supervise() {
         first=""
         [ $rc -eq 0 ] && break                       # clean quit (stop)
         [ -f "$STATE/stopping" ] && break
+        # rc 3: the daemon waited ~60 s for a display and found none. With no Wayland
+        # socket left the session is over: stop rather than loop.
+        if [ $rc -eq 3 ] && ! compgen -G "$RUN/wayland-*" >/dev/null; then
+            echo "$(date -Is) no Wayland session; supervisor stopping" >>"$LOG"
+            break
+        fi
         now=$(date +%s)
         fails+=("$now")
         local recent=()

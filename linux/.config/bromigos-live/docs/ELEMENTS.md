@@ -60,6 +60,20 @@ under a true fullscreen window or under a full-screen deck (`App.refresh_state()
 `live/app.py`). Data polling slows (about 3–4×) while paused. Measured: the daemon
 7–9% of one core, the GPU under 1%.
 
+When the background is not there, `bromigos-live status` says why:
+
+| Status | Meaning | What happens |
+|--------|---------|--------------|
+| `background off (toggled off: …)` | the operator turned it off (SUPER+SHIFT+B, `bromigos-live toggle`) | stays off; never healed back on, kept across config reloads |
+| `background off (config: …)` | `background.enabled = false` in `config.toml` | stays off until the config says otherwise |
+| `surface=FAILED`, `FAULT: background failed to start (…)` | creating the window failed (no display, no monitor, a GL error) | `App.heal()` retries after 30 s, 60 s, 2 min, then every 5 min; toggling it on retries at once |
+| `surface=MISSING` | the window existed but the compositor dropped it (monitor off, output removed) | healed on hotplug, unlock, display-on and every 30 s |
+| `waiting for the output` | the monitor is gone | the window is recreated when it returns |
+
+At start, `live/app.py` `wait_for_display()` waits up to 60 s for a Wayland socket GTK can
+open with a monitor; without one it exits with code 3 and the supervisor
+(`bin/bromigos-live`) starts it again, or stops when no Wayland session is left.
+
 Where each layer may draw:
 - *Deep space* is the wallpaper's dark sky: `u_space_rect` (x 0–2400, y 34 to the
   floor horizon) and only on dark pixels (the shader's `lum_mask`, wallpaper
