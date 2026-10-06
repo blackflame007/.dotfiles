@@ -358,6 +358,7 @@ class Painter:
         self.ctr[0] = (0, 0, 1, 0)
         self.parts = np.zeros((32, 4), dtype=np.float32)
         self.parts[:, 0] = 1.0
+        self.clip = np.zeros((4, 4), dtype=np.float32)   # per space: x0 y0 x1 y1 px (zero = no clip)
 
     def upload(self, batch):
         l, a, g = batch.arrays()
@@ -372,6 +373,7 @@ class Painter:
         p.mat3v("u_rot", self.rot)
         p.fv("u_ctr", self.ctr, 4)
         p.fv("u_part", self.parts, 4)
+        p.fv("u_clip", self.clip, 4)
         p.f("u_fade", extra.get("fade", 1.0))
 
     def draw(self, res, t, extra=None, which=("arcs", "lines", "glyphs")):

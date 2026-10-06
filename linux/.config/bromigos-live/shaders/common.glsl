@@ -5,6 +5,19 @@ uniform float u_fade;
 uniform mat3 u_rot[4];
 uniform vec4 u_ctr[4];      // x, y, scale, perspective (0 = flat)
 uniform vec4 u_part[32];    // intensity, heat 0..1, selected, unused
+uniform vec4 u_clip[4];     // per space: x0, y0, x1, y1 in px; x1 <= x0 means no clip
+
+// The clip rect of a space (a zoomed deck keeps its 3D space inside its panel).
+vec4 clip_of(float space) {
+    return u_clip[int(space + 0.5)];
+}
+
+// 1 inside the clip rect, easing to 0 over the last 10 px, 0 outside.
+float clip_cover(vec2 px, vec4 r) {
+    if (r.z <= r.x) return 1.0;
+    float d = min(min(px.x - r.x, r.z - px.x), min(px.y - r.y, r.w - px.y));
+    return clamp(d / 10.0, 0.0, 1.0);
+}
 
 vec3 project(vec3 p, float space) {
     int s = int(space + 0.5);

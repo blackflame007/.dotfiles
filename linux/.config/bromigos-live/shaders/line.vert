@@ -10,6 +10,8 @@ out float v_dist;
 out float v_hw;
 out float v_along;
 out float v_dash;
+out vec2 v_px;
+flat out vec4 v_clip;
 void main() {
     vec3 s0 = project(a_p0.xyz, a_p0.w);
     vec3 s1 = project(a_p1.xyz, a_ex2.x);
@@ -24,6 +26,8 @@ void main() {
     vec2 c = corner(gl_VertexID);
     vec2 p = mix(s0.xy - d * pad, s1.xy + d * pad, c.x) + n * pad * (c.y * 2.0 - 1.0);
     gl_Position = to_clip(p);
+    v_px = p;
+    v_clip = clip_of(a_p0.w);
     v_dist = pad * (c.y * 2.0 - 1.0);
     v_hw = hw;
     v_along = mix(-pad, len + pad, c.x);

@@ -5,6 +5,10 @@ real readings, without touching the desktop. For screenshots and tuning.
   offscreen.py bg OUT.png [t]             one background frame at time t
   offscreen.py bg OUT.mp4 SECONDS [fps]   a background clip (ffmpeg)
   offscreen.py <overlay> OUT ...          same for holodeck|intercept|screensaver|radial|transmission
+
+OFF_SCRIPT drives it with timed steps ("at verb args; ..."): burst, select, cmd (a VECTOR
+verb), event, key, part, notes, scan, pin, radial, and for the zoomable maps
+wheel X Y DY, dclick X Y, drag X0 Y0 X1 Y1 [shift|right], hover X Y (2560x1440 coords).
 """
 import ctypes
 import os
@@ -125,6 +129,20 @@ def main():
                     import json as _j
                     from live.vfeed import Feed
                     Feed.get().inject(dict(_j.loads(" ".join(ev[2])), source="offscreen-test"))
+                elif ev[1] == "wheel":           # wheel X Y DY: scroll at a point (DY > 0 zooms out)
+                    r.scroll(float(ev[2][0]) * W / 2560, float(ev[2][1]) * H / 1440, float(ev[2][2]))
+                elif ev[1] == "dclick":          # dclick X Y
+                    r.dclick(float(ev[2][0]) * W / 2560, float(ev[2][1]) * H / 1440)
+                elif ev[1] == "drag":            # drag X0 Y0 X1 Y1 [shift|right]: one drag, in 8 moves
+                    x0, y0, x1, y1 = (float(v) * (W / 2560 if i % 2 == 0 else H / 1440) for i, v in enumerate(ev[2][:4]))
+                    r.mods = 1 if "shift" in ev[2][4:] else 0
+                    r.click(x0, y0, 3 if "right" in ev[2][4:] else 1)
+                    for k in range(1, 9):
+                        r.motion(x0 + (x1 - x0) * k / 8, y0 + (y1 - y0) * k / 8, 0)
+                    r.release(x1, y1)
+                    r.mods = 0
+                elif ev[1] == "hover":           # hover X Y
+                    r.motion(float(ev[2][0]) * W / 2560, float(ev[2][1]) * H / 1440, 0)
                 elif ev[1] == "key":
                     r.typed = ev[2][0] if len(ev[2][0]) == 1 else ""
                     r.key(ev[2][0])

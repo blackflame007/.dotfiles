@@ -83,6 +83,7 @@ class Base:
             # then its lines and text draw on top
             p2.rot[:] = st.painter.rot
             p2.ctr[:] = st.painter.ctr
+            p2.clip[:] = st.painter.clip
             GL.glBlendFuncSeparate(GL.GL_ZERO, GL.GL_ONE_MINUS_SRC_ALPHA, GL.GL_ONE, GL.GL_ONE)
             p2.draw((float(self.w), float(self.h)), t, {"fade": u.get("fade", 1.0)}, which=("arcs",))
             GL.glBlendFuncSeparate(GL.GL_ONE, GL.GL_ONE, GL.GL_ONE, GL.GL_ONE)
@@ -998,7 +999,8 @@ def make(app, kind, **kw):
     handle = Handle()
     w = win.win
     w.add_events(Gdk.EventMask.POINTER_MOTION_MASK | Gdk.EventMask.BUTTON_PRESS_MASK |
-                 Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.KEY_PRESS_MASK)
+                 Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.KEY_PRESS_MASK |
+                 Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
 
     def on_key(_w, ev):
         r = holder.get("r")
@@ -1011,7 +1013,29 @@ def make(app, kind, **kw):
     def on_press(_w, ev):
         r = holder.get("r")
         if r:
-            r.click(ev.x, ev.y, ev.button)
+            r.mods = int(ev.state)
+            if ev.type == Gdk.EventType._2BUTTON_PRESS:      # after the two plain presses
+                if hasattr(r, "dclick"):
+                    r.dclick(ev.x, ev.y)
+                return True
+            if ev.type == Gdk.EventType.BUTTON_PRESS:
+                r.click(ev.x, ev.y, ev.button)
+        return True
+
+    def on_scroll(_w, ev):
+        r = holder.get("r")
+        if r is None or not hasattr(r, "scroll"):
+            return True
+        if ev.direction == Gdk.ScrollDirection.SMOOTH:    # touchpads: fractions; wheels: whole notches
+            ok, _dx, dy = ev.get_scroll_deltas()
+            if not ok or dy == 0:
+                return True
+        elif ev.direction in (Gdk.ScrollDirection.UP, Gdk.ScrollDirection.DOWN):
+            dy = -1.0 if ev.direction == Gdk.ScrollDirection.UP else 1.0
+        else:
+            return True
+        r.mods = int(ev.state)
+        r.scroll(ev.x, ev.y, dy)
         return True
 
     def on_release(_w, ev):
@@ -1029,6 +1053,7 @@ def make(app, kind, **kw):
     w.connect("button-press-event", on_press)
     w.connect("button-release-event", on_release)
     w.connect("motion-notify-event", on_motion)
+    w.connect("scroll-event", on_scroll)
 
     def watchdog():
         r = holder.get("r")

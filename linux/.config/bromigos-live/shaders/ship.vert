@@ -12,6 +12,8 @@ out float v_dist;
 out float v_hw;
 out float v_along;
 out float v_dash;
+out vec2 v_px;
+flat out vec4 v_clip;
 void main() {
     int i = gl_InstanceID;
     vec3 s0 = project(ship_world(a_p0, i), 2.0);
@@ -25,6 +27,8 @@ void main() {
     float pad = hw + 1.25;
     vec2 p = mix(s0.xy - d * pad, s1.xy + d * pad, a_cp.x) + n * pad * (a_cp.y * 2.0 - 1.0);
     gl_Position = to_clip(p);
+    v_px = p;
+    v_clip = clip_of(2.0);
     v_dist = pad * (a_cp.y * 2.0 - 1.0);
     v_hw = hw;
     v_along = 0.0;

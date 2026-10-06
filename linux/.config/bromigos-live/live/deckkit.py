@@ -1,6 +1,10 @@
 """Shared behaviour for the summoned 3D decks (Mind, Ops, Swarm, Network, Replay).
 
   * one 3D space (painter space 2) you drag to turn; it drifts when left alone;
+  * maps that set `zoom = (min, max)` also zoom (zoomcam.py): scroll toward the cursor,
+    drag pans while zoomed (Shift+drag or the right button turns), + and - keys,
+    double-click empty space or 0 resets; the space is clipped to the panel, and
+    `self.cam.z` is there for level of detail in build();
   * picking: subclasses publish pick_pts (model xyz) + pick_ids, hover shows a hint
     line (what it is + what a click does), click selects;
   * the Tab cycle across every deck (CYCLE);
@@ -18,6 +22,7 @@ from . import gadgets, glkit
 from .glkit import col
 from .overlays import Base
 from .vfeed import Feed
+from .zoomcam import ZoomCam
 
 TAU = 2 * math.pi
 CYCLE = ["holodeck", "arbiter", "timeline", "mind", "ops", "swarm", "netmap", "replay"]
@@ -71,6 +76,7 @@ class Deck3D(Base):
     rebuild_every = 0.5
     title = "DECK"
     hint = ""
+    zoom = None                  # (min, max) to make this deck a zoomable map
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -95,6 +101,10 @@ class Deck3D(Base):
         self.last_feed = 0.0
         self.toast = None            # (text, t, colour)
         self.pending = list(kw.get("commands") or [])
+        self.mods = 0                # modifier state of the last button press (GDK mask)
+        self.t_prev = None
+        self.cam = ZoomCam(self.map_rect(), self.L["center"][:2], self.L["center"][2], *self.zoom) \
+            if self.zoom else None
 
     # ------------------------------------------------------------------ lifecycle
     def poll_every(self, fn, every, name):
@@ -135,11 +145,20 @@ class Deck3D(Base):
             self.built_at = None
         self.animate(t, d)
         p = self.stage.painter
-        if self.drag is None and t - self.last_input > 5.0:
+        dt = 0.0 if self.t_prev is None else min(t - self.t_prev, 0.1)
+        self.t_prev = t
+        if self.drag is None and t - self.last_input > 5.0 and not (self.cam and self.cam.zoomed):
             self.yaw += self.spin / 30.0
         cx, cy, R = self.L["center"]
         p.rot[2] = glkit.rot_matrix(self.yaw, self.pitch)
-        p.ctr[2] = (cx, cy, R, self.persp)
+        if self.cam:
+            self.cam.c0[:] = (cx, cy)                 # a deck may move its centre after __init__
+            self.cam.R, self.cam.rect = R, self.map_rect()
+            self.cam.step(dt, p.rot[2], self.persp)
+            p.ctr[2] = self.cam.ctr(self.persp)
+            p.clip[2] = self.cam.clip()
+        else:
+            p.ctr[2] = (cx, cy, R, self.persp)
         fade = min(t / 0.25, 1.0)
         if self.closing_at is not None:
             fade = max(0.0, 1.0 - (t - self.closing_at) / 0.25)
@@ -152,6 +171,33 @@ class Deck3D(Base):
     def extra_uniforms(self, t, d):
         return {}
 
+    def render(self, fbo, fps):
+        cam = self.cam
+        if cam is not None and self.built_at is not None and cam.build_due(self.now()):
+            self.built_at = None             # labels and expansion follow the view
+        before = self.built_at
+        super().render(fbo, fps)
+        if cam is not None and self.built_at is not before:
+            cam.mark_built(self.built_at)
+
+    # ------------------------------------------------------------------ camera
+    def map_rect(self):
+        """The panel below its title strip: where a zoomed map draws (and is clipped)."""
+        x, y, w, h = self.L["panel"]
+        return (x + 4 * self.s, y + 46 * self.s, w - 8 * self.s, h - 50 * self.s)
+
+    def fly_to(self, ident, z):
+        """Ease the camera to centre a picked thing (by id, followed while it moves) at zoom z."""
+        if not self.cam:
+            return
+
+        def where():
+            if ident in self.pick_ids:
+                return self.pick_pts[self.pick_ids.index(ident)]
+            return None
+        self.cam.fly_to(where, z)
+        self.last_input = self.now()
+
     # ------------------------------------------------------------------ chrome
     def header(self, b, sub, T=0.05):
         s = self.s
@@ -160,6 +206,9 @@ class Deck3D(Base):
                type_rate=0.004)
         b.line((60 * s, 130 * s), (self.w - 60 * s, 130 * s), col("guard"), reveal=T)
         foot = "DRAG TO TURN · HOVER FOR WHAT IT IS · CLICK TO SELECT · TAB: NEXT DECK · ESC CLOSES"
+        if self.cam:
+            foot = "SCROLL ZOOMS · DRAG TURNS (PANS WHEN ZOOMED) · HOVER · CLICK SELECTS · TAB: NEXT DECK · ESC CLOSES"
+            self.cam.readout(b, self.s, T + 0.4)
         b.text((self.hint + " · " if self.hint else "") + foot, self.w / 2, self.h - 22 * s, col("dim", 0.85),
                font="xs", track=2, align="c", reveal=T + 1.0)
         if self.toast and self.now() - self.toast[1] < 6:
@@ -204,10 +253,23 @@ class Deck3D(Base):
         x0, y0, w, h = self.L["panel"]
         return x0 <= x <= x0 + w and y0 <= y <= y0 + h
 
+    def drag_mode(self, button):
+        """What a drag does: turn, or pan when zoomed in; Shift or the other button swaps them."""
+        if not self.cam:
+            return "turn"
+        pan = self.cam.zoomed
+        if self.mods & 1:                     # GDK_SHIFT_MASK
+            pan = not pan
+        if button == 3:
+            pan = False
+        elif button == 2:
+            pan = True
+        return "pan" if pan else "turn"
+
     def click(self, x, y, button):
         self.last_input = self.now()
         if self.in_panel(x, y):
-            self.drag = (x, y, self.yaw, self.pitch, False)
+            self.drag = (x, y, self.yaw, self.pitch, False, self.drag_mode(button), x, y)
             return True
         if self.side_click(x, y):
             self.built_at = None
@@ -223,11 +285,17 @@ class Deck3D(Base):
     def motion(self, x, y, buttons):
         self.last_input = self.now()
         if self.drag:
-            x0, y0, yaw, pitch, moved = self.drag
+            x0, y0, yaw, pitch, moved, mode, lx, ly = self.drag
             moved = moved or abs(x - x0) + abs(y - y0) > 4
-            self.yaw = yaw + (x - x0) * 0.007
-            self.pitch = max(0.05, min(1.45, pitch + (y - y0) * 0.005))
-            self.drag = (x0, y0, yaw, pitch, moved)
+            if mode == "pan":
+                self.cam.pan_by(x - lx, y - ly)
+            else:
+                self.yaw = yaw + (x - x0) * 0.007
+                self.pitch = max(0.05, min(1.45, pitch + (y - y0) * 0.005))
+            self.drag = (x0, y0, yaw, pitch, moved, mode, x, y)
+            if moved and self.hover is not None:
+                self.hover = None
+                self.built_at = None
             return
         h = self.pick(x, y) if self.in_panel(x, y) else None
         if h != self.hover:
@@ -239,6 +307,20 @@ class Deck3D(Base):
             n = self.pick(x, y)
             self.select(None if n == self.selected else n)
         self.drag = None
+
+    def scroll(self, x, y, dy):
+        """Scroll wheel or touchpad (smooth deltas): zoom toward the cursor."""
+        if not self.cam or not self.in_panel(x, y):
+            return False
+        self.last_input = self.now()
+        self.cam.wheel(x, y, dy)
+        return True
+
+    def dclick(self, x, y):
+        """Double-click on empty space resets the view."""
+        if self.cam and self.in_panel(x, y) and self.pick(x, y) is None:
+            self.cam.reset()
+            self.last_input = self.now()
 
     def select(self, ident):
         self.selected = ident
@@ -258,6 +340,12 @@ class Deck3D(Base):
             self.yaw -= 0.2
         elif name in ("Right", "l"):
             self.yaw += 0.2
+        elif self.cam and name in ("plus", "equal", "KP_Add"):
+            self.cam.key_zoom(+1)
+        elif self.cam and name in ("minus", "KP_Subtract"):
+            self.cam.key_zoom(-1)
+        elif self.cam and name in ("0", "KP_0", "Home"):
+            self.cam.reset()
         else:
             return self.extra_key(name)
         return True

@@ -12,6 +12,8 @@ out vec4 v_s;
 out vec4 v_col;
 out vec4 v_ex;
 out vec2 v_half;
+out vec2 v_px;
+flat out vec4 v_clip;
 void main() {
     int kind = int(a_ex.y + 0.5);
     vec2 c = corner(gl_VertexID);
@@ -20,6 +22,8 @@ void main() {
         vec2 h = a_e.xy + 1.0;
         vec2 p = a_c.xy + (c * 2.0 - 1.0) * h;
         gl_Position = to_clip(p);
+        v_px = p;
+        v_clip = vec4(0.0);
         v_p = (c * 2.0 - 1.0) * h;
         v_half = a_e.xy;
         v_col = col * vec4(1, 1, 1, u_fade);
@@ -36,6 +40,8 @@ void main() {
     float R = a_r.y + 2.0 + (kind == 2 ? a_r.y : 0.0);
     vec2 p = s.xy + (c * 2.0 - 1.0) * R;
     gl_Position = to_clip(p);
+    v_px = p;
+    v_clip = clip_of(a_c.w);
     v_p = (c * 2.0 - 1.0) * R;
     v_half = vec2(R);
     col.a *= depth_fade(s.z, a_c.w) * u_fade;
