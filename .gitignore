@@ -12,3 +12,6 @@ fonts/.local/share/fonts/.uuid
 /zsh/.config/zsh/.zcompcache
 /zsh/.config/zsh/.zcompdump.*
 /zsh/.config/zsh/zsh-secrets
+
+# Python bytecode
+__pycache__/
