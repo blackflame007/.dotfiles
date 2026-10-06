@@ -88,15 +88,15 @@ enabled = true
 [driftmap]               # SUPER+M: the lore as a star chart; relays = the lab's live services
 catalog = "~/github.com/bromigos-org/platform/agents/lore/catalog.json"
 
-[cluster]
-url = "https://lab.redacted/api/status"
+[cluster]                # url "" = the private overlay's endpoints.lab + /api/status
+url = ""
 token_file = "~/.local/share/bromigos/lab-token"
 ca_file = "~/.config/homelab/homelab-ca.crt"
 poll_seconds = 25
 
 [arbiter]                # paper fills -> rain burst; set url = "" to disable. SUPER+G: the ARBITER deck (read-only GETs)
-console = "https://arbiter.redacted"
-url = "https://arbiter.redacted/api/trades?limit=1"
+console = ""             # "" = the private overlay's endpoints.arbiter
+url = "/api/trades?limit=1"   # a path on the console
 poll_seconds = 30
 
 [events]
@@ -109,7 +109,7 @@ workspace_wipe = true
 enabled = true
 voice = "pilot"          # PILOT's voice (its speech server + bromigos/holo/voice.json); "breeze" to skip it
 pilot_holo = "~/.config/bromigos/holo"
-tts_url = "https://tts.redacted/v1/audio/speech"   # fallback: the lab's Breeze TTS, default voice (nothing cloned)
+tts_url = ""             # fallback: the lab's Breeze TTS, default voice (nothing cloned); "" = private endpoints.tts
 tts_instruction = "A calm, low radio operator voice; short, clear, unhurried."
 voice_gain = 1.6         # x sounds.volume; SUPER+SHIFT+M mutes all, SUPER+SHIFT+C = quiet (no voice)
 min_gap = 120            # seconds between calls
@@ -142,12 +142,13 @@ quiet_apps = ["SCREENSHOT", "RECORDING"]
 
 [radial]                 # SUPER+A: holographic quick-launch ring (rofi stays the full launcher)
 browser = "xdg-open"
+# endpoint = a name in the private overlay's endpoints (skipped when it isn't set)
 items = [
-  { name = "ARBITER",   sub = "THE FLOOR",       url = "https://arbiter.redacted" },
-  { name = "ECHOCRAFT", sub = "LAB",             url = "https://lab.redacted" },
-  { name = "ARGO",      sub = "FLEET SYNC",      url = "https://argocd.redacted" },
-  { name = "GRAFANA",   sub = "TELEMETRY",       url = "https://grafana.redacted" },
-  { name = "LITELLM",   sub = "MODEL GATEWAY",   url = "https://litellm.redacted" },
+  { name = "ARBITER",   sub = "THE FLOOR",       endpoint = "arbiter" },
+  { name = "ECHOCRAFT", sub = "LAB",             endpoint = "lab" },
+  { name = "ARGO",      sub = "FLEET SYNC",      endpoint = "argocd" },
+  { name = "GRAFANA",   sub = "TELEMETRY",       endpoint = "grafana" },
+  { name = "LITELLM",   sub = "MODEL GATEWAY",   endpoint = "litellm" },
   { name = "TERMINAL",  sub = "KITTY",           cmd = "kitty" },
   { name = "BROWSER",   sub = "WEB",             cmd = "xdg-open about:blank" },
   { name = "NOTES",     sub = "FIELD NOTES",     cmd = "kitty --class bromigos-notes -e nvim ~/notes" },

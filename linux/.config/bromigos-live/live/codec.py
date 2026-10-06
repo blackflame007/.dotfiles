@@ -122,7 +122,9 @@ class Desk:
     # ------------------------------------------------------------------ voice
     def _tts(self, text):
         c = self.cfg
-        url = c.get("tts_url", "https://tts.redacted/v1/audio/speech")
+        url = c.get("tts_url", "")
+        if not url:
+            raise RuntimeError("tts: no TTS endpoint configured (private overlay endpoints.tts)")
         inst = c.get("tts_instruction", "A calm, low radio operator voice; short, clear, unhurried.")
         key = hashlib.sha1(f"{url}|{inst}|{text}".encode()).hexdigest()[:20]
         os.makedirs(CACHE, exist_ok=True)

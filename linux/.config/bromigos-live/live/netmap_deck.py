@@ -22,14 +22,25 @@ import time
 import numpy as np
 
 from . import sources
+from .config import PRIV
 from .deckkit import TAU, Deck3D, ascii_, frame_panel
 from .glkit import col
 
-GW, SWITCH, AP = "redacted", "redacted", "redacted"
+# The operator's LAN (device models, addresses, which hosts to show, their roles and
+# display names) comes from the private overlay's `netmap` section; without it the map
+# shows only what UniFi reports and no host filter matches.
+_NM = PRIV.get("netmap", {}) or {}
+GW = (_NM.get("gateway") or {}).get("model", "")
+SWITCH = (_NM.get("switch") or {}).get("model", "")
+AP = (_NM.get("ap") or {}).get("model", "")
+GW_IP = (_NM.get("gateway") or {}).get("ip", "")
+SWITCH_IP = (_NM.get("switch") or {}).get("ip", "")
+AP_IP = (_NM.get("ap") or {}).get("ip", "")
 PVE_OUI = "bc:24:11"
-ROLE = {"10.0.0.x": "INGRESS (TRAEFIK) + K8S CONTROL", "10.0.0.x": "NAS (UNAS PRO 8)",
-        "10.0.0.x": "PROXMOX HOST", "10.0.0.x": "THIS WORKSTATION"}
-NAMES = {"sparky": "snap", "spark-947b": "crackle", "spark-917e": "pop", "UNAS-Pro-8": "nas", "echobase": "workstation"}
+ROLE = {r["ip"]: r["role"] for r in _NM.get("roles") or [] if r.get("ip")}
+NAMES = {a["name"]: a["alias"] for a in _NM.get("aliases") or [] if a.get("name")}
+SHOW_PREFIXES = tuple(_NM.get("show_prefixes") or ())      # client IPs shown: the lab and this machine
+SHOW_HOSTS = set(_NM.get("show_hosts") or ())
 
 
 def fmt_rate(v):
@@ -68,21 +79,20 @@ class NetDeck(Deck3D):
     # ------------------------------------------------------------------ data
     def _topology(self):
         n = {"wan": {"name": "WAN", "ip": "1.1.1.1", "kind": "wan", "parent": None},
-             "gw": {"name": "GATEWAY", "ip": "10.0.0.x", "kind": "gw", "parent": "wan", "role": GW.upper()}}
+             "gw": {"name": "GATEWAY", "ip": GW_IP, "kind": "gw", "parent": "wan", "role": GW.upper()}}
         dev = {}
         for r in sources.prom("unpoller_device_info"):
             m = r["metric"]
             dev[m.get("name")] = m.get("ip")
-        n["sw"] = {"name": "SWITCH", "ip": dev.get(SWITCH, "10.0.0.x"), "kind": "sw", "parent": "gw",
+        n["sw"] = {"name": "SWITCH", "ip": dev.get(SWITCH, SWITCH_IP), "kind": "sw", "parent": "gw",
                    "role": SWITCH.upper(), "port": None}
         poe = {r["metric"].get("port_num") for r in sources.prom(f'unpoller_device_port_poe_watts{{name="{SWITCH}"}} > 0')}
-        n["ap"] = {"name": "ACCESS POINT", "ip": dev.get(AP, "10.0.0.x"), "kind": "ap", "parent": "sw",
+        n["ap"] = {"name": "ACCESS POINT", "ip": dev.get(AP, AP_IP), "kind": "ap", "parent": "sw",
                    "role": AP.upper(), "port": sorted(poe)[0] if poe else None}
         for r in sources.prom("unpoller_client_uptime_seconds"):
             m = r["metric"]
             ip = m.get("ip") or ""
-            if not (ip.startswith("10.69.4.") or ip in ("10.0.0.x", "10.0.0.x", "10.0.0.x", "10.0.0.x",
-                                                       "10.0.0.x")):
+            if not ((SHOW_PREFIXES and ip.startswith(SHOW_PREFIXES)) or ip in SHOW_HOSTS):
                 continue                                        # the lab and this machine; not every phone
             name = NAMES.get(m.get("name"), m.get("name"))
             if m.get("sw_name") == SWITCH:

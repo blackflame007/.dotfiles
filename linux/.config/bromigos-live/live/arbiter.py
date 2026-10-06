@@ -1,5 +1,5 @@
-"""ARBITER feed: read-only GETs against the console API (arbiter-console in
-namespace arbiter, LAN hostname from homelab/helm/arbiter console.lanHostname).
+"""ARBITER feed: read-only GETs against the console API (the console's LAN
+URL comes from the private overlay, endpoints.arbiter, via config.py).
 
 Never touches anything that trades or arms: the only verbs used are GET, and
 the only paths are the read endpoints below. The live/* endpoints (arms,
@@ -32,7 +32,7 @@ READS = {  # name: (path, seconds between reads while open)
 class Feed:
     def __init__(self, cfg):
         a = cfg.get("arbiter", {})
-        self.base = a.get("console", "https://arbiter.redacted").rstrip("/")
+        self.base = (a.get("console") or "").rstrip("/")
         ca = os.path.expanduser(cfg.get("cluster", {}).get("ca_file", "") or "")
         self.ctx = ssl.create_default_context(cafile=ca) if ca and os.path.exists(ca) else ssl.create_default_context()
         self.lock = threading.Lock()
@@ -46,6 +46,8 @@ class Feed:
         self.thread = None
 
     def get(self, path, timeout=15):
+        if not self.base:
+            raise OSError("no ARBITER console configured (private overlay endpoints.arbiter)")
         req = urllib.request.Request(self.base + path, headers={"Accept": "application/json"}, method="GET")
         with urllib.request.urlopen(req, timeout=timeout, context=self.ctx) as r:
             return json.load(r)

@@ -19,7 +19,8 @@ import urllib.request
 
 HOME = os.path.expanduser("~")
 CA = os.path.join(HOME, ".config/homelab/homelab-ca.crt")
-PROM = "https://prometheus.redacted"
+from .config import PRIV  # noqa: E402
+PROM = PRIV.url("prometheus")                      # private: endpoints.prometheus
 ORGS = ("bromigos-org", "nolgiainc", "blackflame007")
 _ctx = None
 
@@ -32,12 +33,16 @@ def ctx():
 
 
 def prom(q, timeout=8):
+    if not PROM:
+        raise OSError("no Prometheus configured (private overlay endpoints.prometheus)")
     url = PROM + "/api/v1/query?" + urllib.parse.urlencode({"query": q})
     with urllib.request.urlopen(url, timeout=timeout, context=ctx()) as r:
         return json.load(r)["data"]["result"]
 
 
 def prom_range(q, minutes, step=60):
+    if not PROM:
+        raise OSError("no Prometheus configured (private overlay endpoints.prometheus)")
     now = int(time.time())
     url = PROM + "/api/v1/query_range?" + urllib.parse.urlencode(
         {"query": q, "start": now - minutes * 60, "end": now, "step": step})

@@ -1,8 +1,17 @@
 """config.toml loader. Missing keys fall back to DEFAULTS so an old or partial
-config never crashes the layer."""
+config never crashes the layer.
+
+The operator's internal URLs aren't in config.toml (the repo is public): empty
+cluster.url / arbiter.console / codec.tts_url and radial items with `endpoint = "<name>"`
+are filled from the private overlay (~/.config/bromigos/lib/bromigos_private.py,
+key endpoints.<name>). On a fresh clone they stay empty and those feeds stay off."""
 import copy
 import os
+import sys
 import tomllib
+
+sys.path.insert(0, os.path.expanduser("~/.config/bromigos/lib"))
+import bromigos_private as PRIV  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PATH = os.environ.get("BROMIGOS_LIVE_CONFIG") or os.path.join(os.path.expanduser("~/.config/bromigos-live"), "config.toml")
@@ -42,10 +51,34 @@ def _merge(base, over):
     return out
 
 
+def _private(cfg):
+    """Fill the internal URLs from the private overlay (see the module docstring)."""
+    cl = cfg["cluster"]
+    if not cl.get("url"):
+        cl["url"] = PRIV.url("lab", "/api/status")
+    ar = cfg["arbiter"]
+    if not ar.get("console"):
+        ar["console"] = PRIV.url("arbiter")
+    if (ar.get("url") or "").startswith("/"):          # a path on the console
+        ar["url"] = ar["console"] + ar["url"] if ar["console"] else ""
+    co = cfg.setdefault("codec", {})
+    if not co.get("tts_url"):
+        co["tts_url"] = PRIV.url("tts")
+    items = []
+    for it in cfg.get("radial", {}).get("items") or []:
+        if it.get("endpoint"):
+            it = dict(it, url=PRIV.url(it["endpoint"]))
+            if not it["url"]:
+                continue                                  # not configured on this machine
+        items.append(it)
+    cfg.setdefault("radial", {})["items"] = items
+    return cfg
+
+
 def load():
     try:
         with open(PATH, "rb") as f:
-            return _merge(DEFAULTS, tomllib.load(f))
+            return _private(_merge(DEFAULTS, tomllib.load(f)))
     except (OSError, tomllib.TOMLDecodeError) as e:
         print("bromigos-live: config error, using defaults:", e, flush=True)
-        return copy.deepcopy(DEFAULTS)
+        return _private(copy.deepcopy(DEFAULTS))

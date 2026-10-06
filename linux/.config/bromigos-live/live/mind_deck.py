@@ -26,7 +26,8 @@ import numpy as np
 from .deckkit import TAU, Deck3D, ascii_, frame_panel, wrap
 from .glkit import col
 
-GATE = "https://gnosis.redacted/gate"
+from .config import PRIV  # noqa: E402
+GATE = PRIV.url("gnosis_gate")                     # private: endpoints.gnosis_gate
 TOKEN = os.path.expanduser("~/.local/share/bromigos/gnosis-vector-read-token")
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
 MIRROR = os.path.expanduser("~/.cache/bromigos/vector-memory.json")
@@ -77,6 +78,8 @@ def chart_from_kbsync(progress=None):
 
 def list_space(space, progress=None):
     """Every chunk's metadata in one kb space (content dropped), through the gate."""
+    if not GATE:
+        raise OSError("no gnosis-gate configured (private overlay endpoints.gnosis_gate)")
     with open(TOKEN) as f:
         tok = f.read().strip()
     scope = {"tenant_id": "bromigos", "space_id": space, "agent_id": "vector", "session_id": "vector",

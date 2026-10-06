@@ -5,6 +5,8 @@ obviously mentions (a lab service, a cluster node, ARBITER, the switchboard)."""
 import os
 import re
 
+from .config import PRIV
+
 NOTES = os.environ.get("BROMIGOS_NOTES") or os.path.expanduser("~/.local/share/bromigos/notes.md")
 DATED = re.compile(r"^\s*[-*]\s*(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s+(.*)$")
 HEAD = re.compile(r"^(#{1,4})\s+(.*)$")
@@ -90,8 +92,10 @@ def links(entry, services, nodes, radial):
             add(it["name"].upper(), it["url"])
     for sid in services:
         if len(sid) >= 4 and re.search(r"\b" + re.escape(sid.lower()) + r"\b", hay):
-            add(sid.upper(), f"https://{sid}.redacted")
+            if PRIV.lan_domain():
+                add(sid.upper(), f"https://{sid}.{PRIV.lan_domain()}")
     for n in nodes:
         if re.search(r"\b" + re.escape(n.lower()) + r"\b", hay):
-            add(n.upper(), "https://lab.redacted")
+            if PRIV.url("lab"):
+                add(n.upper(), PRIV.url("lab"))
     return out[:6]
