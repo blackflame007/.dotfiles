@@ -74,6 +74,9 @@ class Base:
         st = self.stage
         st.begin_emit()
         st.painter.draw((float(self.w), float(self.h)), t, {"fade": u.get("gadget_fade", 1.0)})
+        extra = getattr(self, "emit_extra", None)
+        if extra:
+            extra(t, u)
         p2 = getattr(self, "p2", None)
         if p2 is not None and getattr(self, "p2_on", False):
             # a second layer that occludes: its plates first darken what is already drawn,
