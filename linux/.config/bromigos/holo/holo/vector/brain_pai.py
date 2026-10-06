@@ -249,7 +249,7 @@ class PaiBrain:
                    + "\n".join(f"- {x[:240]}" for x in self.recalled[:5]) + "\n")
         from . import skills
         from .eyes import WATCH
-        return (persona.SYSTEM + persona.voices_block() + mem + WATCH.context() + skills.catalog_text() + skills.instructions_for(self.matched) +
+        return (persona.SYSTEM + persona.voices_block() + mem + WATCH.context() + skills.catalog_text() + skills.instructions_for(self.matched, question=getattr(self, "question", "")) +
                 f"\nIt is {now}. The workstation is an Arch Linux desktop (Hyprland) the operator sits at.")
 
     async def _stream(self, agent, prompt, t0, history):
@@ -303,6 +303,7 @@ class PaiBrain:
                 self.stats.update(rs)
                 if self.recalled and hasattr(self.cb, "memory"):
                     self.cb.memory("recall", len(self.recalled))
+            self.question = text
             self.matched = await asyncio.to_thread(self.router.match, text)
             for score, sk in self.matched:
                 self._log({"role": "skill", "name": sk["name"], "auto": round(score, 2)})

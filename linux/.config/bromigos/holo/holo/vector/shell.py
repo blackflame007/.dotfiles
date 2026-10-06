@@ -327,6 +327,13 @@ def clean_env():
     env["SYSTEMD_PAGER"] = ""
     env["NO_COLOR"] = "1"
     env["SUDO_ASKPASS"] = "/bin/false"
+    try:                                  # the live Hyprland, not a re-login's stale one
+        from .. import hyprenv
+        sig = hyprenv.live()
+        if sig:
+            env["HYPRLAND_INSTANCE_SIGNATURE"] = sig
+    except Exception:
+        pass
     sock = ssh_agent()
     if sock:
         env["SSH_AUTH_SOCK"] = sock

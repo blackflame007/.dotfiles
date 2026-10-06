@@ -21,6 +21,9 @@ _cache = {"t": 0.0, "apps": []}
 
 
 def _run(argv, timeout=10):
+    if argv and argv[0] == "hyprctl":
+        from .. import hyprenv
+        hyprenv.live()
     r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout).strip()[:200] or f"{argv[0]} failed")

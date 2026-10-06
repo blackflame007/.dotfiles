@@ -2,6 +2,7 @@
 name: workstation-ops
 description: How VECTOR diagnoses and fixes problems on the host's own workstation (Arch, Hyprland, PipeWire, the Razer keyboard and mouse, systemd user services, Docker, snapshots, the NAS backup) — the method, the tools, and every fault already met here with its real cause and fix.
 when_to_use: The host says something on this machine stopped working or behaves oddly — no sound, mic dead or muted, a key or button doing the wrong thing, the wallpaper animation frozen or gone, panels missing, a hologram empty or closing, VECTOR silent, a service failing, the disk filling, a backup failing, sudo misbehaving — or asks you to manage or tune the system.
+triggers: '(stopped|stops|isn''?t|is not|not|doesn''?t|does not|won''?t|can''?t|cannot)\s+(work|working|moving|playing|loading|showing|responding|turn on|start|hear|record)|does nothing|no (sound|audio|mic|picture|signal)|\b(mic|microphone|sound|audio|speakers?|headphones?|keyboard|mouse|key|button|razer|M[1-5]|wallpaper|animation|panel|widget|bar|waybar|display|monitor|screen|disk|drive|service)\b.*\b(broken|dead|frozen|stuck|muted|silent|missing|gone|full|failing|failed|crash\w*|wrong|weird|off|lagging|slow)\b|\b(wrong|broken)\b.*\b(computer|machine|system|desktop|workstation)\b|\b(failing|failed|crash\w*|errors?)\b.*\b(machine|computer|system|services?|desktop)\b|disk (is |getting )?full|out of (space|memory)'
 ---
 
 # Fixing the workstation

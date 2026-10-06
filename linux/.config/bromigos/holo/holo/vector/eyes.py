@@ -57,6 +57,8 @@ def _conf():
 
 
 def _hypr(*args):
+    from .. import hyprenv
+    hyprenv.live()
     r = subprocess.run(["hyprctl", *args, "-j"], capture_output=True, text=True, timeout=5)
     return json.loads(r.stdout or "null")
 

@@ -1320,6 +1320,8 @@ def migrate_from_pilot():
 
 
 def main():
+    from . import hyprenv
+    hyprenv.live()                       # a stale Hyprland signature (re-login) would break every hyprctl
     migrate_from_pilot()
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     signal.signal(signal.SIGTERM, lambda *a: Gtk.main_quit())
