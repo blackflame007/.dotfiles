@@ -498,6 +498,12 @@ class App:
             return {"ok": True, "started": goal, "note": "it runs in the background; you'll hear when the trial is up"}
         if name == "build_status":
             t = getattr(self, "build_task", None)
+            turn = build.LAST_USER["t"]
+            self._status_calls = (self._status_calls + 1) if getattr(self, "_status_turn", None) == turn else 1
+            self._status_turn = turn
+            if self._status_calls > 1 and t and t.thread.is_alive():
+                return {"note": "Still building in the background. Don't check again: end your turn now and talk with "
+                                "the host about anything else; you'll announce the trial when it's up."}
             return {**build.status(), **({"builder": {"note": t.note, "pct": t.pct, "seconds": round(time.time() - t.started),
                                                      "running": t.thread.is_alive()}} if t else {})}
         if name == "build_stop":
