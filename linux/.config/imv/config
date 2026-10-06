@@ -1,0 +1,17 @@
+# imv: the default image viewer (set with xdg-mime for image/*). Bromigos palette.
+[options]
+background = 000500
+overlay = true
+overlay_font = Geist Mono:11
+overlay_text_color = 9cff8a
+overlay_background_color = 001300
+overlay_background_alpha = cc
+overlay_position_bottom = true
+overlay_text = [$imv_current_index/$imv_file_count] $imv_current_file · ${imv_width}x${imv_height} · ${imv_scale}%
+scaling_mode = shrink
+upscaling_method = linear
+
+[binds]
+# defaults kept (arrows/hjkl move, +/- zoom, f fullscreen, q quit); a few extras
+<Shift+W> = exec wl-copy < "$imv_current_file"; exec notify-send -a imv "Copied" "$(basename "$imv_current_file")"
+<Shift+D> = exec pcmanfm "$(dirname "$imv_current_file")"
