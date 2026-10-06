@@ -7,6 +7,7 @@ import os
 import platform
 import socket
 import ssl
+import sys
 import subprocess
 import threading
 import time
@@ -14,6 +15,9 @@ import urllib.request
 from collections import deque
 
 import psutil
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+import bromigos_private as PRIV  # noqa: E402  the operator's private values (empty on a fresh clone)
 
 
 # ------------------------------------------------------------------ NVML (no nvidia-smi fork)
@@ -281,7 +285,7 @@ def _fstype(dev):
 
 
 # ------------------------------------------------------------------ the Lab (EchoCraft /api/status)
-LAB_URL = "https://lab.redacted/api/status"
+LAB_URL = PRIV.url("lab", "/api/status")           # private: endpoints.lab
 TOKEN_FILE = os.path.expanduser("~/.local/share/bromigos/lab-token")
 
 
@@ -316,7 +320,9 @@ class Lab(threading.Thread):
 
     def poll(self):
         tok = self._token()
-        if not tok:
+        if not LAB_URL:
+            self.state, self.error = "down", "no Lab configured (private overlay: endpoints.lab)"
+        elif not tok:
             self.state, self.error = "no-token", f"no token at {TOKEN_FILE}"
         else:
             try:

@@ -4,11 +4,10 @@
   "panels": [
     { "name": "system",      "x": 28,  "y": 16,  "width": 470, "height": 470 },
     { "name": "network",     "x": 28,  "y": 502, "width": 470, "height": 262,
-      "_ping": "Hosts for the latency radar. host omitted = the default gateway. NAS from homelab helm/homepage values (nas.url), INGRESS = Traefik's LAN address (homelab CLAUDE.md).",
+      "_ping": "Hosts for the latency radar. host omitted = the default gateway. {\"private\": \"lan.ping\"} expands to the LAN hosts in the private overlay (AGENTS.md, Private values).",
       "ping": [
         { "label": "GATEWAY" },
-        { "label": "NAS", "host": "10.0.0.x" },
-        { "label": "INGRESS", "host": "10.0.0.x" },
+        { "private": "lan.ping" },
         { "label": "WAN", "host": "1.1.1.1" }
       ] },
     { "name": "storage",     "x": 28,  "y": 780, "width": 470, "height": 214 },

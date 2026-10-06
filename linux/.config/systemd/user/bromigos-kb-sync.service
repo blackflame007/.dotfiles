@@ -1,6 +1,6 @@
 [Unit]
 Description=Sync the operator's software docs into Gnosis (VECTOR's knowledge base)
-After=network-online.target
+After=network-online.target bromigos-private.service
 
 [Service]
 Type=oneshot

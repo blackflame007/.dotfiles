@@ -22,7 +22,10 @@ import urllib.request
 HERE = os.path.dirname(os.path.realpath(__file__))
 PANELS = os.path.join(HERE, "..", "widgets", "panels.py")
 OUT = os.path.join(HERE, "data.js")
-LAB_URL = "https://lab.redacted/api/status"
+sys.path.insert(0, os.path.join(HERE, "..", "lib"))
+import bromigos_private as PRIV  # noqa: E402  the operator's private values (empty on a fresh clone)
+
+LAB_URL = PRIV.url("lab", "/api/status")           # private: endpoints.lab
 TOKEN_FILE = os.path.expanduser("~/.local/share/bromigos/lab-token")
 NOTES = os.path.expanduser("~/.local/share/bromigos/notes.md")
 CTX = ssl.create_default_context()
@@ -56,6 +59,8 @@ def token():
 
 def lab_status():
     tok = token()
+    if not LAB_URL:
+        return None, "unconfigured"
     if not tok:
         return None, "no-token"
     try:
@@ -131,7 +136,8 @@ def main():
     d, state = lab_status()
     snap = {
         "at": time.time(),
-        "lab": {"state": state, "summary": lab_summary(d)},
+        "lab": {"state": state, "summary": lab_summary(d), "url": PRIV.url("lab"),
+                "token_vault": PRIV.vault("lab_api")},
         "switchboard": switchboard(d),
         "notes": notes(),
     }

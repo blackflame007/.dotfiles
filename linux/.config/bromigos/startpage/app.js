@@ -94,12 +94,18 @@ function renderLab(s, stale) {
   box.replaceChildren();
   const lab = s.lab || {};
   const m = lab.summary;
+  const link = $("lab-link");
+  if (link && lab.url) {
+    link.href = lab.url;
+    link.closest("h2").title = `EchoCraft Lab status from ${lab.url}/api/status, read on this machine every minute`;
+  }
   const meta = $("lab-meta");
   if (!m) {
     const why = {
-      "no-token": "No read-only token at ~/.local/share/bromigos/lab-token (Vault secret/<vault-path>).",
+      "no-token": `No read-only token at ~/.local/share/bromigos/lab-token${lab.token_vault ? ` (Vault ${lab.token_vault})` : ""}; run bromigos-secrets sync.`,
+      unconfigured: "No Lab configured (private overlay key endpoints.lab).",
       unauthorized: "The Lab refused the token (401/403).",
-      down: "lab.redacted did not answer.",
+      down: `${lab.url || "The Lab"} did not answer.`,
     }[lab.state] || `The Lab answered ${lab.state}.`;
     meta.textContent = "NO DATA";
     meta.className = "meta bad";

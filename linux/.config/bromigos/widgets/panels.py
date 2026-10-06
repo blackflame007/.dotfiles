@@ -11,6 +11,8 @@ import sources as S
 
 
 def open_url(url):
+    if not url:
+        return
     subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                      start_new_session=True)
 
@@ -200,7 +202,9 @@ class NetworkPanel(Panel):
     def __init__(self, cfg=None):
         super().__init__(cfg)
         self.net = S.Net(history=120)
-        targets = [(t["label"], t.get("host")) for t in self.cfg.get("ping", [])] or [("GATEWAY", None)]
+        # {"private": "lan.ping"} expands to the operator's LAN hosts from the private overlay
+        cfg = [x for t in self.cfg.get("ping", []) for x in (S.PRIV.get(t["private"], []) if "private" in t else [t])]
+        targets = [(t["label"], t.get("host")) for t in cfg if t.get("label")] or [("GATEWAY", None)]
         self.ping = S.Pinger(targets, every=6)
         self.ping.start()
         self.sweep = 0.0
@@ -422,9 +426,9 @@ class LabPanel(Panel):
             pulse = max(0.0, 1 - (time.time() - self.pulse_at) / 1.6)
             tw = D.layout(cr, state_txt.upper(), 11, "semibold", 0.18).get_pixel_size()[0]
             D.dot(cr, w - 16 - tw - 10, 18, 2.5 + 2 * pulse, "phosphor", glow=True)
-        self.region(0, 0, w, 34, f"EchoCraft Lab snapshot (lab.redacted/api/status, every 20 s). "
+        self.region(0, 0, w, 34, f"EchoCraft Lab snapshot ({S.LAB_URL or 'endpoints.lab not set'}, every 20 s). "
                     f"State: {L.state}{' - ' + L.error if L.error else ''}. Click to open the Lab.",
-                    lambda: open_url("https://lab.redacted"))
+                    lambda: open_url(S.PRIV.url("lab")))
         x0, x1 = 16, w - 16
         if not d:
             D.text(cr, x0, top + 10, L.error or "waiting for the first snapshot", 12, "amber", width=x1 - x0)
@@ -472,8 +476,8 @@ class LabPanel(Panel):
         for g in d.get("config", {}).get("groups", []):
             for s in g.get("services", []):
                 if s.get("id") == sid:
-                    return s.get("lan") or s.get("wan") or "https://lab.redacted"
-        return "https://lab.redacted"
+                    return s.get("lan") or s.get("wan") or S.PRIV.url("lab")
+        return S.PRIV.url("lab")
 
     def _nodes(self, cr, d, x0, x1, y):
         nodes = d.get("nodes") or []
