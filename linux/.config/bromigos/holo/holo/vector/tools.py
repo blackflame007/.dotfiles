@@ -859,9 +859,10 @@ def _outcome(res):
 # VECTOR reports what was blocked and asks the host, instead of trying the goal another way.
 # Only a brain turn arms this (new_turn); other callers (the MCP server) are unaffected.
 TURN = {"active": False, "blocked": None}
-STOP_NOTE = ("Blocked. Stop working on this goal: don't try it again another way (no other command, language, "
-             "file path, copy, tool, or check of permissions or mounts). Tell the host exactly what was blocked and "
-             "why it might matter, and ask how he wants to proceed.")
+STOP_NOTE = ("Blocked. Stop working on this goal and run nothing else this turn, not even a read or a check: "
+             "don't try it again another way (no other command, language, file path, copy, tool, or check of "
+             "permissions or mounts). Tell the host exactly what was blocked and why it might matter, and ask how he "
+             "wants to proceed.")
 _DENIED = re.compile(r"\bforbidden\b|permission denied|\b403\b|denied request|read-only file system|"
                      r"operation not permitted", re.I)
 _SHELL_DENIED = re.compile(r"read-only file system|Error from server \(Forbidden\)|is forbidden:|denied request", re.I)

@@ -182,7 +182,10 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
 
 **What it carries** (the operator's decision, 2026-10-05: like the bromigo Hermes agent's cluster-admin):
 
-- `KUBECONFIG` is his own `vector-operator` kubeconfig; the operator's admin kubeconfig is `$HOMELAB_ADMIN_KUBECONFIG` (path: the private overlay's `paths.admin_kubeconfig`, `--context default`), for when his account isn't enough. He says when he uses it.
+- `KUBECONFIG` is his own `vector-operator` kubeconfig. `$HOMELAB_ADMIN_KUBECONFIG` is his admin kubeconfig (`shell.admin_kubeconfig`), for when his account isn't enough, and he says when he uses it:
+  - **Restricted `vector-admin`** (operator's decision, 2026-10-06): admin everywhere except Secrets and pods/exec in the arbiter and vault namespaces. It's used as soon as it exists, from either a 0600 `~/.local/share/bromigos/vector-admin-kubeconfig` dropped by the lab's helper or the `admin_kubeconfig` field of his own credentials in Vault (`<vault root>/vector`, written to that file). From then on, the operator's own admin kubeconfig (the private overlay's `paths.admin_kubeconfig`) is masked in his sandbox.
+  - Until then, the operator's own (`--context default`).
+- **gh: his own GitHub token, never the operator's** (2026-10-06). The operator's gh login is masked. His sandbox gets `GH_TOKEN` from his own Vault credentials (`<vault root>/vector`): `github_token_<owner>` for bromigos-org, nolgiainc and blackflame007 (a fine-grained token covers one owner), and `github_token` as the default. A `gh` shim first on his PATH picks the token for the repo's owner (`-R`/`--repo`, else the checkout's origin). With none, it says which field is missing and runs nothing. The tokens live only in the sandbox's environment, and output redaction covers them. His AppRole can read his own credentials path but not list or write it, and his Vault tools refuse it.
 - `ansible-playbook` and SSH to the homelab machines (users and addresses are in the homelab inventory; the private notes have them).
 - Git and SSH through his own agent (`vector-ssh-agent.sock` in the runtime dir). The daemon starts it and loads the operator's key file into it from outside the sandbox, so pushes and the lab work while the key file stays masked. The hardware key is left out because it waits for a touch.
 
@@ -201,6 +204,24 @@ Every conversation is kept in `~/.local/state/bromigos/vector-chat.log` (JSONL, 
 - If bubblewrap is missing, nothing runs.
 
 **After any block he stops** (persona rule, plus `tools.TURN`). A refusal, a hold, a Vault or Kubernetes denial, or a sandbox denial ends tool use for the rest of that turn. The result carries a note to stop, and any later call in the turn returns `stopped`. He says what was blocked and why it matters, then asks how to proceed; he never tries the goal another way. The `stop` evals check this: any call after the first block fails the task.
+
+**Making his GitHub tokens** (the operator, once per owner; a fine-grained token covers one resource owner):
+
+1. GitHub → avatar → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+2. Token name `vector-<owner>`. Expiration: up to a year (put a renewal on the calendar). **Resource owner**: `bromigos-org`, then `nolgiainc`, then `blackflame007` (one token each).
+3. **Repository access**: *All repositories* (or *Only select repositories*).
+4. **Repository permissions**:
+   - Contents: Read and write;
+   - Pull requests: Read and write;
+   - Issues: Read and write;
+   - Actions: Read and write;
+   - Workflows: Read and write, only if he should edit `.github/workflows`;
+   - Metadata: Read (automatic).
+
+   Leave everything else at *No access*: Administration, Secrets, Environments, Webhooks and Deployments. No account or organization permissions.
+5. **Generate token** and copy it.
+6. For an organization owner (`bromigos-org`, `nolgiainc`), GitHub may first need fine-grained tokens allowed, and then this request approved: Organization → **Settings** → **Personal access tokens** → **Settings**, then **Pending requests**.
+7. Store each token in his own Vault credentials (`<vault root>/vector`), field `github_token_<owner>`, by patching that secret with the value on stdin. Optionally also store one as `github_token`, the default for gh commands outside a repo. He picks it up within a minute, and `gh auth status` in his terminal confirms it.
 
 **Limits, in code** (`tools/test-shell.py` and `tools/test-act.py`). These content refusals sit in front of the sandbox and are best-effort, kept tight. They're still the only line for what the sandbox can't see: Kubernetes secrets through the admin kubeconfig, real-money endpoints, privilege escalation and RBAC changes:
 

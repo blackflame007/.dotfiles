@@ -127,13 +127,38 @@ class Client:
 CLIENT = Client()
 
 
+OWN = f"{SUBTREE}/vector" if SUBTREE else None    # his own credentials (AppRole ids, GitHub token, admin kubeconfig)
+
+
 def norm_path(p):
     p = (p or "").strip()
     m = PATH_OK.match(p)
     if not m or ".." in p:
         raise VaultError(f"path must be under {ROOT}/ (e.g. {ROOT}/litellm)" if ROOT
                          else "no Vault configured on this machine (private overlay vault.root)")
+    if OWN and (m.group(1) == OWN or m.group(1).startswith(OWN + "/")):
+        raise VaultError("that is VECTOR's own credentials; his tools never list, write or copy them")
     return m.group(1)
+
+
+_OWN = {}
+
+
+def own_field(field):
+    """One field of his own credentials, for this desktop's code to hand to his sandbox (the
+    GitHub token as GH_TOKEN, the restricted admin kubeconfig as a 0600 file). Never returned
+    by a tool, never logged. None while the field doesn't exist. Cached 5 min (1 min if absent)."""
+    if not OWN:
+        return None
+    hit = _OWN.get(field)
+    if hit and time.monotonic() - hit[0] < (300 if hit[1] else 60):
+        return hit[1]
+    try:
+        val = CLIENT._data(OWN).get(field) or None
+    except VaultError:
+        val = None
+    _OWN[field] = (time.monotonic(), val)
+    return val
 
 
 def norm_key(k):

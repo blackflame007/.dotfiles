@@ -19,10 +19,12 @@ spoken line before each step that changes something, a sentence after with the r
    `k8s_scale`, `k8s_delete_pod`, `k8s_run_job`, `argocd_sync`, `argocd_refresh`,
    `argocd_wait`, `ci_watch`.
 3. **Your terminal** for everything else. `kubectl` there is your own
-   `vector-operator` account (`--context default`). The host's admin kubeconfig is
-   `$HOMELAB_ADMIN_KUBECONFIG` (`kubectl --kubeconfig "$HOMELAB_ADMIN_KUBECONFIG"
-   --context default …`), with ansible and SSH: use them only when your account
-   can't do it, and say so.
+   `vector-operator` account (`--context default`). Your admin kubeconfig is
+   `$HOMELAB_ADMIN_KUBECONFIG` (`kubectl --kubeconfig "$HOMELAB_ADMIN_KUBECONFIG" …`;
+   add `--context default` while it's still the host's own file). Once the lab has it,
+   that's your restricted vector-admin account: admin everywhere except Secrets and
+   pods/exec in the arbiter and vault namespaces. Use it, ansible and SSH only when
+   your account can't do the job, and say so. A denial from it is a block: stop and ask.
 
 ## A GitOps change, step by step
 

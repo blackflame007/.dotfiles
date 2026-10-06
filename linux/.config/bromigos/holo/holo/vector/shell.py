@@ -103,7 +103,44 @@ ENV_DROP = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSWD|_KEY$|KEY_ID|PRIVATE|CREDE
                       r"^GOOGLE_|^GCLOUD|^AZURE_|^OPENAI|^ANTHROPIC|^NOLGIA|^HF_TOKEN|^KUBECONFIG$|SSH_AUTH_SOCK|^GPG_|"
                       r"^DBUS_SESSION_BUS_ADDRESS$)", re.I)
 VECTOR_KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/vector-operator-kubeconfig")
-ADMIN_KUBECONFIG = PRIVCFG.path("admin_kubeconfig")    # private: paths.admin_kubeconfig ("" = none)
+ADMIN_KUBECONFIG = PRIVCFG.path("admin_kubeconfig")    # private: paths.admin_kubeconfig ("" = none): the host's own
+# his restricted admin (vector-admin: admin except secrets and pods/exec in the arbiter and vault
+# namespaces): a 0600 file the lab's helper drops here, or his own Vault credentials' admin_kubeconfig
+VECTOR_ADMIN_KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/vector-admin-kubeconfig")
+
+
+def _own(field):
+    try:
+        from .vault import own_field
+        return own_field(field)
+    except Exception:
+        return None
+
+
+def vector_admin():
+    """The vector-admin kubeconfig file, refreshed from Vault when it's there; None until it lands."""
+    val = _own("admin_kubeconfig")
+    if val:
+        try:
+            with open(VECTOR_ADMIN_KUBECONFIG) as f:
+                same = f.read() == val
+        except OSError:
+            same = False
+        if not same:
+            tmp = VECTOR_ADMIN_KUBECONFIG + ".tmp"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(val)
+            os.replace(tmp, VECTOR_ADMIN_KUBECONFIG)
+    try:
+        return VECTOR_ADMIN_KUBECONFIG if os.path.getsize(VECTOR_ADMIN_KUBECONFIG) > 0 else None
+    except OSError:
+        return None
+
+
+def admin_kubeconfig():
+    """His "admin" kubeconfig: vector-admin once it exists; until then the host's own (his decision)."""
+    return vector_admin() or (ADMIN_KUBECONFIG if ADMIN_KUBECONFIG and os.path.exists(ADMIN_KUBECONFIG) else None)
 _VAULT_HOST = urllib.parse.urlparse(PRIVCFG.url("vault")).hostname or ""   # private: endpoints.vault
 VAULT_API = (re.escape(_VAULT_HOST) + "|" if _VAULT_HOST else "") + r"x-vault-token|:8200\b|/v1/(secret|sys|auth)/"
 SENSITIVE = os.path.join(STATE, "vector-sensitive.log")
@@ -141,7 +178,7 @@ SECRET_HOME_DIRS = [".config/gcloud", ".aws", ".azure", ".gnupg", ".password-sto
 _SSH_KEEP = re.compile(r"(\.pub|^config|^known_hosts.*|^authorized_keys|^environment|^rc)$")
 _SHARE_KEEP = {"notes.md", "vector-operator-kubeconfig"}       # everything else at the top of it is a key or token
 REPO_SECRET = re.compile(r"^(\.env(\..+)?|\.envrc|.*\.(key|pem|p12|pfx|keystore|jks|tfvars|tfstate|tfstate\.backup)|"
-                         r"secrets?\.ya?ml|credentials\.json|.*service[-_]account.*\.json|.*keypair.*\.json|"
+                         r"secrets?\.ya?ml(\..+)?|credentials\.json|.*service[-_]account.*\.json|.*keypair.*\.json|"
                          r"id_(rsa|dsa|ecdsa|ed25519)(_sk)?|kubeconfig.*|.*\.kubeconfig)$", re.I)
 _REPO_OK = re.compile(r"\.(example|sample|template|dist|pub|md)$|\.pub\.pem$", re.I)
 _PRUNE = {"node_modules", ".git", ".venv", "venv", "vendor", "target", "dist", ".next", "__pycache__", "build",
@@ -164,6 +201,8 @@ def masks():
     """(files, dirs) to mask in the sandbox. Rescanned every two minutes, in the background once
     there is a list (the rescan of ~/github.com takes about half a second)."""
     age = time.monotonic() - _MASKS["t"]
+    if _MASKS["t"] and _MASKS.get("admin") != admin_kubeconfig():
+        return _rescan()                   # the admin kubeconfig switched: mask the old one now
     if _MASKS["t"] and age < 120:
         return _MASKS["files"], _MASKS["dirs"]
     if _MASKS["t"]:
@@ -182,7 +221,8 @@ def _rescan():
 
 
 def _scan():
-    keep = {os.path.realpath(p) for p in (VECTOR_KUBECONFIG, ADMIN_KUBECONFIG) if p}
+    admin = admin_kubeconfig()            # once vector-admin lands, the host's own admin kubeconfig is masked
+    keep = {os.path.realpath(p) for p in (VECTOR_KUBECONFIG, admin) if p}
     files = [os.path.join(HOME, f) for f in SECRET_HOME_FILES]
     dirs = [os.path.join(HOME, d) for d in SECRET_HOME_DIRS]
     for d, keep_rx in ((os.path.join(HOME, ".ssh"), _SSH_KEEP), (os.path.join(HOME, ".kube"), None),
@@ -193,15 +233,18 @@ def _scan():
             continue
         for n in names:
             f = os.path.join(d, n)
-            if not os.path.isfile(f) or (keep_rx and keep_rx.search(n)) or (d.endswith("bromigos") and n in _SHARE_KEEP):
+            if not os.path.isfile(f) or (keep_rx and keep_rx.search(n)) or (d.endswith("bromigos") and n in _SHARE_KEEP) \
+                    or os.path.realpath(f) in keep:
                 continue
             files.append(f)
     try:
         files += _repo_secrets(os.path.join(HOME, "github.com"))
     except OSError:
         pass
+    if ADMIN_KUBECONFIG and admin != ADMIN_KUBECONFIG and os.path.isfile(ADMIN_KUBECONFIG):
+        files.append(ADMIN_KUBECONFIG)
     files = sorted({f for f in files if os.path.realpath(f) not in keep})
-    _MASKS.update(t=time.monotonic(), files=files, dirs=sorted(set(dirs)))
+    _MASKS.update(t=time.monotonic(), files=files, dirs=sorted(set(dirs)), admin=admin)
     return _MASKS["files"], _MASKS["dirs"]
 
 
@@ -248,6 +291,87 @@ def _ssh_etc():
                 (os.path.join(out, "ssh_config.d"), os.path.join(src, "ssh_config.d"))]
     except (OSError, ValueError):
         return []
+
+
+GH_OWNERS = ("bromigos-org", "nolgiainc", "blackflame007")   # a fine-grained token covers one owner each
+
+
+def _gh_var(owner):
+    return "GH_TOKEN_" + re.sub(r"[^A-Za-z0-9]", "_", owner).upper()
+
+
+def _gh_shim():
+    """A `gh` first on his PATH. It picks his own token for the repo's owner (the -R/--repo
+    argument, else this checkout's origin), else his default token; with none it says which
+    Vault field is missing instead of a login prompt. The host's own gh login is masked."""
+    import shutil
+    d = os.path.join(SANDBOX_ETC, "bin")
+    real = shutil.which("gh", path=":".join(p for p in os.environ.get("PATH", "/usr/bin").split(":") if p != d)) \
+        or "/usr/bin/gh"
+    try:
+        from .vault import OWN
+        where = f"secret/{OWN}" if OWN else "his Vault credentials"
+    except Exception:
+        where = "his Vault credentials"
+    body = f'''#!/usr/bin/python3
+# VECTOR's gh: his own token per repo owner. Generated by holo/vector/shell.py.
+import os, re, subprocess, sys
+a = sys.argv[1:]
+owner = None
+for i, x in enumerate(a):
+    v = a[i + 1] if x in ("-R", "--repo") and i + 1 < len(a) else (x.split("=", 1)[1] if x.startswith("--repo=") else None)
+    m = re.search(r"(?:github\\.com[/:])?([A-Za-z0-9_.-]+)/[A-Za-z0-9_.-]+", v or "")
+    if m:
+        owner = m.group(1)
+        break
+if owner is None:
+    url = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True).stdout
+    m = re.search(r"github\\.com[/:]([A-Za-z0-9_.-]+)/", url)
+    owner = m.group(1) if m else None
+var = "GH_TOKEN_" + re.sub(r"[^A-Za-z0-9]", "_", owner).upper() if owner else None
+tok = (os.environ.get(var) if var else None) or os.environ.get("GH_TOKEN")
+for k in [k for k in os.environ if k.startswith("GH_TOKEN_")]:
+    os.environ.pop(k)
+if not tok:
+    field = "github_token_" + owner if owner else "github_token"
+    sys.stderr.write("gh: VECTOR has no GitHub credential for " + (owner or "this") + " yet: Vault {where}, field "
+                     + field + " (or github_token), isn't there or isn't readable yet. The host creates it: a "
+                     "fine-grained token for VECTOR (see the holo README). Nothing ran.\\n")
+    sys.exit(4)
+os.environ["GH_TOKEN"] = tok
+os.execv("{real}", ["gh"] + a)
+'''
+    f = os.path.join(d, "gh")
+    try:
+        with open(f) as fh:
+            if fh.read() == body:
+                return d
+    except OSError:
+        pass
+    os.makedirs(d, exist_ok=True)
+    with open(f + ".tmp", "w") as fh:
+        fh.write(body)
+    os.chmod(f + ".tmp", 0o755)
+    os.replace(f + ".tmp", f)
+    return d
+
+
+def sandbox_env(env):
+    """His shell's environment inside the sandbox: his own GitHub tokens (never the host's),
+    per owner and a default, and the gh shim first on PATH."""
+    env = {k: v for k, v in env.items() if not k.startswith(("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE"))}
+    tok = _own("github_token")
+    if tok:
+        env["GH_TOKEN"] = tok
+    for owner in GH_OWNERS:
+        t = _own("github_token_" + owner)
+        if t:
+            env[_gh_var(owner)] = t
+    try:
+        env["PATH"] = _gh_shim() + ":" + env.get("PATH", "")
+    except OSError:
+        pass
+    return env
 
 
 def jail_argv(argv, writable_only=None, die_with_parent=True):
@@ -525,8 +649,9 @@ def clean_env():
     env["GIT_TERMINAL_PROMPT"] = "0"
     if os.path.exists(VECTOR_KUBECONFIG):
         env["KUBECONFIG"] = VECTOR_KUBECONFIG
-    if os.path.exists(ADMIN_KUBECONFIG):
-        env["HOMELAB_ADMIN_KUBECONFIG"] = ADMIN_KUBECONFIG
+    admin = admin_kubeconfig()
+    if admin:
+        env["HOMELAB_ADMIN_KUBECONFIG"] = admin
     return env
 
 
@@ -691,7 +816,7 @@ class Runner:
         if argv is None:
             audit(event="refused", command=command, cwd=cwd, reason="no sandbox (bubblewrap missing)")
             return {"refused": "The terminal's sandbox (bubblewrap) isn't available, so nothing runs."}
-        proc = subprocess.Popen(argv, cwd=cwd, env=clean_env(), stdin=subprocess.DEVNULL,
+        proc = subprocess.Popen(argv, cwd=cwd, env=sandbox_env(clean_env()), stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, start_new_session=True)
         cur = {"proc": proc, "command": command, "cwd": cwd, "t0": t0}
         with self.lock:
