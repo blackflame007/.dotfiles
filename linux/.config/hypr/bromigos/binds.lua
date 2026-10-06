@@ -92,7 +92,9 @@ K.exec("SUPER + SHIFT + V", "~/.config/bromigos/holo/bin/bromigos-holo mute")
 -- user in the `openrazer` group) M1-M5 send F13-F17, the three side buttons F18-F20
 -- and a press of the command dial F24; nothing else uses those keys.
 -- M1: show/hide VECTOR; M2 (hold): push to talk; M3: VECTOR conversation on/off; M4: holo deck;
--- M5: screenshot a region; Shift+M5: start/stop recording a region.
+-- M5: screenshot a region. Side buttons: 1 ARBITER deck, 2 timeline, 3 start/stop recording.
+-- (Shift+M5 can't work: Shift and the M-keys arrive on different Razer input devices,
+-- so a bind never sees Shift held with an M-key.)
 -- They listen to the Razer only: in Hyprland 0.56 a Lua code:N bind also fires for any key
 -- that has no keysym (a JIS or stray consumer key), so the device list keeps other
 -- keyboards' odd keys from setting off every macro bind at once. Only the Razer sends
@@ -105,10 +107,9 @@ K.exec("code:192", "~/.config/bromigos/holo/bin/bromigos-holo ptt off", razer_re
 K.exec("code:193", "~/.config/bromigos/bin/vector-converse", razer)
 K.exec("code:194", "~/.config/bromigos-live/bin/bromigos-live holodeck", razer)
 K.exec("code:195", "~/.config/bromigos/bin/bromigos-shot region", razer)
-K.exec("SHIFT + code:195", "~/.config/bromigos/bin/bromigos-rec region", razer)
 K.exec("code:196", "~/.config/bromigos-live/bin/bromigos-live arbiter", razer)
 K.exec("code:197", "~/.config/bromigos-live/bin/bromigos-live timeline", razer)
-K.exec("code:198", "~/.config/bromigos/widgets/bromigos-widgets toggle all", razer)
+K.exec("code:198", "~/.config/bromigos/bin/bromigos-rec region", razer)
 K.exec("code:202", "~/.config/bromigos/holo/bin/bromigos-holo mute", razer)
 -- ---- END BROMIGOS THEME: keybinds ------------------------------------------------
 -- K.exec(mainMod .. " + SHIFT + L", "swaylock")
