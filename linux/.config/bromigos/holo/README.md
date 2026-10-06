@@ -308,7 +308,14 @@ Push-to-talk only: `pw-record` runs while SUPER+V is held (cut at 30 s if a rele
 **Conversation mode** (SUPER+SHIFT+E, the ◉ CONVERSATION button on the panel, or `bromigos-holo conversation`).
 
 - **How it works.** Hands-free and local. While it's on, VECTOR listens on the echo-cancelled mic. Silero VAD (2 MB ONNX on the CPU, `~/.local/share/bromigos/voice/silero_vad.onnx`) finds where you stop: `conversation.end_of_turn_ms`, 700 ms by default. The utterance goes to the same local speech-to-text, he replies, then he listens again.
-- **Barge-in.** Talking over him stops him and cancels the turn. While he speaks, the bar for a barge-in is higher (probability 0.8, 0.4 s of speech), and the echo canceller keeps his own voice out: tested at a probability of about 0 for his voice alone and 1.0 for a voice over him.
+- **Barge-in.** Talking over him stops him and cancels the turn. While he plays (`conversation.BargeIn`, voice.json `conversation`):
+  - the first 300 ms after playback starts never count (`barge_in_grace_ms`), while the canceller converges;
+  - a barge-in then needs 350 ms of sustained speech (`barge_in_ms`): 80% of the frames at probability 0.85 or more;
+  - its level, a short envelope because the canceller gates single frames in double talk, must be at least 3× the echo residual (`barge_in_over_residual`).
+
+  His voice always plays through the AEC sink whenever echo cancellation is on (`Voice.playback_sink`), so the canceller has its reference. A guard checks the stream every 0.2 s and moves it back if PipeWire linked it anywhere else. On 2026-10-06 his replies went straight to the speakers, uncancelled, and his own voice cut him off. The AEC pair isn't rebuilt while he speaks, records or a conversation listens. The default sink is never changed.
+
+  `tools/test-voice-aec.py` checks all of this quietly, with a null sink as the speakers and its monitor as the mic (total leakage): playback on the AEC sink, the reply audible end to end, no barge-in from his own voice, a real barge-in from another voice, a stream knocked off the AEC sink moved back, and the default sink untouched.
 - **Indicators.** A pulsing "● CONVERSATION · LISTENING" line, the mic-live state and a red CONVERSATION pip on the bar.
 - **Auto-off.** It turns off after `auto_off_s` (120) without speech, with a soft blip.
 - **Privacy and mute.** The mic process exists only while the mode is on. Muted, he still listens and replies in text.

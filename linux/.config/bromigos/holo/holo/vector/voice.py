@@ -78,6 +78,13 @@ class Voice:
         self.skip_until = 0.0      # mic audio before this is speaker drain, dropped
         self.said = []             # (monotonic, sentence) VECTOR spoke recently
         self.aec = None            # (module id, sink master, source master)
+        # the AEC pair's names and masters; tests set their own (a null sink standing in for the speakers)
+        pre = os.environ.get("BROMIGOS_VOICE_AEC") or "vector_aec"
+        self.aec_sink, self.aec_source = pre + "_sink", pre + "_source"
+        masters = os.environ.get("BROMIGOS_VOICE_AEC_MASTERS", "")
+        self.aec_masters = tuple(masters.split(",", 1)) if "," in masters else None
+        self.play_start = 0.0      # when the current pw-play started (monotonic)
+        self.reroutes = 0          # playback found off the AEC sink and moved back
         self.roles = tuple(self.cfg.get("voices", {}).keys()) or ROLES
         self.mode = self._read_mode()
         from .text import VoiceSplitter
@@ -150,18 +157,18 @@ class Voice:
         if not self.cfg.get("echo_cancel", True) or self.cfg.get("sink"):
             return None
         try:
-            sink, src = self._pactl("get-default-sink"), self._pactl("get-default-source")
-            if not sink or not src or sink.startswith("vector_aec") or src.startswith("vector_aec"):
+            sink, src = self.aec_masters or (self._pactl("get-default-sink"), self._pactl("get-default-source"))
+            if not sink or not src or sink.startswith(self.aec_sink) or src.startswith(self.aec_source):
                 return None
             mods = self._pactl("list", "short", "modules")
             if self.aec and self.aec[1:] == (sink, src) and f"{self.aec[0]}\t" in mods + "\t":
                 return self.aec
             for line in mods.splitlines():          # ours from an earlier run, or on old devices
-                if "vector_aec_source" in line:
+                if f"source_name={self.aec_source} " in line + " ":
                     self._pactl("unload-module", line.split()[0])
             mid = self._pactl("load-module", "module-echo-cancel", "aec_method=webrtc",
                               f"source_master={src}", f"sink_master={sink}",
-                              "source_name=vector_aec_source", "sink_name=vector_aec_sink",
+                              f"source_name={self.aec_source}", f"sink_name={self.aec_sink}",
                               "rate=16000", "channels=1")
             self.aec = (mid, sink, src) if mid.isdigit() else None
         except (OSError, subprocess.TimeoutExpired):
@@ -175,7 +182,9 @@ class Voice:
         """Keep the echo-cancel pair ready (and on the current default devices) off the hot path."""
         while True:
             try:
-                self.ensure_aec()
+                conv = getattr(self, "conv", None)
+                if not (self.speaking or self.rec or (conv and conv.on)) or not self.aec:
+                    self.ensure_aec()
                 self._aec_checked = time.monotonic()
             except Exception:
                 pass
@@ -195,7 +204,7 @@ class Voice:
         if self.cfg.get("mic_source"):
             return self.cfg["mic_source"]
         aec = self.aec if self._aec_fresh() else self.ensure_aec()
-        return "vector_aec_source" if aec else None
+        return self.aec_source if aec else None
 
     def open_mic(self):
         src = self.mic_source()
@@ -227,7 +236,7 @@ class Voice:
         # speaker drain: VECTOR's last syllable is still in the air for a moment after the
         # player stops. With echo cancellation that tail is cancelled too, so drop far less.
         drain = self.cfg.get("drain_ms", 350) / 1000
-        if self.mic_source() == "vector_aec_source":
+        if self.mic_source() == self.aec_source:
             drain = min(drain, 0.12)
         self.skip_until = time.monotonic() + drain if (was_speaking or time.monotonic() - self.play_end < drain) else 0.0
         self.app.show_vector(focus=False, greet=False)
@@ -502,13 +511,20 @@ class Voice:
         if not buf.wait(int(self.PREBUFFER_S * bps), timeout=10):    # prebuffer (or the whole reply if shorter)
             if not buf.size():
                 return
-        sink = self.cfg.get("sink") or ("vector_aec_sink" if self.aec else None)
+        sink = self.playback_sink()
         sc = self.app.pscene
         GLib.idle_add(sc.set_state, "speaking")
+        self._plays = getattr(self, "_plays", 0) + 1
+        self.player_node = f"vector-voice-{os.getpid()}-{self._plays}"     # finds this stream in PipeWire
         self.player = subprocess.Popen(["pw-play"] + (["--target", sink] if sink else []) +
-                                       ["--raw", "--rate", str(sr), "--channels", "1", "--format", "s16",
+                                       ["-P", f"{{ node.name = {self.player_node} }}",
+                                        "--raw", "--rate", str(sr), "--channels", "1", "--format", "s16",
                                         "--latency", "60ms", "-"],
                                        stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.play_start = time.monotonic()
+        if sink == self.aec_sink:
+            threading.Thread(target=self._keep_routed, args=(self.player, self.player_node, sink), daemon=True,
+                             name="vector-route").start()
         t_start = time.monotonic()
         sent = 0                     # bytes written
         underrun = 0.0
@@ -553,6 +569,45 @@ class Voice:
             sc.audio_level = None
             self.play_end = time.monotonic()
             self.last_stats["played_s"] = round(sent / bps, 2)
+
+    def playback_sink(self):
+        """Where his voice plays: voice.json "sink" if set; else the AEC sink whenever echo
+        cancellation is on (the canceller needs his voice as its reference, or his own voice
+        reaches the mic and sounds like the host talking over him); else the default sink.
+        The default sink itself is never changed."""
+        if self.cfg.get("sink"):
+            return self.cfg["sink"]
+        if self.cfg.get("echo_cancel", True) and not self.cfg.get("mic_source"):
+            if self.aec or self.ensure_aec():
+                return self.aec_sink
+        return None
+
+    def _stream_sink(self, node):
+        """(sink-input id, sink name) of the playback stream with this node name, or None."""
+        try:
+            ins = json.loads(subprocess.run(["pactl", "-f", "json", "list", "sink-inputs"], capture_output=True,
+                                            text=True, timeout=3).stdout or "[]")
+            sinks = {str(x.get("index")): x.get("name") for x in json.loads(
+                subprocess.run(["pactl", "-f", "json", "list", "short", "sinks"], capture_output=True, text=True,
+                               timeout=3).stdout or "[]")}
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            return None
+        for x in ins:
+            if (x.get("properties") or {}).get("node.name") == node:
+                return str(x.get("index")), sinks.get(str(x.get("sink")))
+        return None
+
+    def _keep_routed(self, proc, node, sink):
+        """While this reply plays, keep it on the AEC sink: if PipeWire linked it elsewhere (the
+        AEC pair was rebuilt, or the target wasn't ready), move it back. Default sink untouched."""
+        while proc.poll() is None:
+            got = self._stream_sink(node)
+            if got and got[1] and got[1] != sink:
+                if self.aec or self.ensure_aec():
+                    self._pactl("move-sink-input", got[0], sink)
+                    self.reroutes += 1
+                    print(time.strftime("%H:%M:%S"), "voice: playback was on", got[1], "- moved to", sink, flush=True)
+            time.sleep(0.2)
 
     def warm_tts(self):
         """Load the voice in the background (when the window opens), so the first reply is quick;

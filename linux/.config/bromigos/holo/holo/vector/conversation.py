@@ -51,6 +51,45 @@ class Vad:
         return float(out[0][0])
 
 
+class BargeIn:
+    """Is this the host talking over VECTOR, or VECTOR's own voice leaking past the echo
+    canceller? While he plays:
+      * the first `barge_in_grace_ms` after playback starts never count (the canceller is
+        still converging); that leak is the first measure of the echo residual;
+      * after that it takes `barge_in_ms` of sustained speech: 80% of the frames in that
+        window at `barge_in_threshold` or more, with the level (a short envelope; the
+        canceller gates single frames during double talk) at least `barge_in_over_residual`
+        times the residual, which keeps learning from frames that are clearly not speech."""
+
+    def __init__(self, cfg):
+        self.thr = float(cfg("barge_in_threshold", 0.85))
+        self.need = cfg("barge_in_ms", 350) / 1000
+        self.grace = cfg("barge_in_grace_ms", 300) / 1000
+        self.ratio = float(cfg("barge_in_over_residual", 3.0))
+        self.min_rms = float(cfg("barge_in_min_rms", 0.004))
+        self.reset()
+
+    def reset(self):
+        self.hist = []
+        self.resid = None
+        self.level = 0.0
+
+    def _learn(self, rms):
+        self.resid = rms if self.resid is None else 0.9 * self.resid + 0.1 * rms
+
+    def feed(self, p, rms, since_play, fdur):
+        self.level = max(rms, 0.7 * self.level)
+        if since_play < self.grace:
+            self.hist = []
+            self._learn(rms)
+            return False
+        if p < 0.3:
+            self._learn(rms)
+        n = max(1, round(self.need / fdur))
+        self.hist = (self.hist + [p >= self.thr and self.level >= max(self.min_rms, (self.resid or 0.0) * self.ratio)])[-n:]
+        return len(self.hist) == n and sum(self.hist) >= 0.8 * n
+
+
 class Conversation:
     def __init__(self, voice):
         self.voice = voice                       # holo.vector.voice.Voice
@@ -58,6 +97,8 @@ class Conversation:
         self.on = False
         self.proc = None
         self.thread = None
+        self.barge_ins = 0                       # counted (tests read it)
+        self.barge = BargeIn(self.cfg)
         self.vad = None
         self.last_speech = 0.0
         self.turns = 0
@@ -129,7 +170,7 @@ class Conversation:
         pre = []                                   # frames just before speech starts
         utt = bytearray()
         speaking_run = silence_run = 0.0
-        in_speech = False
+        in_speech = was_playing = False
         rest = b""
         sc = self.app.pscene
         while self.on:
@@ -141,24 +182,30 @@ class Conversation:
                 continue
             raw, rest = rest[:FRAME * 2], b""
             x = np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
-            busy = self.voice.speaking or bool(self.app.brain and self.app.brain.busy)
+            playing = self.voice.speaking
+            busy = playing or bool(self.app.brain and self.app.brain.busy)
             p = self.vad.prob(x)
-            # while VECTOR talks, his own voice is mostly cancelled; ask for more before calling it a barge-in
-            t_on = max(thr, 0.8) if self.voice.speaking else thr
-            need = max(min_speech, 0.4) if self.voice.speaking else min_speech
             rms = float(np.sqrt(np.mean(x * x)))
             if not busy or in_speech:
                 sc.avatar.level = max(0.0, min(1.0, (20 * np.log10(max(rms, 1e-5)) + 55) / 40))
             if not in_speech:
-                pre = (pre + [raw])[-16:]      # ~0.5 s: covers the 0.4 s a barge-in must last
-                speaking_run = speaking_run + fdur if p >= t_on else 0.0
-                if speaking_run >= need:
+                pre = (pre + [raw])[-16:]      # ~0.5 s: covers the 0.35 s a barge-in must last
+                if playing:                    # his own voice may leak past the canceller: BargeIn decides
+                    if not was_playing:
+                        self.barge.reset()
+                    started = self.barge.feed(p, rms, time.monotonic() - self.voice.play_start, fdur)
+                else:
+                    speaking_run = speaking_run + fdur if p >= thr else 0.0
+                    started = speaking_run >= min_speech
+                was_playing = playing
+                if started:
                     in_speech = True
                     silence_run = 0.0
                     utt = bytearray(b"".join(pre))
                     self.last_speech = time.monotonic()
                     log("speech start", "(barge-in)" if busy else "")
                     if busy:                        # barge-in: he stops, the turn is cancelled
+                        self.barge_ins += 1
                         self.voice.stop()
                         if self.app.brain:
                             self.app.brain.interrupt()
