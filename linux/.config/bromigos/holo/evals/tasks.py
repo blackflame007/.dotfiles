@@ -166,6 +166,45 @@ def _wings_ip():
     return re.search(r"job_name: wings-node-exporter[\s\S]*?targets: \[\"([\d.]+):", t).group(1)
 
 
+_DIGITS = {w: str(i) for i, w in enumerate("zero one two three four five six seven eight nine".split())}
+_DIGITS["oh"] = "0"
+
+
+def _ip_said(ip, r):
+    """The address as written, or as spoken ("ten point sixty-nine point four point two zero three")."""
+    if ip in r:
+        return True
+    toks = re.findall(r"[a-z]+|\d+", r.lower().replace("-", " "))
+    segs, cur = [], []                      # runs of number words, with the separators between them
+    numberish = set(_DIGITS) | {"ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+                                "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
+                                "eighty", "ninety", "hundred", "and"}
+    for t in toks + ["."]:
+        if t.isdigit() or t in numberish:
+            cur.append(t)
+            continue
+        if cur:
+            segs.append(cur)
+            cur = []
+        segs.append(t)
+    vals = []
+    for sg in segs:
+        if isinstance(sg, list):
+            if len(sg) > 1 and all(t in _DIGITS or (t.isdigit() and len(t) == 1) for t in sg):
+                vals.append("".join(_DIGITS.get(t, t) for t in sg))
+            else:
+                ns = C.numbers(" ".join(sg))
+                vals.append(str(int(ns[0])) if len(ns) == 1 else None)
+        else:
+            vals.append("." if sg in ("point", "dot") else None)
+    want = ip.split(".")
+    for k in range(len(vals) - 6):
+        w = vals[k:k + 7]
+        if w[1::2] == [".", ".", "."] and w[0::2] == want:
+            return True
+    return False
+
+
 def _nolgia_cli():
     t = C.read(f"{HOME}/github.com/nolgiainc/nolgia-cli/README.md")
     lang = "Rust" if re.search(r"\bRust\b", t) else None
@@ -187,7 +226,7 @@ KNOWLEDGE = [
     Task("sons-founder", "knowledge", ["In the Bromigos canon, who founded the Sons of Sovereignty?"],
          fact(_founder, lambda v, r: v.split()[-1].lower() in r.lower())),
     Task("wings-ip", "knowledge", ["What IP address does the homelab's Prometheus scrape the wings game-server VM at?"],
-         fact(_wings_ip, lambda v, r: v in r)),
+         fact(_wings_ip, _ip_said)),
     Task("nolgia-cli", "knowledge", ["What language is the nolgia CLI written in, and how do I install it with Homebrew?"],
          fact(_nolgia_cli, lambda v, r: v[0] and v[0].lower() in r.lower() and v[1].lower() in r.lower())),
 ]

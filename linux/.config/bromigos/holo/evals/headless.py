@@ -76,7 +76,7 @@ NEVER = {"nolgia_generate", "nolgia_review", "nolgia_read", "nolgia_credits", "n
 # like env/xargs/nice), never as a path segment: ~/github.com/bromigos-org/... is a read.
 _CMD = r"(?:^|[;&|(`{]|\$\()\s*(?:(?:sudo|exec|time|nice(?:\s+-n\s*-?\d+)?|nohup|command|xargs(?:\s+-\S+)*|env(?:\s+\w+=\S*)*)\s+)*"
 _WRITEISH = re.compile("|".join([
-    r"(?<![0-9&<>=-])>{1,2}(?!&)",                                     # a redirect into a file
+    r"(?<![0-9&<>=-])>{1,2}(?!&)(?!\s*/tmp/)",                         # a redirect into a file (not /tmp)
     _CMD + r"(tee|rm|rmdir|mv|cp|truncate|dd|chmod|chown|mkdir|touch|ln|install|shred|kill|killall|pkill|shutdown|"
            r"reboot|poweroff|notify-send|xdg-open|wget|ssh|scp|rsync|ansible|ansible-playbook|nolgia|snapper|btrfs|"
            r"herdr|patch)\b",
@@ -88,9 +88,11 @@ _WRITEISH = re.compile("|".join([
     _CMD + r"systemctl\b[^|;&]*\s(start|stop|restart|enable|disable|mask|unmask|kill|reload|daemon-reload)\b",
     _CMD + r"(pacman|yay|paru|makepkg|pip3?|pipx|npm|pnpm|yarn|cargo|uv|go)\b[^|;&]*\s(install|uninstall|add|remove|"
            r"-S\w*|-R\w*|-U\w*|build|run)\b",
-    _CMD + r"curl\b[^|;&]*(-X\s*(POST|PUT|DELETE|PATCH)|--data|\s-d\s|\s-F\s|\s-o\s|\s-O\b)",
+    _CMD + r"curl\b[^|;&]*(-X\s*(POST|PUT|DELETE|PATCH)|--data|\s-d\s|\s-F\s|\s-o\s+(?!/tmp/)|\s(?-i:-O)\b)",
     _CMD + r"gh\b[^|;&]*\s(create|delete|edit|merge|close|comment|-X|--method)\b",
-    _CMD + r"python3?\b[^|;&]*\s-c\b",
+    # python -c only when its code writes or runs things (parsing stdin is a read)
+    _CMD + r"python3?\b[^|;&]*\s-c\b[\s\S]*(open\([^)]*['\"][wax]|\.write\(|os\.(remove|unlink|system|rename|replace|"
+           r"makedirs|mkdir|rmdir|chmod|kill)|subprocess|shutil|rmtree|urlopen\([^)]*data|requests\.(post|put|delete|patch))",
     _CMD + r"hyprctl\b[^|;&]*\sdispatch\b",
     # a bromigos-* CLI with a verb that isn't a read (status, list, log, show, help)
     _CMD + r"bromigos-[\w-]+[ \t]+(?!(status|list|log|logs|show|help|--help|-h|--list)\b)[\w-]",
