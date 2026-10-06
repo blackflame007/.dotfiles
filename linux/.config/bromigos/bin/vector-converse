@@ -1,0 +1,6 @@
+#!/bin/sh
+# Razer M1: bring VECTOR up and toggle hands-free conversation mode.
+# (Pressing it again turns conversation off; VECTOR stays on screen.)
+H="$HOME/.config/bromigos/holo/bin/bromigos-holo"
+"$H" vector-show >/dev/null 2>&1
+exec "$H" conversation
