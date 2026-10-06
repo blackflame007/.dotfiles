@@ -546,7 +546,8 @@ class ArbiterDeck(Base):
         elif name == "Tab" and self.app:
             self.close()
             from gi.repository import GLib
-            GLib.timeout_add(300, lambda: (self.app.overlay("timeline"), False)[1])
+            from .deckkit import next_deck
+            GLib.timeout_add(300, lambda: (self.app.overlay(next_deck(self.name)), False)[1])
         elif name in ("Left", "h"):
             self.yaw -= 0.2
         elif name in ("Right", "l"):

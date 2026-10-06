@@ -273,6 +273,7 @@ class TimelineDeck(Base):
         elif name == "Tab" and self.app:
             self.close()
             from gi.repository import GLib
-            GLib.timeout_add(300, lambda: (self.app.overlay("holodeck"), False)[1])
+            from .deckkit import next_deck
+            GLib.timeout_add(300, lambda: (self.app.overlay(next_deck(self.name)), False)[1])
         self.built_at = None
         return True

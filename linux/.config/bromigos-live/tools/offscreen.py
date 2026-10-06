@@ -85,12 +85,16 @@ def main():
     else:
         from live import overlays
         r = overlays.offscreen(kind, cfg, data, W, H)
-    if hasattr(r, "feed"):                      # wait for the first full read
+    if hasattr(getattr(r, "feed", None), "snapshot"):   # ARBITER deck: wait for the first full read
         t_end = time.time() + 40
         while time.time() < t_end:
             d, *_ = r.feed.snapshot()
             if all(k in d for k in ("roster", "road", "now", "overview", "trades", "positions")) and r.feed.bars:
                 break
+            time.sleep(0.5)
+    if hasattr(r, "ready"):                     # decks: wait for their first real data
+        t_end = time.time() + float(os.environ.get("OFF_READY", 90))
+        while time.time() < t_end and not r.ready():
             time.sleep(0.5)
     tgt = glkit.Target(W, H)
     clock = {"t": 0.0}
@@ -115,6 +119,12 @@ def main():
                     r.selected = ev[2][0]
                     r.sel_t = t + 0.01
                     r.built_at = None
+                elif ev[1] == "cmd":             # a VECTOR verb: cmd focus some text
+                    print("verb:", r.command(ev[2][0], " ".join(ev[2][1:])), file=sys.stderr)
+                elif ev[1] == "event":           # a feed event: event {"type": ...}
+                    import json as _j
+                    from live.vfeed import Feed
+                    Feed.get().inject(dict(_j.loads(" ".join(ev[2])), source="offscreen-test"))
                 elif ev[1] == "key":
                     r.typed = ev[2][0] if len(ev[2][0]) == 1 else ""
                     r.key(ev[2][0])

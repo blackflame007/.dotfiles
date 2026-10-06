@@ -626,7 +626,8 @@ class HoloDeck(Base):
         elif name == "Tab" and self.app:
             self.close()
             from gi.repository import GLib
-            GLib.timeout_add(300, lambda: (self.app.overlay("arbiter"), False)[1])
+            from .deckkit import next_deck
+            GLib.timeout_add(300, lambda: (self.app.overlay(next_deck(self.name)), False)[1])
         elif name in ("Left", "h"):
             self.yaw -= 0.2
         elif name in ("Right", "l"):
@@ -863,6 +864,10 @@ def kind_class(kind):
     if kind == "codec" and "codec" not in KINDS:
         from .codec_panel import CodecPanel
         KINDS["codec"] = CodecPanel
+    if kind in ("mind", "ops", "swarm", "netmap", "replay") and kind not in KINDS:
+        import importlib
+        mod = importlib.import_module(f".{kind}_deck", __package__)
+        KINDS[kind] = mod.DECK
     if kind == "driftmap" and "driftmap" not in KINDS:
         from .drift_map import DriftMap
         KINDS["driftmap"] = DriftMap
@@ -932,6 +937,8 @@ def make(app, kind, **kw):
         keyboard, input_ok = GtkLayerShell.KeyboardMode.NONE, False
         extra["summary"] = kw.get("summary", "")
     win_kw = {}
+    if kw.get("commands"):
+        extra["commands"] = kw["commands"]
     if kind == "codec":
         from .codec_panel import PANEL
         keyboard, input_ok = GtkLayerShell.KeyboardMode.NONE, False
@@ -958,6 +965,10 @@ def make(app, kind, **kw):
     class Handle:
         def __init__(self):
             self.closed = False
+
+        @property
+        def renderer(self):
+            return holder.get("r")
 
         def close(self):
             r = holder.get("r")

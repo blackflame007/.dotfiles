@@ -249,7 +249,7 @@ class App:
         cur = self.overlays.get(kind)
         if cur and kind == "codec":
             return
-        if cur and kind in ("holodeck", "arbiter", "driftmap", "timeline", "radial", "screensaver"):
+        if cur and kind in ("holodeck", "arbiter", "driftmap", "timeline", "mind", "ops", "swarm", "netmap", "replay", "radial", "screensaver"):
             cur.close()
             return
         if cur:
@@ -386,7 +386,7 @@ class App:
         windows, full, _mon = hypr.monitor_state(self.cfg["general"]["monitor"])
         self.covered, self.fullscreen = windows, full
         g = self.cfg["general"]
-        own_full = [k for k in ("screensaver", "holodeck", "arbiter", "driftmap", "timeline") if k in self.overlays]
+        own_full = [k for k in ("screensaver", "holodeck", "arbiter", "driftmap", "timeline", "mind", "ops", "swarm", "netmap", "replay") if k in self.overlays]
         if self.locked:
             mode, why = "paused", "session locked"
         elif full:
@@ -557,6 +557,25 @@ class App:
             if "screensaver" in self.overlays:
                 self.overlays["screensaver"].close()
             return "ok"
+        if c == "deck":
+            kind, _, rest = arg.partition(" ")
+            if kind not in ("mind", "ops", "swarm", "netmap", "replay"):
+                return "decks: mind ops swarm netmap replay"
+            verb, _, vargs = rest.strip().partition(" ")
+            cur = self.overlays.get(kind)
+            r = getattr(cur, "renderer", None) if cur else None
+            if not verb or verb == "open":
+                if not cur:
+                    self.overlay(kind)
+                return f"{kind} open"
+            if verb == "close":
+                if cur:
+                    cur.close()
+                return f"{kind} closed"
+            if r is not None and not r.done:
+                return r.command(verb, vargs.strip())
+            self.overlay(kind, commands=[(verb, vargs.strip())])      # open, then apply
+            return f"{kind} opening; {verb} queued"
         if c == "codec":
             ch, _, text = arg.partition("|")
             if not text:
