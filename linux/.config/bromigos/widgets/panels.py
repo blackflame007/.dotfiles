@@ -623,7 +623,7 @@ class WorkbenchPanel(Panel):
     N_PROJECTS, N_FOLDERS = 5, 3
     ROOTS = ["~/github.com/*/*", "~/.dotfiles", "~/Repos/*", "~/*"]
     TERM = ["kitty"]
-    FILES = ["dolphin"]
+    FILES = ["pcmanfm"]                 # the operator's file manager (ALT+E)
 
     def __init__(self, cfg=None):
         super().__init__(cfg)

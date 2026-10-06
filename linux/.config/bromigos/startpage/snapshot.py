@@ -7,10 +7,9 @@ origins (the Lab sends no CORS headers), so this runs from a user systemd timer
 (bromigos-startpage.timer, every minute) and the page loads the result as a
 plain <script>. The token never leaves this machine and never reaches the page.
 
-The switchboard entries are read from the widgets' own SwitchboardPanel
+The switchboard entries are the start page's own list (FIXED_LINKS, FROM_LAB)
 (widgets/panels.py, FIXED and FROM_LAB) so both stay in step.
 """
-import ast
 import json
 import os
 import ssl
@@ -31,19 +30,21 @@ NOTES = os.path.expanduser("~/.local/share/bromigos/notes.md")
 CTX = ssl.create_default_context()
 
 
+# The page's links. SWITCHBOARD was a widget panel until 2026-10-05 (replaced by
+# WORKBENCH); the start page keeps its own list. Fixed links come from the private
+# overlay's endpoints (empty on a fresh clone); the rest are read live from the Lab
+# snapshot's own service groups by id.
+FIXED_LINKS = [("arbiter", "ARBITER", "The Floor: ARBITER console"),
+               ("lab", "LAB", "EchoCraft Lab homepage")]
+FROM_LAB = [("argocd", "ARGO CD"), ("grafana", "GRAFANA"), ("litellm", "LITELLM"),
+            ("openwebui", "OPEN WEBUI"), ("comfyui", "COMFYUI"), ("proxmox", "PROXMOX"),
+            ("vault", "VAULT"), ("rustfs", "RUSTFS")]
+
+
 def switchboard_config():
-    """FIXED and FROM_LAB from the widgets' SwitchboardPanel, read without importing GTK."""
-    with open(PANELS) as f:
-        tree = ast.parse(f.read())
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == "SwitchboardPanel":
-            vals = {}
-            for st in node.body:
-                if isinstance(st, ast.Assign) and isinstance(st.targets[0], ast.Name):
-                    if st.targets[0].id in ("FIXED", "FROM_LAB"):
-                        vals[st.targets[0].id] = ast.literal_eval(st.value)
-            return vals.get("FIXED", []), vals.get("FROM_LAB", [])
-    return [], []
+    """(fixed, from_lab): fixed = [(id, name, role, url)] with URLs from the private overlay."""
+    fixed = [(sid, name, role, PRIV.url(sid, "")) for sid, name, role in FIXED_LINKS]
+    return [f for f in fixed if f[3]], FROM_LAB
 
 
 def token():
