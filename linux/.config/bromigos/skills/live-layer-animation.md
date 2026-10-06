@@ -1,7 +1,7 @@
 ---
 name: live-layer-animation
-description: How the live layer animates — the background shader layers, overlays and decks, seamless loops (loop phase and crossfade), pause/fullscreen rules, frame-rate budgets and self-healing surfaces — as actually implemented in bromigos-live.
-when_to_use: Adding or changing anything that moves on the desktop: a background layer, a loop, an event animation (intercept, transmission, codec call), a deck's motion, or when something stops animating, stutters, costs too much, or shows a seam.
+description: "How the live layer animates — the background shader layers, overlays and decks, seamless loops (loop phase and crossfade), pause/fullscreen rules, frame-rate budgets and self-healing surfaces — as actually implemented in bromigos-live."
+when_to_use: "Adding or changing anything that moves on the desktop: a background layer, a loop, an event animation (intercept, transmission, codec call), a deck's motion, or when something stops animating, stutters, costs too much, or shows a seam."
 ---
 
 # Animating the live layer
