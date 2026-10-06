@@ -196,7 +196,9 @@ class PaiBrain:
         return "Handed to the deep lane. Say nothing more."
 
     def _failed(self, name, why):
-        self.cooled[name] = time.monotonic() + (STALL_COOLDOWN if why.startswith("silent") else COOLDOWN)
+        # a stalled stream or a slow first token is likely load on that backend, not an outage: a short bench
+        self.cooled[name] = time.monotonic() + (STALL_COOLDOWN if why.startswith("silent") else
+                                                45.0 if why == "no answer in time" else COOLDOWN)
         self._log({"role": "reroute", "model": name, "why": why})
         chain = self.lane_names["deep" if self.lane == "deep" else "voice"]
         nxt = next((m for m in chain[chain.index(name) + 1:] if self.cooled.get(m, 0) <= time.monotonic()), None) \

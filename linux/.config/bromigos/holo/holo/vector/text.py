@@ -92,6 +92,7 @@ _ANYMARK = r"[‹<«\[]\s*/?\s*[a-z]+(?:\s*[:=]\s*[a-z]+)?\s*[›>»\]]"
 SENT_END = re.compile(r"(.+?[.!?…]+)((?:\s|" + _ANYMARK + r")+|$)", re.S | re.I)
 # Arc's fallback: words that mean "talking about how technology works"
 _TECH = re.compile(r"\b(?:algorithm|model|models|neural|network|transformer|token|tokens|gpu|gpus|cpu|cuda|kernel|"
+                   r"draft|decod\w*|forward pass|verif\w*|throughput|batch\w*|pipelin\w*|"
                    r"cache|latency|bandwidth|compiler|graph|graphs|tensor|tensors|quantis|quantiz|weights?|encoder|"
                    r"decoder|codec|frequenc\w*|signal|signals|protocol stack|relay|relays|circuit|voltage|"
                    r"inference|training|parameters?|architecture|vector|vectors|embedding|embeddings|speculative|"
@@ -196,7 +197,7 @@ class VoiceSplitter:
                     voice = "floor"
                 elif nums >= 3 or (self.last == "robot" and nums >= 2):
                     voice = "robot"                     # a readout: a sentence of figures
-                elif (hits >= 2 and hits / max(n, 1) >= 0.12) or (self.last == "scientist" and hits >= 1):
+                elif (hits >= 2 and hits / max(n, 1) >= 0.10) or (self.last == "scientist" and hits >= 1):
                     voice = "scientist"
             voice = voice if voice in self.roles else "main"
             if voice != self.last and voice != "main" and n < 3:
