@@ -164,7 +164,7 @@ use their keycodes and listen to the Razer only (its devices carry the `razer-bl
 | M3 | open VECTOR and toggle conversation mode (`bin/vector-converse`) |
 | M4 | holo deck |
 | M5 | screenshot a region (`bromigos-shot region`) |
-| Shift + M5 | start or stop recording a region (`bromigos-rec region`) |
+| Side 3 | start or stop recording a region (`bromigos-rec region`); Shift + M-keys don't combine (Shift and the M-keys are different Razer devices) |
 `bromigos-knob` (service `bromigos-knob`) grabs the dial and steps VECTOR's voice;
 `bromigos-rgb` (service `bromigos-rgb`) lights the keyboard and the Naga in VECTOR's
 voice colour, amber when he is concerned, red breathing when alarmed, green at rest.
