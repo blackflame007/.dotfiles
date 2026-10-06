@@ -10,6 +10,35 @@ SOURCES = {"workstation": ("local",), "wick": ("lab",), "rack": ("lab",), "emble
            "monolith": ("arbiter",), "vector": ()}
 
 
+PREFIX_SOURCE = {"ws.": "local", "wick.": "lab", "rack.": "lab", "emb.": "lab", "arb.": "arbiter"}
+KEYS = {  # every reading a part can bind to (a new model's manifest picks from these)
+    "local": ["ws.cpu", "ws.ram", "ws.gpu", "ws.disks", "ws.fans", "ws.net", "ws.power", "ws.host"],
+    "lab": ["rack.nodes", "rack.switch", "rack.storage", "rack.gpu", "rack.power", "rack.frame", "wick.racks",
+            "wick.solar", "wick.hull", "emb.gap", "emb.ring"],
+    "arbiter": ["arb.referee", "arb.research", "arb.positions", "arb.forward", "arb.agents", "arb.portfolio"],
+}
+
+
+def sources(name, parts=None):
+    """The live sources a model needs: the table above for the built-in models, else
+    inferred from its parts' bind prefixes (so a new model needs no code change)."""
+    if name in SOURCES:
+        return SOURCES[name]
+    if parts is None:
+        try:
+            from . import fmt
+            parts = fmt.load(name).parts
+        except Exception:
+            parts = []
+    out = []
+    for p in parts:
+        b = p.get("bind") or ""
+        for pre, src in PREFIX_SOURCE.items():
+            if b.startswith(pre) and src not in out:
+                out.append(src)
+    return tuple(out)
+
+
 def gib(b):
     return f"{b / 2**30:.1f}"
 

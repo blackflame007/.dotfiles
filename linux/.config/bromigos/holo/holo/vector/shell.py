@@ -60,6 +60,9 @@ SECRET_PATHS = [
 SECRET_FILE = re.compile(r"(^|/)(\.env(\..*)?|.*\.pem|.*\.key|id_(rsa|ed25519|ecdsa|dsa)[^/]*|.*keypair.*\.json|"
                          r"credentials(\.json)?|.*token.*|.*secret.*)$", re.I)
 SAFE_SSH = re.compile(r"\.ssh/(known_hosts|config|[^/]+\.pub)$")
+# inside ~/.local/share/bromigos/ (keys and tokens): folders that hold no secrets
+SAFE_BROMIGOS = re.compile(r"^\.local/share/bromigos/(builds|nolgia|3d-raw|voices)(/|$)|"
+                           r"^\.local/share/bromigos/venv(-brain|-tts)?/(bin/python3?(\.\d+)?|lib/)")
 MONEY = [
     (re.compile(r"(?<!paper-)api\.alpaca\.markets", re.I), "Alpaca live endpoint"),
     (re.compile(r"(trading-api|api\.elections)\.kalshi\.com|kalshi\.com/trade-api", re.I), "Kalshi live endpoint"),
@@ -210,12 +213,13 @@ def _script_words(w, cwd, depth):
 
 def _path_secret(w, cwd):
     w2 = os.path.expandvars(os.path.expanduser(w.replace("${HOME}", HOME).replace("$HOME", HOME)))
-    cands = [w2]
+    cands = [os.path.normpath(w2)] if w2.startswith("/") else [w2]
     if not w2.startswith("/"):
         cands.append(os.path.normpath(os.path.join(cwd, w2)))
+    cands += [os.path.realpath(c) for c in list(cands) if c.startswith("/")]   # "..", symlinks
     for c in cands:
         rel = c[len(HOME) + 1:] if c.startswith(HOME + "/") else c
-        if SAFE_SSH.search(c):
+        if SAFE_SSH.search(c) or SAFE_BROMIGOS.search(rel):
             continue
         for sp in SECRET_PATHS:
             if sp in rel or (sp.endswith("/") and rel == sp[:-1]):
@@ -290,6 +294,10 @@ def check(command, cwd=HOME):
     for rx, what in MONEY:
         if rx.search(command) or rx.search(joined):
             raise Refused(f"no real money: {what} is off limits")
+    from .guard import check_command
+    why = check_command(words, joined)
+    if why:
+        raise Refused(why)
     return None
 
 
@@ -350,6 +358,20 @@ def check_push(words, cwd):
         hit = sorted({f for f in files if rule.search(f)})
         if hit:
             raise Refused(f"no real money: the push touches real-money code ({', '.join(hit[:4])}); the host pushes that himself")
+    for d in _git_dirs(words, cwd):          # the dotfiles are public: no private details in new commits
+        if os.path.realpath(d) != os.path.realpath(os.path.join(HOME, ".dotfiles")):
+            continue
+        try:
+            patch = subprocess.run(["git", "-C", d, "log", "-p", "--format=", "--branches", "--not", "--remotes"],
+                                   capture_output=True, text=True, timeout=20).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            raise Refused("couldn't check what that push contains") from None
+        from .guard import PRIVATE
+        found = sorted({m.group(0)[:30] for l in patch.splitlines() if l.startswith("+") and not l.startswith("+++")
+                        for m in [PRIVATE.search(l)] if m})
+        if found:
+            raise Refused(f"the dotfiles are public and these commits add private details ({', '.join(found[:3])}); "
+                          "move them to the private overlay (~/.config/bromigos/private/) and amend first")
     return None
 
 

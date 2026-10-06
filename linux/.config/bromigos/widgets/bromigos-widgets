@@ -10,6 +10,11 @@ monitor named in layout.json (above any background/live layer, below windows).
   bromigos-widgets notes           focus FIELD NOTES for typing (Esc hands focus back)
   bromigos-widgets reload          re-read layout.json
   bromigos-widgets stats           print draw counts and coverage to the app's stderr
+  bromigos-widgets render NAME|plugins/x.py OUT.png [--ticks N]
+                                   draw one panel to a PNG offscreen (no window; real readings)
+
+Plugins: plugins/<name>.py defines a Panel subclass; it is picked up, hot-reloaded and
+isolated by plugins.py (see its docstring). Health: $XDG_RUNTIME_DIR/bromigos-widgets-health.json.
 
 Redraws pause while the active workspace on that monitor has tiled or
 fullscreen windows covering the desktop; sampling continues (cheaply) so the
@@ -38,6 +43,13 @@ def client(argv):
     except OSError:
         sys.exit("bromigos-widgets is not running")
 
+
+if len(sys.argv) > 2 and sys.argv[1] == "render":
+    import plugins as PL
+    args = sys.argv[2:]
+    ticks = int(args[args.index("--ticks") + 1]) if "--ticks" in args else 3
+    print(json.dumps(PL.render(args[0], args[1], ticks=ticks)))
+    sys.exit(0)
 
 if len(sys.argv) > 1:
     if sys.argv[1] in ("-h", "--help", "help"):
@@ -398,6 +410,12 @@ class App:
             self.windows[name] = win
             if spec.get("visible", True):
                 win.win.show_all()
+        self.mon = mon
+        self.plugins = {}            # name -> (path, mtime)
+        self.started = time.time()
+        self.scan_plugins()
+        GLib.timeout_add_seconds(2, self.scan_plugins)
+        GLib.timeout_add_seconds(2, self.write_health)
         self.coverage = Coverage(self.monitor_name, self.on_coverage)
         self.coverage.start()
         # Hotplug: when the output goes away (monitor powered off), gtk-layer-shell turns
@@ -412,6 +430,119 @@ class App:
         GLib.timeout_add_seconds(30, self.check_surfaces)
         self.listen()
         GLib.timeout_add(int(os.environ.get("BROMIGOS_TICK_MS", "100")), self.loop)
+
+    # ------------------------------------------------------------------ plugins
+    PLACES = os.path.expanduser("~/.local/state/bromigos/widgets-plugin-places.json")
+
+    def _place(self, name, spec):
+        """Position for a plugin: layout.json "plugins" > its LAYOUT > a remembered spot > free space."""
+        import plugins as PL
+        if "x" in spec and "y" in spec:
+            return spec["x"], spec["y"]
+        try:
+            with open(self.PLACES) as f:
+                places = json.load(f)
+        except (OSError, ValueError):
+            places = {}
+        w, h = spec.get("width", 470), spec.get("height", 200)
+        taken = [(p["x"], p["y"], p.get("width", 470), p.get("height", 420)) for p in self.cfg["panels"]]
+        for n, win in self.windows.items():
+            if n in self.plugins and n != name and hasattr(win, "pos"):
+                taken.append((*win.pos, win.panel.width, win.panel.height))
+        mons = hypr_request("j/monitors") or []
+        m = next((x for x in mons if x["name"] == self.monitor_name), {"width": 2560, "height": 1440, "reserved": [0, 34, 0, 0]})
+        rl, rt, rr, rb = (m.get("reserved") or [0, 0, 0, 0])[:4]
+        W, H = m["width"] - rl - rr, m["height"] - rt - rb
+        avoid = [(W - 24 - 1180, H - 24 - 640, 1180, 640),       # VECTOR's console (bottom right)
+                 (W - 440, 0, 440, 320)]                            # notifications (top right)
+        old = places.get(name)
+        if old and PL.free_spot(w, h, taken, (W, H), avoid) is not None:
+            ox, oy = old
+            if all(ox + w + 16 <= rx or rx + rw + 16 <= ox or oy + h + 16 <= ry or ry + rh + 16 <= oy
+                   for rx, ry, rw, rh in taken + avoid):
+                return ox, oy
+        spot = PL.free_spot(w, h, taken, (W, H), avoid) or (28, 16)
+        places[name] = list(spot)
+        os.makedirs(os.path.dirname(self.PLACES), exist_ok=True)
+        with open(self.PLACES, "w") as f:
+            json.dump(places, f)
+        return spot
+
+    def _close_plugin(self, name):
+        w = self.windows.pop(name, None)
+        self.plugins.pop(name, None)
+        if w:
+            w.win.destroy()
+
+    def scan_plugins(self):
+        """(Re)load new or changed plugins, close removed ones; never raises."""
+        import plugins as PL
+        try:
+            found = PL.files()
+            for name in list(self.plugins):
+                if name not in found:
+                    PL.log(name, "removed; closing")
+                    self._close_plugin(name)
+            for name, (path, mtime) in found.items():
+                if name in self.windows and name not in self.plugins:
+                    continue                          # a core panel's name: never shadowed
+                if self.plugins.get(name) == (path, mtime):
+                    continue
+                self._close_plugin(name)
+                self.plugins[name] = (path, mtime)     # remembered even when it fails, so it isn't retried every 2 s
+                try:
+                    cls, layout = PL.load(path)
+                    spec = dict(layout)
+                    spec.update((self.cfg.get("plugins") or {}).get(name, {}))
+                    spec["name"] = name
+                    panel = cls(spec)
+                    panel.width = int(spec.get("width", panel.width))
+                    panel.height = int(spec.get("height", panel.height))
+                    spec.setdefault("width", panel.width)
+                    spec.setdefault("height", panel.height)
+                    x, y = self._place(name, spec)
+                    safe = PL.SafePanel(name, panel, path)
+                    win = PanelWindow(self, safe, self.mon, x, y)
+                    win.pos = (x, y)
+                    win.win.connect("delete-event", self.on_surface_closed, name)
+                    self.windows[name] = win
+                    if spec.get("visible", True):
+                        win.win.show_all()
+                    PL.log(name, f"loaded at {x},{y} ({panel.width}x{panel.height})")
+                except Exception:
+                    import traceback
+                    PL.log(name, "load failed:\n" + traceback.format_exc())
+                    self.load_errors = getattr(self, "load_errors", {})
+                    self.load_errors[name] = traceback.format_exc().strip().splitlines()[-1][:200]
+                else:
+                    getattr(self, "load_errors", {}).pop(name, None)
+            for name in list(self.plugins):           # a switched-off plugin hides
+                w = self.windows.get(name)
+                if w and getattr(w.panel, "disabled", None) and w.visible():
+                    w.win.hide()
+        except Exception as e:
+            print("bromigos-widgets: plugin scan failed:", e, file=sys.stderr, flush=True)
+        return True
+
+    def write_health(self):
+        try:
+            plug = {}
+            for name in self.plugins:
+                w = self.windows.get(name)
+                if w and hasattr(w.panel, "health"):
+                    plug[name] = {**w.panel.health(), "visible": w.visible()}
+                elif name in getattr(self, "load_errors", {}):
+                    plug[name] = {"status": "load_failed", "last_error": self.load_errors[name]}
+            d = {"t": time.time(), "pid": os.getpid(), "uptime_s": round(time.time() - self.started),
+                 "covered": self.coverage.covered, "plugins": plug}
+            import plugins as PL
+            tmp = PL.HEALTH + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(d, f)
+            os.replace(tmp, PL.HEALTH)
+        except Exception as e:
+            print("bromigos-widgets: health write failed:", e, file=sys.stderr, flush=True)
+        return True
 
     def on_surface_closed(self, win, _ev, name):
         if win.get_visible():

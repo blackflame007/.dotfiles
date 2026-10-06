@@ -45,7 +45,7 @@ class Stage:
 
     # ------------------------------------------------------------------ data
     def poll(self):
-        srcs = bind.SOURCES.get(self.name, ())
+        srcs = bind.sources(self.name, self.parts)
         self.live.want(*srcs)
         now = time.monotonic()
         if now - self.read_at > 0.5:

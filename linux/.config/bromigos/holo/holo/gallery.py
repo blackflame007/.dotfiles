@@ -35,7 +35,26 @@ class Gallery:
             self.stages[n] = Stage(n, self.live)
         return self.stages[n]
 
+    def rescan(self):
+        """New .holo.npz files appear without a restart (a model VECTOR just baked)."""
+        names = fmt.available()
+        if names != self.names:
+            cur = self.names[self.idx] if self.names else None
+            self.names = names
+            self.idx = names.index(cur) if cur in names else 0
+        import os
+        for n in list(self.stages):                # gone, or rebaked since its stage was built
+            try:
+                m = os.path.getmtime(fmt.path_of(n))
+            except (FileNotFoundError, OSError):
+                m = None
+            if m is None or getattr(self.stages[n], "_mtime", m) != m:
+                del self.stages[n]
+            else:
+                self.stages[n]._mtime = m
+
     def show(self, name=None, step=0):
+        self.rescan()
         if name in self.names:
             self.idx = self.names.index(name)
         else:
@@ -86,7 +105,7 @@ class Gallery:
         x, y = 36 * sc, 26 * sc
         tw, th = H.label(s.meta["title"], x, y, ph, int(30 * sc), "bold", spacing=6)
         H.label(s.meta.get("subtitle", "").upper(), x + tw + 18 * sc, y + th - 22 * sc, col("soft", 1, 0.8), int(14 * sc), spacing=3)
-        srcs = bind.SOURCES.get(s.name, ())
+        srcs = bind.sources(s.name, s.parts)
         info = []
         for src in srcs:
             d, err, at = self.live.get(src)

@@ -26,6 +26,8 @@ import os
 import numpy as np
 
 MODEL_DIRS = [os.path.expanduser("~/.config/bromigos/brand/3d/holo")]
+if os.environ.get("BROMIGOS_HOLO_MODELS"):          # a build worktree's models first (offscreen checks)
+    MODEL_DIRS.insert(0, os.environ["BROMIGOS_HOLO_MODELS"])
 ORDER = ["workstation", "wick", "rack", "monolith", "emblem"]
 
 
@@ -66,6 +68,9 @@ _cache = {}
 
 
 def load(name):
-    if name not in _cache:
-        _cache[name] = HoloModel(path_of(name))
-    return _cache[name]
+    """Cached, but re-read when the file changes (a rebake shows at once)."""
+    p = path_of(name)
+    m = os.path.getmtime(p)
+    if name not in _cache or _cache[name][0] != m:
+        _cache[name] = (m, HoloModel(p))
+    return _cache[name][1]

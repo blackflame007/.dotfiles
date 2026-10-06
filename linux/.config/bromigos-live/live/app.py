@@ -557,6 +557,27 @@ class App:
             if "screensaver" in self.overlays:
                 self.overlays["screensaver"].close()
             return "ok"
+        if c == "plugin":                            # a deck plugin: bromigos-live plugin <name> [verb args]
+            from .plugins import deck_names
+            name, _, rest = arg.partition(" ")
+            if name not in deck_names():
+                return "plugins: " + " ".join(deck_names())
+            kind = "plugin:" + name
+            verb, _, vargs = rest.strip().partition(" ")
+            cur = self.overlays.get(kind)
+            r = getattr(cur, "renderer", None) if cur else None
+            if verb == "close":
+                if cur:
+                    cur.close()
+                return f"{name} closed"
+            if not verb or verb == "open":
+                if not cur:
+                    self.overlay(kind)
+                return f"{name} open"
+            if r is not None and not r.done and hasattr(r, "command"):
+                return r.command(verb, vargs.strip())
+            self.overlay(kind, commands=[(verb, vargs.strip())])
+            return f"{name} opening; {verb} queued"
         if c == "deck":
             kind, _, rest = arg.partition(" ")
             if kind not in ("mind", "ops", "swarm", "netmap", "replay"):

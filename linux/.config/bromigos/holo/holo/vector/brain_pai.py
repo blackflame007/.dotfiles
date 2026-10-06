@@ -301,6 +301,8 @@ class PaiBrain:
                 events.emit("skill.load", name=sk["name"], auto=True)
             from . import nolgia
             nolgia.LAST_USER["t"] = time.time()      # an over-cap spend needs a host turn after VECTOR asked
+            from . import build
+            build.LAST_USER["t"] = time.time()       # so does keeping a trial
             self._log({"role": "user", "text": text})
             self.history.append({"role": "user", "content": text})
             out, msgs, escalated = await self._stream(self.voice_agent, text, t0, list(self.messages))

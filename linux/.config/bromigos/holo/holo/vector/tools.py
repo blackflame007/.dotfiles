@@ -741,6 +741,16 @@ SPECS = {
                            ["kind", "prompt"])),
     "nolgia_review": ("Look at an image (or a video's middle frame) with the vision model and answer a question about it.",
                       _p({"path": S, "question": S}, ["path"])),
+    "build_start": ("Build something new on the desktop, or change a visualization, in the background: a widget panel, a "
+                    "live-layer shader or deck, a hologram model, a change to an existing view. Your builder works in a "
+                    "git worktree, validates with offscreen renders and a vision look, then puts it up in trial mode; you "
+                    "stay on the line. goal: what to build, with the details the host gave (data, look, placement). Say "
+                    "one line that it's started.", _p({"goal": S}, ["goal"])),
+    "build_status": ("Where the background build is: phase, files, progress, seconds left in a trial.", _p({})),
+    "build_keep": ("The host said keep the trial: commit it in the dotfiles style, merge, push. Only after the host "
+                   "answered; never on your own.", _p({})),
+    "build_revert": ("The host said revert (or doesn't want it): roll the trial back to exactly what was there.", _p({})),
+    "build_stop": ("Stop the background build now (its worktree is removed; a trial is rolled back).", _p({})),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }
@@ -771,7 +781,7 @@ def call(name, args, ui=None, live=None):
     eid = events.next_id()
     events.emit("tool.start", id=eid, name=name, args="(private)" if name in PRIVATE_ARGS else events.summary(args))
     try:
-        if name in ("show_hologram", "open_gallery", "set_voice", "remember", "forget"):
+        if name in ("show_hologram", "open_gallery", "set_voice", "remember", "forget") or name.startswith("build_"):
             if ui is None:
                 raise RuntimeError("no display")
             res = ui(name, args)

@@ -858,6 +858,9 @@ KINDS = {"intercept": Intercept, "transmission": Transmission, "holodeck": HoloD
 
 
 def kind_class(kind):
+    if kind.startswith("plugin:"):                 # deck plugins (plugins/<name>.py), loaded fresh
+        from .plugins import deck_class
+        return deck_class(kind.split(":", 1)[1])
     if kind == "arbiter" and "arbiter" not in KINDS:
         from .arbiter_deck import ArbiterDeck
         KINDS["arbiter"] = ArbiterDeck

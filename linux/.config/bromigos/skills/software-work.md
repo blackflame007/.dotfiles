@@ -33,6 +33,13 @@ spoken line per state change; a short report at the end.
 - Match the surrounding code: naming, layout, error handling, comments (why, not what).
 - No secrets in code or config: they live in the homelab Vault (see `homelab-ops.md`).
   `.env` files and keys are never committed.
+- **`~/.dotfiles` is a public repo.** Nothing private goes in it: no LAN addresses, no
+  homelab hostnames, no Vault paths, namespaces or service maps, no tokens or token-shaped
+  test strings. Those values live in the private overlay `~/.config/bromigos/private/`
+  (its own private repo, gitignored in the dotfiles) or in mode-600 files under
+  `~/.local/share/bromigos/`; code reads them from there. Commit overlay changes in the
+  overlay repo. The build loop and your terminal refuse a dotfiles change or push that adds
+  one.
 - For a change larger than one file, a scratch branch keeps `main` clean:
   `git switch -c vector/<slug>`; merge (fast-forward) when it's green. For the dotfiles
   and the homelab, work on the default branch unless told otherwise; the homelab deploys

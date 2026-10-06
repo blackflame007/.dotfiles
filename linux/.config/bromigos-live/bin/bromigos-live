@@ -13,6 +13,7 @@
 #   bromigos-live codec-quiet      codec calls without voice (toggle)
 #   bromigos-live job -- cmd ...   run cmd; a long run ends with a codec call
 #   bromigos-live mind|ops|swarm|netmap|replay [verb args]   VECTOR's holograms (see the hologram-build skill)
+#   bromigos-live plugin <name> [verb args]   a deck plugin from plugins/ (see live/plugins.py)
 #   bromigos-live ctl <cmd>        raw control command (burst, transmission, reload, state)
 #   bromigos-live status
 set -u
@@ -100,6 +101,9 @@ case "${1:-start}" in
     toggle|holodeck|arbiter|driftmap|timeline|radial|intercept|screensaver|screensaver-off)
         ctl "$1" || { [ "$1" = screensaver-off ] || echo "not running (bromigos-live start)"; exit 1; } ;;
     scan|scan-pin) ctl "$1" ;;
+    plugin)
+        # a deck plugin (plugins/<name>.py): bromigos-live plugin <name> [verb args]
+        shift; ctl "plugin $*" ;;
     mind|ops|swarm|netmap|replay)
         # open a hologram, or drive it: bromigos-live mind focus kb-sync, netmap trace nas, ...
         kind="$1"; shift; ctl "deck $kind $*" ;;

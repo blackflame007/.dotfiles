@@ -378,7 +378,7 @@ class App:
         self.stopbtn.set_can_focus(False)
         self.stopbtn.set_no_show_all(True)
         self.stopbtn.set_tooltip_text("Stop the command VECTOR is running in the terminal (kills its whole process group).")
-        self.stopbtn.connect("clicked", lambda b: self.shell_stop())
+        self.stopbtn.connect("clicked", lambda b: self._stop_clicked())
         from .vector.shell import RUNNER
         RUNNER.on_change = lambda cur: GLib.idle_add(self._shell_changed, cur)
         RUNNER.on_notice = lambda text: GLib.idle_add(self._herdr_notice, text)   # spoken in the notify voice
@@ -397,6 +397,10 @@ class App:
             self.memory = None
         self.summarized_at = 0               # history length at the last end-of-conversation summary
         try:                                 # herdr agents waiting on the host / finishing -> a spoken notice
+            from .vector.guard import Sentinel
+            self.sentinel = Sentinel(lambda paths: GLib.idle_add(
+                self._herdr_notice, "My safety code changed on disk, so I've switched my terminal off until I'm restarted."))
+            GLib.timeout_add_seconds(6, self._announce_trial)
             from .vector.reach import HerdrWatcher
             self.herdr = HerdrWatcher(lambda msg, a: GLib.idle_add(self._herdr_notice, msg))
         except Exception as e:
@@ -473,6 +477,79 @@ class App:
             self.unread += 1
             self._notify("VECTOR: trouble", line)
         GLib.timeout_add(2500, lambda: (self.pscene.avatar.state == "error" and self.pscene.set_state("idle"), False)[1])
+
+    # ------------------------------------------------------------------ builds (background, trial mode)
+    def _build_tool(self, name, args):
+        from .vector import build
+        if name == "build_start":
+            cur = getattr(self, "build_task", None)
+            if cur and cur.thread.is_alive():
+                return {"refused": f"a build is already running ({cur.note}); one at a time"}
+            st = build.state()
+            if st.get("phase") == "trial":
+                return {"refused": f"the {st.get('title')} trial is still up; keep or revert it first"}
+            from .vector.buildtask import BuildTask
+            goal = (args.get("goal") or "").strip()
+            if len(goal) < 8:
+                raise ValueError("goal: what to build, in a sentence")
+            self.build_task = BuildTask(goal, lambda note, pct: GLib.idle_add(self._build_progress, note, pct),
+                                        lambda ok, summary, secs: GLib.idle_add(self._build_done, ok, summary, secs))
+            GLib.idle_add(self._build_progress, "starting", 0)
+            return {"ok": True, "started": goal, "note": "it runs in the background; you'll hear when the trial is up"}
+        if name == "build_status":
+            t = getattr(self, "build_task", None)
+            return {**build.status(), **({"builder": {"note": t.note, "pct": t.pct, "seconds": round(time.time() - t.started),
+                                                     "running": t.thread.is_alive()}} if t else {})}
+        if name == "build_stop":
+            t = getattr(self, "build_task", None)
+            out = t.stop() if t and t.thread.is_alive() else build.stop("stopped by the host")
+            GLib.idle_add(self._build_progress, None, None)
+            return out
+        if name == "build_keep":
+            return build.keep()
+        if name == "build_revert":
+            return build.revert("the host said revert")
+        raise ValueError(f"unknown build tool {name}")
+
+    def _build_progress(self, note, pct):
+        """The BUILDING readout (with STOP), and a spoken milestone now and then."""
+        t = getattr(self, "build_task", None)
+        self.pscene.build_line = None if note is None else (note, pct, t.started if t else time.time())
+        building = note is not None
+        self.stopbtn.set_visible(building or bool(getattr(self.pscene, "shell_cmd", None)))
+        self.stopbtn.set_tooltip_text("Stop the build VECTOR is running in the background (its worktree is removed; "
+                                      "a trial is rolled back)." if building else
+                                      "Stop the command VECTOR is running in the terminal (kills its whole process group).")
+        if self.vector:
+            self.vector.update_input_region()
+        now = time.monotonic()
+        if note and note != "starting" and now - getattr(self, "build_said", 0) > 45:
+            self.build_said = now
+            self._herdr_notice(f"Build: {note}.")
+        self._publish_state()
+        return False
+
+    def _build_done(self, ok, summary, secs):
+        self.pscene.build_line = None
+        self.stopbtn.set_visible(bool(getattr(self.pscene, "shell_cmd", None)))
+        from .vector import build
+        st = build.state()
+        if ok and st.get("phase") == "trial":
+            self._herdr_notice(f"{st.get('say') or 'The build is up.'} Keep it? Ten minutes to decide.")
+        else:
+            self._herdr_notice(f"The build didn't make it: {summary[:160]}")
+        self.pscene.note(f"Build {'up for trial' if ok else 'ended'} after {secs // 60} min {secs % 60} s: {summary[:300]}")
+        if self.vector:
+            self.vector.update_input_region()
+        return False
+
+    def _announce_trial(self):
+        """After a restart (a build that changed VECTOR himself), say the trial is up."""
+        from .vector import build
+        st = build.state()
+        if st.get("phase") == "trial" and time.time() < st.get("deadline", 0):
+            self._herdr_notice(f"{st.get('say') or 'The build is up.'} Keep it?")
+        return False
 
     def _herdr_notice(self, msg):
         self.pscene.note(msg)
@@ -638,6 +715,14 @@ class App:
         self._publish_state()
         return False
 
+    def _stop_clicked(self):
+        t = getattr(self, "build_task", None)
+        if t and t.thread.is_alive():
+            threading.Thread(target=lambda: self._build_tool("build_stop", {}), daemon=True).start()
+            self._herdr_notice("Stopping the build.")
+            return "stopping the build"
+        return self.shell_stop()
+
     def shell_stop(self):
         from .vector.shell import RUNNER
         return "stopped" if RUNNER.kill("stopped by the host") else "nothing running"
@@ -686,6 +771,8 @@ class App:
 
     def _ui_from_brain(self, name, args):
         """UI-only tools, called from the brain thread."""
+        if name.startswith("build_"):
+            return self._build_tool(name, args or {})
         if name in ("remember", "forget"):
             if not self.memory:
                 raise RuntimeError("long-term memory unavailable")
@@ -1027,6 +1114,9 @@ class App:
                 GLib.timeout_add(500, wait)
                 return "stopping after the current turn"
             GLib.idle_add(Gtk.main_quit)
+        elif verb == "say":                # the build watcher (another process) speaks through here
+            self._herdr_notice(arg[:300])
+            return "ok"
         elif verb == "history":
             if arg.startswith("open "):        # open the Nth conversation (1 = newest); for scripts and tests
                 from .vector import history

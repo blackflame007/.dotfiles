@@ -280,6 +280,12 @@ class VectorScene:
             cmd = cmd if len(cmd) <= 64 else cmd[:61] + "…"
             H.label(f"$ {cmd}   {time.monotonic() - sh[1]:.0f}s", lw + 14 * sc, h - 100 * sc,
                     col("amber", 1, f), int(12 * sc), "bold")
+        bl = getattr(self, "build_line", None)
+        if bl:   # a background build: where it is, how far, how long (STOP is the panel button)
+            note, pct, t0 = bl
+            txt = f"BUILDING · {note}" + (f" · {pct}%" if pct else "") + f" · {time.time() - t0:.0f}s"
+            H.label(txt if len(txt) <= 90 else txt[:89] + "…", lw + 14 * sc, h - 118 * sc,
+                    col("phosphor", 1, (0.75 + 0.25 * math.sin(time.monotonic() * 2.0)) * f), int(12 * sc), "bold")
         if getattr(self, "conversation", False):   # hands-free: say so, all the time
             pulse = 0.55 + 0.45 * math.sin(time.monotonic() * 3.2)
             H.label("● CONVERSATION · LISTENING", w - 28 * sc, 44 * sc, col("danger", 1, pulse * f), int(12 * sc), "bold",

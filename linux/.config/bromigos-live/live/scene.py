@@ -72,6 +72,8 @@ class Background:
         self.wave = np.zeros(48, dtype=np.float32)
         self.last_build = 0.0
         self.t0 = time.monotonic()
+        from .plugins import Layers
+        self.layers = Layers()          # opt-in shader layers (layers/*.frag), GPU-budgeted
 
     def _path(self):
         bg = self.cfg["background"]
@@ -337,6 +339,7 @@ class Background:
         f.f("u_beam", bx0, by0, -2.5, 0.12 + min(rps, 6.0) / 12.0)
         self.loop_uniforms(f)
         self.stage.fs.draw()
+        self.layers.draw(fbo, self.w, self.h, t, d)
 
     # ---- scanner control (bromigos-live scan / scan-pin / scan-hold on|off)
     def scan(self):
