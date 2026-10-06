@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""Run btrbk against the NAS backup mount, skip cleanly when the NAS is away,
+and keep the raw incremental chains to a fixed age.
+
+Installed to /usr/local/lib/bromigos/btrbk-nas by setup-snapshots.sh and run
+by btrbk.service (drop-in: ExecCondition=... check, ExecStart=... run).
+
+  btrbk-nas check   exit 0 if the NAS answers and the target dir is reachable,
+                    else log why and exit 1 (systemd: "skipped", not "failed")
+  btrbk-nas run     btrbk run (a full send when one is due), then prune
+  btrbk-nas prune [--dry-run]
+
+Why the wrapper: btrbk never deletes incremental raw files (btrbk.conf(5),
+"raw": the preserve mechanism is disabled for them), so a raw target with
+"incremental yes" grows forever. Here btrbk sends a full stream every
+FULL_EVERY days (its own --override=incremental=no) and this script deletes a
+whole chain (full + its incrementals, linked by the UUIDs in btrbk's .info
+files) once a newer full exists and the chain's newest file is older than KEEP.
+
+Nothing site-specific lives here: the NAS host comes from the fstab entry of
+the mount point, which setup-snapshots.sh writes from the private config.
+"""
+import os
+import re
+import socket
+import subprocess
+import sys
+import time
+
+MOUNT = "/mnt/nas-backups"
+TARGET = MOUNT + "/btrbk"
+CONF = "/etc/btrbk/btrbk.conf"
+FULL_EVERY = 7 * 86400   # a full send at least weekly
+KEEP = 14 * 86400        # restore points kept: two weeks (matches target_preserve)
+NAME_RE = re.compile(r"^(?P<name>.+)\.(?P<ts>\d{8}T\d{4,6})(?:_\d+)?\.btrfs")
+
+
+def log(msg):
+    print(f"btrbk-nas: {msg}", flush=True)  # stdout goes to the journal
+
+
+def nas_host():
+    try:
+        src = subprocess.run(["findmnt", "--fstab", "-no", "SOURCE", MOUNT],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+    except subprocess.TimeoutExpired:
+        src = ""
+    return src.rsplit(":", 1)[0].strip("[]") if ":" in src else None
+
+
+def check():
+    host = nas_host()
+    if not host:
+        log(f"no fstab entry for {MOUNT}; skipping (run setup-snapshots.sh)")
+        return False
+    try:
+        socket.create_connection((host, 2049), timeout=5).close()
+    except OSError as e:
+        log(f"NAS {host} unreachable ({e.strerror or e}); skipping today's off-drive copy")
+        return False
+    # Make sure the automount is armed (a no-op when it is), then touch the
+    # path to mount it; the soft mount bounds a hang, the timeout the rest.
+    unit = subprocess.run(["systemd-escape", "-p", "--suffix=automount", MOUNT],
+                          capture_output=True, text=True).stdout.strip()
+    subprocess.run(["systemctl", "start", unit], capture_output=True, timeout=30)
+    try:
+        ok = subprocess.run(["test", "-d", TARGET], timeout=90).returncode == 0
+    except subprocess.TimeoutExpired:
+        ok = False
+    if not ok:
+        log(f"{TARGET} not reachable on the NAS mount; skipping today's off-drive copy")
+    return ok
+
+
+def read_info(path):
+    d = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    d[k] = v  # appended INCOMPLETE=0 overrides the initial INCOMPLETE=1
+    except OSError:
+        return None
+    return d
+
+
+def backups():
+    out = []
+    for fn in os.listdir(TARGET):
+        if not fn.endswith(".info"):
+            continue
+        m = NAME_RE.match(fn)
+        info = read_info(os.path.join(TARGET, fn))
+        if not m or info is None:
+            continue
+        data = info.get("FILE") or fn[:-len(".info")]
+        out.append({
+            "name": m["name"], "info": fn, "data": data,
+            "uuid": info.get("RECEIVED_UUID"),
+            "parent": info.get("RECEIVED_PARENT_UUID"),
+            "complete": info.get("INCOMPLETE", "1") == "0",
+            "mtime": os.stat(os.path.join(TARGET, fn)).st_mtime,
+        })
+    return out
+
+
+def full_due(items):
+    """A full is due if any backed-up subvolume lacks a complete full within FULL_EVERY.
+    (A subvolume with nothing on the target gets a full anyway: no parent exists.)"""
+    now = time.time()
+    for name in {b["name"] for b in items}:
+        fulls = [b["mtime"] for b in items if b["name"] == name and not b["parent"] and b["complete"]]
+        if not fulls or now - max(fulls) > FULL_EVERY:
+            return True
+    return False
+
+
+def chains(items):
+    """Group backups into trees rooted at a full, following parent -> RECEIVED_UUID.
+    Files whose parent is missing (or that are incomplete) form their own groups."""
+    by_uuid = {b["uuid"]: b for b in items if b["uuid"]}
+    def root(b, seen=()):
+        p = by_uuid.get(b["parent"]) if b["parent"] else None
+        if p is None or p is b or id(p) in seen:
+            return b
+        return root(p, seen + (id(b),))
+    groups = {}
+    for b in items:
+        groups.setdefault(id(root(b)), []).append(b)
+    return list(groups.values())
+
+
+def prune(dry_run=False):
+    now = time.time()
+    items = backups()
+    for name in sorted({b["name"] for b in items}):
+        mine = [b for b in items if b["name"] == name]
+        complete_fulls = [b["mtime"] for b in mine if not b["parent"] and b["complete"]]
+        newest_full = max(complete_fulls, default=None)
+        for chain in chains(mine):
+            newest = max(b["mtime"] for b in chain)
+            head = min(chain, key=lambda b: b["mtime"])
+            restorable = not head["parent"] and head["complete"]
+            # keep the chain holding the newest full, and anything still inside KEEP
+            if newest_full is None or now - newest < KEEP:
+                continue
+            if restorable and head["mtime"] >= newest_full:
+                continue
+            for b in sorted(chain, key=lambda b: b["mtime"]):
+                for fn in (b["data"], b["info"]):
+                    p = os.path.join(TARGET, fn)
+                    if os.path.exists(p):
+                        log(("would delete " if dry_run else "deleting ") + fn)
+                        if not dry_run:
+                            os.remove(p)
+
+
+def run():
+    if not check():
+        return 0
+    cmd = ["btrbk", "-c", CONF, "run"]
+    if full_due(backups()):
+        log("weekly full send due: running with incremental=no")
+        cmd.insert(-1, "--override=incremental=no")
+    rc = subprocess.run(cmd).returncode
+    if rc == 0:
+        prune()
+    return rc
+
+
+def main():
+    a = sys.argv[1:] or ["run"]
+    if a[0] == "check":
+        sys.exit(0 if check() else 1)
+    if a[0] == "prune":
+        if not check():
+            sys.exit(1)
+        prune(dry_run="--dry-run" in a)
+        return
+    if a[0] == "run":
+        sys.exit(run())
+    sys.exit(__doc__)
+
+
+if __name__ == "__main__":
+    main()
