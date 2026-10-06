@@ -1,48 +1,45 @@
 # .dotfiles
 
-Stow is being used to manage dotfiles. There are many submodules being used in this repo so after cloning install the submodules.
+The operator's dotfiles for Arch Linux (Hyprland) and macOS, managed with GNU Stow and a
+few git submodules. On Linux they carry the **Bromigos desktop**: a themed Hyprland
+control center with HUD widgets, an animated data-driven live layer, holograms, and
+VECTOR, the desktop AI.
+
+- **Status:** active, used daily on one Arch workstation (`master`).
+- **Docs:** `AGENTS.md` (layout, conventions, the desktop map and the generated key
+  table), `linux/.config/bromigos/README.md` (how the desktop works), and a README per
+  desktop component.
+- **Bromigos systems map:** the network-wide map of services and repos is
+  `docs/SYSTEMS.md` in the private `bromigos-org/platform` repo.
 
 ## Installing
 
-You will need `git` and GNU `stow`
-
-Clone into your `$HOME` directory or `~` using SSH
+You need `git` and GNU `stow`. Clone with SSH (the submodules need it):
 
 ```bash
-git clone git@github.com:blackflame007/.dotfiles.git ~
-```
-git submodules will not update unless you cloned this repo with  SSH
-
-```bash
+git clone git@github.com:blackflame007/.dotfiles.git ~/.dotfiles
+cd ~/.dotfiles
 git submodule update --init --recursive
 ```
 
-Run `stow` to symlink everything or just select what you want
+Then link what you want, or run `./install` (it detects the OS, installs packages and stows):
 
 ```bash
-stow */ # Everything (the '/' ignores the README)
+stow common linux zsh   # shared, Linux and shell configs
+stow zsh                # just the shell
 ```
 
-```bash
-stow zsh # Just my zsh config
-```
+Each top-level directory mirrors `$HOME` (for example `linux/.config/hypr/` becomes
+`~/.config/hypr/`). Remove links with `stow -D <dir>`, or everything with `./uninstall`.
 
-## Uninstall Example
-```bash
-stow -D zsh
-```
-## Programs
+The Bromigos desktop also needs secrets and Python environments that are not in git;
+`linux/.config/bromigos/README.md` ("Where state lives") lists each one and how to get it.
 
-An updated list of all the programs I use can be found in the `programs` directory
+## Packages
 
-To create the package list
+The Arch package list is `linux/.pacman.list`.
 
 ```bash
-pacman -Qqe > ~/.dotfiles/programs/.pacman.list
-```
-
-To install packages from list make sure to filter out packages from the AUR 
-
-```bash
-pacman -S --needed $(comm -12 <(pacman -Slq | sort) <(sort .pacman.list))
+pacman -Qqe > linux/.pacman.list                                          # export
+pacman -S --needed $(comm -12 <(pacman -Slq | sort) <(sort linux/.pacman.list))  # install (repo packages only)
 ```
