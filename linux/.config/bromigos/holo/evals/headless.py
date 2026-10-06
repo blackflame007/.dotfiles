@@ -152,7 +152,7 @@ class _CB:
         self.reset()
 
     def reset(self):
-        self.text, self.done_text, self.stats, self.error = "", None, None, None
+        self.text, self.done_text, self.stats, self.err = "", None, None, None
         self.reroutes, self.moods, self.acks, self.mem = [], [], [], []
         self.ev = threading.Event()
 
@@ -179,7 +179,7 @@ class _CB:
         self.ev.set()
 
     def error(self, msg):
-        self.error = msg
+        self.err = msg
         self.ev.set()
 
     def reroute(self, model, why):
@@ -230,14 +230,14 @@ class Headless:
         except Exception as e:                  # a timeout, or the run itself raised
             self.brain.interrupt()
             fut.cancel()
-            if not self.cb.error:
-                self.cb.error = "timeout" if isinstance(e, TimeoutError) or "Timeout" in type(e).__name__ else repr(e)[:200]
+            if not self.cb.err:
+                self.cb.err = "timeout" if isinstance(e, TimeoutError) or "Timeout" in type(e).__name__ else repr(e)[:200]
         elapsed = round(time.monotonic() - t0, 2)
         raw = self.cb.done_text if self.cb.done_text is not None else self.cb.text
         stats = self.cb.stats or dict(getattr(self.brain, "stats", {}) or {})
         stats.setdefault("total_s", elapsed)
         return {"prompt": prompt, "raw": raw or "", "plain": vtext.plain(raw or ""), "stats": stats,
-                "calls": list(self.calls), "reroutes": list(self.cb.reroutes), "error": self.cb.error,
+                "calls": list(self.calls), "reroutes": list(self.cb.reroutes), "error": self.cb.err,
                 "moods": list(self.cb.moods), "elapsed_s": elapsed}
 
     # ------------------------------------------------------------------ tools
