@@ -35,11 +35,10 @@ The homelab CA is `~/.config/homelab/homelab-ca.crt`; use it for every `*.redact
 
 ## Addresses on the LAN
 
-Gateway 10.0.0.x (UDM Pro Max), switch 10.0.0.x, AP 10.0.0.x, this
-workstation 10.0.0.x (wifi), NAS 10.0.0.x, Proxmox 10.0.0.x, k8s-control
-and the Traefik ingress 10.0.0.x, k8s-gpu-worker .201, k8s-worker-1 .202,
-wings-node .203, snap 10.0.0.x, crackle .151, pop .155. Read them from UniFi
-and `kube_node_info` rather than hard-coding where you can.
+This repo is public, so addresses are not written here. Read them live: every lab host's
+IP and where it is attached from UniFi (`unpoller_client_uptime_seconds`), the nodes from
+`kube_node_info{internal_ip}`, the gateway from `ip route`. The Network map
+(`bromigos-live netmap`) shows them all.
 
 ## Code you can reuse
 

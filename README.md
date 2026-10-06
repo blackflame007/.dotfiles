@@ -22,7 +22,7 @@ cd ~/.dotfiles
 git submodule update --init --recursive
 ```
 
-Then link what you want, or run `./install` (it detects the OS, installs packages and stows):
+Then link what you want, or run `./install` (it detects the OS, installs the basics — stow, git, zsh, neovim — and stows every directory):
 
 ```bash
 stow common linux zsh   # shared, Linux and shell configs
