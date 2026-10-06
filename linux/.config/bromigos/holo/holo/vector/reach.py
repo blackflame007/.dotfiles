@@ -1,8 +1,9 @@
 """VECTOR's reach beyond the workstation: the web (via the homelab's SearXNG) and herdr,
 the operator's terminal workspace manager for AI coding agents.
 
-web_search  SearXNG at https://search.redacted (JSON), homelab CA; fails cleanly while it's down.
-web_fetch   readable text via trafilatura; http/https only; no LAN targets except *.redacted.
+web_search  SearXNG at the private overlay's endpoints.searxng (JSON), homelab CA; fails cleanly while it's down.
+web_fetch   readable text via trafilatura; http/https only; no LAN targets except the lab's own
+            domain (private overlay lan.domain).
 herdr_*     structured wrappers over ~/.local/bin/herdr (fixed argv, never a shell string).
 Watcher     herdr agents going blocked (waiting on the operator) or finishing become a
             short notice in the notify voice, rate-capped.
@@ -19,7 +20,10 @@ import time
 import urllib.parse
 import urllib.request
 
-SEARX = "https://search.redacted"
+from ..private import PRIV
+
+SEARX = PRIV.url("searxng")                        # private: endpoints.searxng
+LAB_DOMAIN = PRIV.lan_domain()                     # private: lan.domain (its hosts are allowed)
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
 HERDR = os.path.expanduser("~/.local/bin/herdr")
 UA = "Mozilla/5.0 (X11; Linux x86_64) VECTOR/1.0 (homelab desktop assistant)"
@@ -28,7 +32,7 @@ MAX_TEXT = 8000
 
 
 def _ctx():
-    """Public CAs plus the homelab CA (search.redacted and *.redacted pages)."""
+    """Public CAs plus the homelab CA (SearXNG and the lab's own pages)."""
     c = ssl.create_default_context()
     if os.path.exists(CA):
         c.load_verify_locations(CA)
@@ -67,10 +71,10 @@ def _allowed_url(url):
     if u.scheme not in ("http", "https") or not u.hostname:
         return "only http and https URLs"
     host = u.hostname.lower()
-    if host.endswith(".redacted"):
+    if LAB_DOMAIN and host.endswith("." + LAB_DOMAIN):
         return None
     if host in ("localhost",) or host.endswith((".local", ".lan", ".internal", ".home.arpa")):
-        return "LAN-only hosts are off limits (except *.redacted)"
+        return "LAN-only hosts are off limits (except the lab's own domain)"
     try:
         for fam, _, _, _, addr in socket.getaddrinfo(host, None):
             ip = ipaddress.ip_address(addr[0])

@@ -15,6 +15,8 @@ import threading
 import time
 import urllib.request
 
+from ..private import PRIV
+
 STATE = os.path.expanduser("~/.local/state/bromigos")
 LOG = os.path.join(STATE, "vector-chat.log")
 TITLES = os.path.join(STATE, "vector-sessions.json")
@@ -162,7 +164,7 @@ def title_missing(max_sessions=40):
                                   "a one-sentence summary. Answer as JSON: {\"title\": ..., \"summary\": ...}."},
                                  {"role": "user", "content": convo}]}
             try:
-                req = urllib.request.Request("https://litellm.redacted/v1/chat/completions", data=json.dumps(body).encode(),
+                req = urllib.request.Request(PRIV.url("litellm", "/v1/chat/completions"), data=json.dumps(body).encode(),
                                              headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
                 with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
                     txt = json.load(r)["choices"][0]["message"]["content"]

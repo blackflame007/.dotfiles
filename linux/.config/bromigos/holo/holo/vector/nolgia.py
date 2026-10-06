@@ -263,7 +263,8 @@ def nolgia_review(path, question="Describe this image in two sentences and note 
             "chat_template_kwargs": {"enable_thinking": False},
             "messages": [{"role": "user", "content": [{"type": "text", "text": question[:1000]},
                                                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b64}}]}]}
-    req = urllib.request.Request("https://litellm.redacted/v1/chat/completions", data=json.dumps(body).encode(),
+    from ..private import PRIV
+    req = urllib.request.Request(PRIV.url("litellm", "/v1/chat/completions"), data=json.dumps(body).encode(),
                                  headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=90, context=ctx) as r:
         txt = json.load(r)["choices"][0]["message"]["content"]

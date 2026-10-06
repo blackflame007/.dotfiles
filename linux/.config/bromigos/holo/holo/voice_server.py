@@ -43,8 +43,10 @@ import urllib.request
 import uuid
 import wave
 
+
 import numpy as np
 
+from .private import PRIV
 from .shimmer import SilenceShaper, Shimmer, TimeStretch, dial_scratch
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -203,7 +205,10 @@ class Server:
                               ("cfg_scale", str(c.get("cfg_scale", 4))))]
         body = ("".join(parts) + f"--{b}--\r\n").encode()
         ctx = ssl.create_default_context(cafile=CA) if os.path.exists(CA) else ssl.create_default_context()
-        req = urllib.request.Request(c["url"], data=body, method="POST", headers={"Content-Type": f"multipart/form-data; boundary={b}"})
+        url = c.get("url") or PRIV.url("tts")
+        if not url:
+            raise RuntimeError("breeze: no TTS endpoint configured (private overlay endpoints.tts)")
+        req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": f"multipart/form-data; boundary={b}"})
         with urllib.request.urlopen(req, timeout=120, context=ctx) as r:
             while True:
                 pcm = r.read1(9600)

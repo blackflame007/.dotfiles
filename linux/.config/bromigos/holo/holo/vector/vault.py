@@ -1,7 +1,7 @@
 """VECTOR and the homelab Vault: he can wire secrets, never see them.
 
-Identity: AppRole `vector` (policy `vector`, homelab ansible/roles/vault). Vault itself
-allows read/write under secret/homelab/* and denies the ARBITER tree (venue, wallet and
+Identity: AppRole `vector` (policy `vector`, set up by the lab's Vault role). Vault itself
+allows read/write under the lab's KV subtree (private overlay vault.root) and denies the ARBITER tree (venue, wallet and
 live-operator keys), entitlements (billing), his own credentials and every sys/auth/
 policy/token path. role_id and secret_id are mode-600 files in ~/.local/share/bromigos/;
 the login token (30 min, renewable to 8 h) lives only in this process's memory.
@@ -11,7 +11,7 @@ Three tools, none of which returns a value:
   vault_put   store one key with kv-patch semantics (other keys untouched); the value is
               generated here or typed by the operator in a local dialog
   vault_copy  one key from one path to another, Vault to Vault
-To wire an app he writes an ExternalSecret in homelab GitOps, so the value goes
+To wire an app he writes an ExternalSecret in the lab's GitOps repo, so the value goes
 Vault -> ESO -> the pod. The `vault` CLI and Vault's HTTP API stay refused in his shell.
 The audit log records path, key and operation; never a value.
 """
@@ -26,13 +26,17 @@ import time
 import urllib.error
 import urllib.request
 
+from ..private import PRIV
+
 HOME = os.path.expanduser("~")
-ADDR = "https://vault.redacted"
+ADDR = PRIV.url("vault")                           # private: endpoints.vault
 ROLE_ID = os.path.join(HOME, ".local/share/bromigos/vault-vector-role-id")
 SECRET_ID = os.path.join(HOME, ".local/share/bromigos/vault-vector-secret-id")
 CA = os.path.join(HOME, ".config/homelab/homelab-ca.crt")
-MOUNT = "secret"
-PATH_OK = re.compile(r"(?:secret/)?(homelab(?:/[A-Za-z0-9_.-]+)*)/?$")
+ROOT = PRIV.vault_root()                           # private: vault.root, "<mount>/<subtree>"
+MOUNT, _, SUBTREE = (ROOT or "secret/").partition("/")
+PATH_OK = (re.compile(rf"(?:{re.escape(MOUNT)}/)?({re.escape(SUBTREE)}(?:/[A-Za-z0-9_.-]+)*)/?$") if SUBTREE
+           else re.compile(r"(?!)"))                # no overlay: nothing is allowed
 KEY_OK = re.compile(r"[A-Za-z0-9_.-]{1,128}$")
 CHARSETS = {"alnum": string.ascii_letters + string.digits, "hex": "0123456789abcdef",
             "urlsafe": string.ascii_letters + string.digits + "-_",
@@ -127,7 +131,8 @@ def norm_path(p):
     p = (p or "").strip()
     m = PATH_OK.match(p)
     if not m or ".." in p:
-        raise VaultError("path must be under secret/homelab/ (e.g. secret/<vault-path>)")
+        raise VaultError(f"path must be under {ROOT}/ (e.g. {ROOT}/litellm)" if ROOT
+                         else "no Vault configured on this machine (private overlay vault.root)")
     return m.group(1)
 
 
@@ -164,9 +169,9 @@ def _operator_prompt(path, key):
 
 
 # ------------------------------------------------------------------ tools
-def vault_list(path="secret/homelab"):
+def vault_list(path=None):
     """A folder's entries, or a secret's key names. Never values."""
-    p = norm_path(path)
+    p = norm_path(path or ROOT)
     try:
         try:
             names = CLIENT.entries(p)
@@ -209,11 +214,11 @@ def vault_put(path, key, value_from, length=32, charset="alnum"):
 
 
 def vault_copy(src, dst):
-    """src and dst as secret/homelab/<path>#<key>; the value moves Vault to Vault."""
+    """src and dst as <vault.root>/<path>#<key>; the value moves Vault to Vault."""
     try:
         (sp, sk), (dp, dk) = (s.rsplit("#", 1) for s in (src, dst))
     except ValueError:
-        raise VaultError("src and dst look like secret/homelab/<path>#<key>") from None
+        raise VaultError(f"src and dst look like {ROOT or '<vault root>'}/<path>#<key>") from None
     sp, sk, dp, dk = norm_path(sp), norm_key(sk), norm_path(dp), norm_key(dk)
     try:
         CLIENT.copy(sp, sk, dp, dk)

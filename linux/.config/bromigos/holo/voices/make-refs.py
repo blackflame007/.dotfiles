@@ -9,7 +9,7 @@ made from text descriptions, and revolver_lynx, a private copy of a generic unna
 narrator. Nobody's voice is cloned; ids in platform agents/wolfpack/<name>.yaml.
 Output: ~/.local/share/bromigos/voices/<role>-<name>.wav (24 kHz mono) plus a .txt with the
 exact transcript, which Qwen3-TTS needs to speak in that voice locally. Not committed.
-Key: Vault secret/<vault-path> fish_audio_api_key, or ~/.local/share/bromigos/fish-audio-key.
+Key: ~/.local/share/bromigos/fish-audio-key (from Vault through `bromigos-secrets sync`).
 Cost: about 300 characters each, a few cents in total. References run 15-21 s: long
 enough to carry the voice, short enough that every spoken line still starts in ~0.2 s.
 """
@@ -51,8 +51,7 @@ VOICES = {  # role: (character, fish model id, text in that role's register, ~30
 def key():
     if os.path.exists(KEYFILE):
         return open(KEYFILE).read().strip()
-    return subprocess.run(["vault", "kv", "get", "-field=fish_audio_api_key", "secret/<vault-path>"],
-                          capture_output=True, text=True, check=True).stdout.strip()
+    sys.exit(f"no Fish Audio key at {KEYFILE}; run `bromigos-secrets sync` (it comes from Vault)")
 
 
 def render(ref, text, k):

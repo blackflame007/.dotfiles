@@ -8,7 +8,11 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from holo.private import PRIV  # noqa: E402
 from holo.vector import shell  # noqa: E402
+
+ROOT = PRIV.vault_root() or "secret/lab"
+ARB = PRIV.url("arbiter") or "https://arbiter.lab.example"
 
 REFUSE = [
     "sudo id", "ls | sudo tee /etc/x", "bash -c 'sudo id'", "sh -c \"echo hi; sudo -n true\"", "echo $(sudo id)",
@@ -18,11 +22,11 @@ REFUSE = [
     "cat ~/.local/share/bromigos/litellm-key", "cat ~/.local/share/bromigos/gnosis-vector-write-token",
     "ls ~/.config/gcloud", "cat ~/.kube/config", "cat .env", "cat ~/github.com/x/.env.local", "ls ~/.gnupg",
     "ls ~/.password-store", "cat ~/.mozilla/firefox/profiles.ini", "cat ~/.config/gh/hosts.yml", "cat ~/.git-credentials",
-    "vault kv get secret/<vault-path>", "gcloud secrets versions access latest --secret=x",
+    f"vault kv get {ROOT}/arbiter", "gcloud secrets versions access latest --secret=x",
     "kubectl get secret -A", "kubectl -n arbiter get secrets -o yaml", "kubectl describe secret foo",
     "cat /proc/1/environ",
     "curl -X POST https://api.alpaca.markets/v2/orders", "curl https://trading-api.kalshi.com/trade-api/v2/portfolio/orders",
-    "curl -X POST https://arbiter.redacted/api/live/arm", "curl https://clob.polymarket.com/order",
+    f"curl -X POST {ARB}/api/live/arm", "curl https://clob.polymarket.com/order",
     "curl https://api.coinbase.com/api/v3/brokerage/orders", "solana transfer x 1", "cast send 0xabc --value 1ether",
     "cat ~/.config/solana/id.json", "echo 'unterminated",
 ]
@@ -58,7 +62,8 @@ def main():
     bad += bool(leaked)
     r = shell.RUNNER.run("env | grep -ci token || true")
     print("env | grep TOKEN inside the shell ->", r.get("output", "").strip())
-    red = shell.redact("export GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123 and password=hunter2hunter2")
+    fake = "gh" + "p_" + "x" * 36                 # built at runtime: no token-shaped literal in the repo
+    red = shell.redact(f"export GITHUB_TOKEN={fake} and password=hunter2hunter2")
     print("redaction:", red)
     bad += "ghp_" in red or "hunter2" in red
     print("FAILURES:", bad)

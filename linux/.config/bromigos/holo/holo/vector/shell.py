@@ -38,6 +38,9 @@ import signal
 import subprocess
 import threading
 import time
+import urllib.parse
+
+from ..private import PRIV as PRIVCFG
 
 HOME = os.path.expanduser("~")
 STATE = os.path.join(HOME, ".local/state/bromigos")
@@ -100,7 +103,9 @@ ENV_DROP = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSWD|_KEY$|KEY_ID|PRIVATE|CREDE
                       r"^GOOGLE_|^GCLOUD|^AZURE_|^OPENAI|^ANTHROPIC|^NOLGIA|^HF_TOKEN|^KUBECONFIG$|SSH_AUTH_SOCK|^GPG_|"
                       r"^DBUS_SESSION_BUS_ADDRESS$)", re.I)
 VECTOR_KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/vector-operator-kubeconfig")
-ADMIN_KUBECONFIG = os.path.join(HOME, "github.com/bromigos-org/homelab/ansible/kubeconfig.yml")
+ADMIN_KUBECONFIG = PRIVCFG.path("admin_kubeconfig")    # private: paths.admin_kubeconfig ("" = none)
+_VAULT_HOST = urllib.parse.urlparse(PRIVCFG.url("vault")).hostname or ""   # private: endpoints.vault
+VAULT_API = (re.escape(_VAULT_HOST) + "|" if _VAULT_HOST else "") + r"x-vault-token|:8200\b|/v1/(secret|sys|auth)/"
 SENSITIVE = os.path.join(STATE, "vector-sensitive.log")
 SENSITIVE_PLAY = re.compile(r"vault|arbiter|kalshi|alpaca|coinbase|polymarket|wallet|secrets?\b|live[-_]operators", re.I)
 
@@ -281,7 +286,7 @@ def check(command, cwd=HOME):
         raise Refused("changing RBAC from the terminal is not allowed; RBAC changes go through homelab GitOps, reviewed")
     if re.search(r"/run/secrets/|/var/run/secrets/|/etc/rancher/k3s/k3s\.yaml|/var/lib/rancher/k3s/server/(token|cred|tls)", joined):
         raise Refused("that reads cluster credentials")
-    if re.search(r"vault\.homelab\.local|x-vault-token|:8200\b|/v1/(secret|sys|auth)/", joined, re.I):
+    if re.search(VAULT_API, joined, re.I):
         raise Refused("Vault's API is reached only through the vault tools (vault_list, vault_put, vault_copy)")
     if re.search(r"\bgen3d\.py\b", joined):
         raise Refused("3D generation goes through the make-hologram pipeline, which checks the credit budget")

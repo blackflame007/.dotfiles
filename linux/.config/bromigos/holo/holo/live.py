@@ -18,9 +18,10 @@ import urllib.request
 import psutil
 
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
-LAB_URL = "https://lab.redacted/api/status"
+from .private import PRIV  # noqa: E402  the operator's private values (empty on a fresh clone)
+LAB_URL = PRIV.url("lab", "/api/status")
 LAB_TOKEN = os.path.expanduser("~/.local/share/bromigos/lab-token")
-ARBITER = "https://arbiter.redacted"
+ARBITER = PRIV.url("arbiter")
 
 
 def ssl_ctx():
@@ -28,6 +29,8 @@ def ssl_ctx():
 
 
 def get_json(url, headers=None, timeout=12):
+    if not url or url.startswith("/"):
+        raise OSError("that service isn't configured on this machine (private overlay endpoints)")
     req = urllib.request.Request(url, headers={"Accept": "application/json", **(headers or {})}, method="GET")
     with urllib.request.urlopen(req, timeout=timeout, context=ssl_ctx()) as r:
         return json.load(r)

@@ -35,7 +35,10 @@ import urllib.error
 import urllib.request
 
 HOME = os.path.expanduser("~")
-GATE = "https://gnosis.redacted/gate"
+sys.path.insert(0, os.path.join(HOME, ".config/bromigos/lib"))
+import bromigos_private as PRIV  # noqa: E402  the operator's private values (empty on a fresh clone)
+
+GATE = PRIV.url("gnosis_gate")                     # private: endpoints.gnosis_gate
 CA = os.path.join(HOME, ".config/homelab/homelab-ca.crt")
 TOKEN = os.path.join(HOME, ".local/share/bromigos/gnosis-kb-ingest-token")
 STATE = os.path.join(HOME, ".local/state/bromigos/kb-sync.json")

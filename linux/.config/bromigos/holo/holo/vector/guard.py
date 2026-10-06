@@ -43,11 +43,14 @@ SAFETY_REFS = re.compile(
     r"|\bbuiltins\b|\bsitecustomize\b|\busercustomize\b|LD_PRELOAD|PYTHONSTARTUP)")
 SECRET_FILE = re.compile(r"(^|/)(\.env(\..*)?|.*\.pem|.*\.key|id_(rsa|ed25519|ecdsa)[^/]*|.*secret.*|.*token.*|"
                          r"credentials(\.json)?|.*kubeconfig.*)$", re.I)
-# ~/.dotfiles is PUBLIC: no private infrastructure details in it (they go to the private
-# overlay ~/.config/bromigos/private/ or a 0600 file under ~/.local/share/bromigos/)
-PRIVATE = re.compile(r"\b10\.69\.\d{1,3}\.\d{1,3}\b|\b[\w-]+(\.[\w-]+)*\.homelab\.local\b|\bsecret/(data/|metadata/)?homelab/"
-                     r"|\b(gh[pousr]_|github_pat_)[A-Za-z0-9_]{16,}|\bhvs\.[A-Za-z0-9]{16,}|\bnol_[A-Za-z0-9]{12,}"
-                     r"|\b(sk|rk)-[A-Za-z0-9_-]{16,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}")
+# ~/.dotfiles is PUBLIC: no private infrastructure details in it (they go to the encrypted
+# overlay, private.sops.yaml; secrets stay in Vault). One pattern list for the git hook, CI
+# and this guard: ~/.config/bromigos/lib/privacy_guard.py (generic shapes in public, the
+# lab's own names from the overlay's guard.patterns).
+from ..private import PRIV as _PRIVCFG  # noqa: E402,F401  (puts ~/.config/bromigos/lib on sys.path)
+import privacy_guard  # noqa: E402
+
+PRIVATE = privacy_guard.combined()
 
 
 def private_lines(added):

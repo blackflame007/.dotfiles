@@ -1,13 +1,13 @@
 """VECTOR's brain: qwen3.8-flash-next on the homelab LiteLLM, streaming, with tool calls.
 
 The key comes from ~/.local/share/bromigos/litellm-key (mode 600, from Vault
-secret/<vault-path> litellm_api_key); it is never logged. Thinking is turned off
+via `bromigos-secrets sync`; the path is in the private overlay); it is never logged. Thinking is turned off
 (about 0.5 s to first token instead of about 6 s). The conversation is kept in memory
 for the session and appended to ~/.local/state/bromigos/vector-chat.log (local only).
 
 VECTOR never depends on one model. CHAIN is tried in order: `hive` (LiteLLM's default
-alias: Qwen3.8-Flash-Next on crackle+pop, Nemotron-Lightning on snap behind it), then
-Nemotron-Lightning on the DGX Spark by name, then Qwen by name. LiteLLM fails over by
+alias: Qwen3.8-Flash-Next, Nemotron-Lightning behind it), then
+Nemotron-Lightning by name, then Qwen by name. LiteLLM fails over by
 itself when a backend errors, but a wedged backend hangs instead of erroring, so the
 client also gives each model FIRST_BYTE seconds to start answering; on a timeout,
 connection error or 5xx/429 the same turn is retried on the next model, and a model
@@ -25,8 +25,9 @@ import urllib.error
 import urllib.request
 
 from . import persona, tools
+from ..private import PRIV
 
-URL = "https://litellm.redacted/v1/chat/completions"
+URL = PRIV.url("litellm", "/v1/chat/completions")   # private: endpoints.litellm
 CHAIN = ["hive", "nemotron-lightning-30b", "qwen3.8-flash-next"]
 MODEL = CHAIN[0]
 FIRST_BYTE = 9.0

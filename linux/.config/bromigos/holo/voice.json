@@ -110,7 +110,7 @@
     "format": "wav"
   },
   "breeze": {
-    "url": "https://tts.redacted/v1/audio/speech",
+    "url": "",
     "seed": 5,
     "cfg_scale": 4,
     "instruction": "An older English gentleman with a bright, prim, precise voice and crisp diction; chipper, sing-song and delighted, with quiet ancient authority, like a very polite caretaker who loves his job."

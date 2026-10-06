@@ -1,7 +1,7 @@
 """VECTOR's long-term memory, kept in Gnosis (the homelab memory service).
 
 Scope: tenant bromigos, space vector, agent vector, user operator, private_user. All
-calls go through the gnosis-gate (homelab helm/gnosis-gate) with two narrow tokens, never
+calls go through the gnosis-gate (a small proxy in front of Gnosis) with two narrow tokens, never
 Gnosis's own service token:
   ~/.local/share/bromigos/gnosis-vector-write-token  add/search/list/context/delete, own space only
   ~/.local/share/bromigos/gnosis-vector-read-token   read own space; search arbiter-research/-signals
@@ -30,12 +30,13 @@ import urllib.request
 
 import numpy as np
 
-GATE = "https://gnosis.redacted/gate"
+from ..private import PRIV  # noqa: E402
+GATE = PRIV.url("gnosis_gate")                     # private: endpoints.gnosis_gate
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
 WRITE_TOKEN = os.path.expanduser("~/.local/share/bromigos/gnosis-vector-write-token")
 READ_TOKEN = os.path.expanduser("~/.local/share/bromigos/gnosis-vector-read-token")
 LLM_KEY = os.path.expanduser("~/.local/share/bromigos/litellm-key")
-EMBED_URL = "https://litellm.redacted/v1/embeddings"
+EMBED_URL = PRIV.url("litellm", "/v1/embeddings")
 EMBED_MODEL = "local-qwen3-embedding-0.6b"
 CACHE = os.path.expanduser("~/.cache/bromigos/vector-memory.json")
 AUDIT = os.path.expanduser("~/.local/state/bromigos/vector-audit.log")

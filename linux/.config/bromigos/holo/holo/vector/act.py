@@ -1,5 +1,5 @@
 """VECTOR's act tools: operational actions on the homelab, as ServiceAccount
-`vector-operator` (homelab helm/vector: edit on workloads, nothing on Secrets/RBAC/
+`vector-operator` (the lab's vector chart: edit on workloads, nothing on Secrets/RBAC/
 tokens/nodes; admission policies keep him out of privileged namespaces' templates and
 off arbiter-live). Each action is a fixed kubectl/gh argv (never a shell string), waits
 for the result where there is one, and is audited and put on the event feed.
@@ -15,11 +15,12 @@ import time
 import urllib.request
 
 from . import events
+from ..private import PRIV
 
 HOME = os.path.expanduser("~")
 KUBECONFIG = os.path.join(HOME, ".local/share/bromigos/vector-operator-kubeconfig")
 KB_TOKEN = os.path.join(HOME, ".local/share/bromigos/gnosis-kb-ingest-token")
-GNOSIS = "https://gnosis.redacted/gate"
+GNOSIS = PRIV.url("gnosis_gate")               # private: endpoints.gnosis_gate
 NAME = re.compile(r"[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$")
 KINDS = {"deployment": "deployment", "deploy": "deployment", "statefulset": "statefulset", "sts": "statefulset",
          "daemonset": "daemonset", "ds": "daemonset"}
