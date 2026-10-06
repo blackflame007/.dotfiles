@@ -1,0 +1,6 @@
+# sops: files named *.sops.yaml in this public repo are encrypted to the operator's age
+# key (private half at ~/.config/sops/age/keys.txt, backed up in Vault). Edit with
+# `sops edit <file>` or `bromigos-private edit`. See AGENTS.md, "Private values".
+creation_rules:
+  - path_regex: \.sops\.(ya?ml|json)$
+    age: age1ux5d8tpxlucm7gpyctc0skg0dwwt0qeu5vaadce8f7jqs6lr7szsjrc07f

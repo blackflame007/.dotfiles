@@ -1,0 +1,13 @@
+[Unit]
+Description=Decrypt the operator's private desktop values (sops + age) for the Bromigos desktop
+Documentation=file://%h/.config/bromigos/bin/bromigos-private
+Before=graphical-session-pre.target bromigos-startpage.service bromigos-kb-sync.service bromigos-secrets.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
+ExecStart=/usr/bin/python3 %h/.config/bromigos/bin/bromigos-private decrypt --quiet
+
+[Install]
+WantedBy=default.target

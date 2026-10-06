@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-decrypt the private desktop values when the encrypted file changes (git pull)
+Documentation=file://%h/.config/bromigos/bin/bromigos-private
+
+[Path]
+PathChanged=%h/.dotfiles/linux/.config/bromigos/private.sops.yaml
+Unit=bromigos-private-refresh.service
+
+[Install]
+WantedBy=default.target
