@@ -4,7 +4,7 @@ Sources (all real): notable ARBITER paper fills, lab alerts from EchoCraft,
 long jobs finishing ('bromigos-live job -- cmd'), critical notifications, or
 'bromigos-live codec "text" [CHANNEL]'.
 
-Voice: PILOT's (one voice on the desktop): its speech server and
+Voice: VECTOR's notify voice (one voice cast on the desktop): its speech server and
 bromigos/holo/voice.json, Kokoro's 55/45 blend of two stock British male
 styles, nobody cloned. If that server is down, the lab's Breeze TTS
 (LAN only, default voice). Lightly band-passed like a handset, behind the
@@ -151,7 +151,7 @@ class Desk:
         return raw
 
     def _pilot_voice(self, text):
-        """PILOT's voice: its own speech server and voice.json (Kokoro blend), so the
+        """VECTOR's voice: his own speech server and voice.json (the notify role), so the
         desktop has one voice. Returns a wav path (cached by the server) or raises."""
         import sys
         holo = os.path.expanduser(self.cfg.get("pilot_holo", "~/.config/bromigos/holo"))
@@ -166,7 +166,7 @@ class Desk:
         return out["wav"]
 
     def voice(self, text):
-        """(path, ffmpeg input args): PILOT's voice first, the lab's Breeze TTS if it is down."""
+        """(path, ffmpeg input args): VECTOR's voice first, the lab's Breeze TTS if it is down."""
         if self.cfg.get("voice", "pilot") == "pilot":
             try:
                 return self._pilot_voice(text), []

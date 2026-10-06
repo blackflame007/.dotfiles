@@ -124,7 +124,7 @@ job_min_seconds = 60     # 'bromigos-live job -- cmd' calls in when cmd ran at l
 scale = 1.0
 
 [screensaver]
-enabled = true           # hypridle listener in bromigos-live/hypridle.conf runs it
+enabled = true           # a hypridle listener in hypr/hypridle.conf (480 s) runs it
 
 [sounds]
 enabled = true
