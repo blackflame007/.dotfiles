@@ -81,7 +81,19 @@ Rectangle {
         }
         status = "verifying"
         infoText = ""
+        verifyTimer.restart()
         sddm.login(userField.text, passField.text, Math.max(sessionIndex, 0))
+    }
+
+    // The login service normally answers in well under a second. If it never does
+    // (the greeter's --test-mode has no daemon behind it; a wedged PAM module), don't
+    // leave the operator staring at VERIFYING: give the form back and say why.
+    function noAnswer() {
+        if (status !== "verifying") return
+        status = ""
+        infoText = "no answer from the login service"
+        passField.text = ""
+        passField.forceActiveFocus()
     }
 
     function rejected() {
@@ -111,12 +123,13 @@ Rectangle {
     }
 
     Timer { id: rejectTimer; interval: 2500; onTriggered: if (root.status === "rejected") root.status = "" }
+    Timer { id: verifyTimer; interval: 12000; onTriggered: root.noAnswer() }
     Timer { id: armTimer; interval: 4000; onTriggered: root.armed = "" }
 
     Connections {
         target: sddm
-        function onLoginFailed() { root.rejected() }
-        function onLoginSucceeded() { root.status = "accepted" }
+        function onLoginFailed() { verifyTimer.stop(); root.rejected() }
+        function onLoginSucceeded() { verifyTimer.stop(); root.status = "accepted" }
         function onInformationMessage(message) { root.infoText = message }
     }
 
