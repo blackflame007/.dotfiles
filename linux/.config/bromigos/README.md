@@ -24,6 +24,7 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 | VECTOR and the holo daemon | `bromigos/holo/` | VECTOR (chat, voice, memory, tools, his terminal), the shared 3D hologram renderer and the model gallery | `holo/README.md` |
 | Skills | `bromigos/skills/` | Markdown know-how VECTOR loads on demand (how the desktop is built, its data sources, homelab ops) | each file's frontmatter |
 | Start page | `bromigos/startpage/` | The browsers' home and new-tab page | this file, "Start page" |
+| Login screen | `bromigos/sddm/` | The SDDM theme at boot: the lock screen's den, burn-in and clock plus account, session and power; no live data; installed by `sddm/install.sh` with sudo | `sddm/bromigos/README.md` |
 | Razer integration | `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-knob`, `bromigos/bin/bromigos-rgb` | Macro keys and the dial bound to the desktop; lighting follows VECTOR | this file, "Razer" |
 | Shell | `bromigos/shell/`, `zsh/.config/zsh/zsh-bromigos` | Prompt colours and the `bromigos` banner | `zsh/.config/zsh/AGENTS.md` |
 | Capture | `bromigos/bin/bromigos-shot`, `bromigos-rec` | Screenshots and recordings with a themed notification and a quiet cue | the scripts' headers |

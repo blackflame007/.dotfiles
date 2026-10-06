@@ -118,6 +118,7 @@ The Hyprland desktop is the operator's control center, styled as the Wick (BLACK
 | VECTOR (the desktop AI) and the holo daemon (shared 3D renderer, gallery) | `bromigos/holo/` | `bromigos/holo/README.md`, "VECTOR" below |
 | Skills (VECTOR's know-how, also the best guide for humans) | `bromigos/skills/` | the files themselves |
 | Start page (browser home, with its own switchboard) | `bromigos/startpage/` | `bromigos/README.md` "Start page" |
+| Login screen (SDDM theme, matches the lock screen) | `bromigos/sddm/` (theme in `bromigos/`, `build.py`, `install.sh` run with sudo) | `bromigos/sddm/bromigos/README.md` |
 | Razer keyboard and mouse (macro keys, dial, lighting) | `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-{knob,rgb}` | `bromigos/README.md` "Razer" |
 | Services and timers | `systemd/user/bromigos-*` | `bromigos/README.md` "Services" |
 | Wallpaper switcher, capture, shell banner | `bromigos/bin/bromigos-{wallpaper,shot,rec}`, `bromigos/shell/` | script headers, `zsh/.config/zsh/AGENTS.md` |

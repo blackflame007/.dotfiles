@@ -16,6 +16,7 @@ when_to_use: "The host asks to change, fix, restyle or extend an existing panel,
 | The gallery (SUPER+O), models | `holo/holo/gallery.py`, `stage.py`, `render.py`; models `brand/3d/` | `holo/tools/offscreen.py gallery out.png <model>` |
 | Background, decks (SUPER+H, Mind, Ops, …) | `linux/.config/bromigos-live/live/` | `bromigos-live/tools/offscreen.py <kind> out.png` |
 | A background shader layer | `bromigos-live/layers/` | `python3 -m live.plugins test-layer` |
+| The login screen (SDDM, before anyone signs in) | `linux/.config/bromigos/sddm/bromigos/` (QML), `sddm/build.py` | `build.py OUT --test-shots DIR`, then `sddm-greeter-qt6 --test-mode` offscreen (its README) |
 | An element of the live wallpaper (meters, scope, relay beam, rain, …) | `bromigos-live/docs/ELEMENTS.md` names its code, uniforms and config key | `bromigos-live/tools/offscreen.py bg out.png 3` |
 
 Ask `knowledge_search` (space desktop) when unsure; the desktop map is
@@ -55,6 +56,17 @@ host crashes, errors repeat, or nobody keeps it in 10 minutes.
 The answer to "what does X on my wallpaper mean?" is the element's "Shows" line in
 `docs/ELEMENTS.md`, said plainly with its current state if you can read it (for the
 relay beam: whether the lab is all green right now).
+
+## The login screen needs the host's sudo
+
+The SDDM theme (`linux/.config/bromigos/sddm/`) is the one visualization you can change
+but not apply. Edit the QML, build it into a temp dir with `--test-shots`, run the greeter
+offscreen in test mode at 2560×1440 and 1920×1080 as its README shows, `look` at every
+shot, make sure it prints no QML warnings, and commit. Then tell the host to run
+`sudo ~/.config/bromigos/sddm/install.sh` (it never restarts SDDM; the change shows at
+the next login). Keep its rules: no network and no readings (it runs as the `sddm` user
+before sign-in), no account name, callsign or likeness on screen, and change
+`hypr/hyprlock.conf` with it when the look changes.
 
 You can't change VECTOR's safety code (the terminal's limits, tools, the brain's wiring,
 the build loop, the plugin isolation); the build loop refuses it.
