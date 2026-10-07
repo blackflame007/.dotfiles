@@ -1,6 +1,6 @@
 ---
 name: hyprland-config
-description: "How the host's Hyprland is configured — the Lua config (hypr/hyprland.lua and hypr/bromigos/*.lua), adding or changing a keybind, window rule, layer rule, workspace rule, device or autostart program, checking it, and running dispatchers from scripts (`hyprctl dispatch 'hl.dsp…'`) — and the rollback to the old hyprland.conf."
+description: "How Sir's Hyprland is configured — the Lua config (hypr/hyprland.lua and hypr/bromigos/*.lua), adding or changing a keybind, window rule, layer rule, workspace rule, device or autostart program, checking it, and running dispatchers from scripts (`hyprctl dispatch 'hl.dsp…'`) — and the rollback to the old hyprland.conf."
 when_to_use: "Adding, changing or finding a keybind, a window/layer/workspace rule, a monitor, a device (keyboard) setting, an environment variable or a login program; any script or tool that calls `hyprctl dispatch`; when a bind or rule doesn't work or Hyprland shows a config error."
 ---
 
@@ -104,4 +104,4 @@ switches the running Hyprland. The rollback is the operator's call; tell him rat
 running it.
 
 Lines in `hypr/` that change how VECTOR's own daemon starts (bromigos-holo) are refused by
-his guard; those stay the host's.
+his guard; those stay Sir's.

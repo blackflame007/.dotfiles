@@ -23,7 +23,7 @@ import time
 HOME = os.path.expanduser("~")
 CHANGELOG = os.path.join(HOME, ".dotfiles/VECTOR-CHANGELOG.md")
 OWNERS = {"bromigos-org": "Bromigos (the org, its products and the lore)", "nolgiainc": "Nolgia, the company",
-          "blackflame007": "the host's personal projects"}
+          "blackflame007": "Sir's personal projects"}
 OUTSIDE = ("vault_put", "vault_copy", "k8s_scale")      # changes that live outside any repo
 _lock = threading.Lock()
 _repos = {}            # toplevel -> {"dirty": {path: hash}, "unpushed": set(shas), "t": first touch}
@@ -145,7 +145,7 @@ def changes_check():
                          "do": "record each in ~/.dotfiles/VECTOR-CHANGELOG.md (what, where, why, how to undo), "
                                "or make it GitOps, then commit and push the dotfiles"})
     return {"clear": not problems, "problems": problems, "clean_repos": clean,
-            "rule": "commit with a clear message in the repo's style and push; never commit the host's own "
+            "rule": "commit with a clear message in the repo's style and push; never commit Sir's own "
                     "uncommitted files, secrets, .env files or keys"}
 
 
@@ -183,7 +183,7 @@ target/
 def github_repo_create(owner, name, description, public=False):
     if owner not in OWNERS:
         raise ValueError("owner: bromigos-org (Bromigos), nolgiainc (Nolgia, the company) or blackflame007 "
-                         "(personal); ask the host when it isn't clear")
+                         "(personal); ask Sir when it isn't clear")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", name or ""):
         raise ValueError("name: letters, digits, . _ -")
     desc = " ".join((description or "").split())[:300]

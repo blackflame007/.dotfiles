@@ -118,7 +118,7 @@ def _visual_write(words, joined):
             ("/bromigos-widgets", "/bromigos-live", "/bromigos-holo")):
         return None                                   # running the desktop's own commands is fine
     return ("the desktop's widgets, live layer, models and console change only through build_start "
-            "(a worktree, validation and a trial the host keeps or reverts)")
+            "(a worktree, validation and a trial Sir keeps or reverts)")
 
 
 def check_command(words, joined):

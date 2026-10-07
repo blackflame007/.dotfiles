@@ -98,4 +98,4 @@ alert, the intercept's hiss / sweep / sign-off. VECTOR speaks in his own voices.
   turning, a terminal-style `>` sign-in, the account name hidden, a calm failure
   (red outline, three damped swings), a hint line for every control. It has no data, so
   it shows none. Change it like any visualization (build, test offscreen, look); only
-  installing needs the host's `sudo ~/.config/bromigos/sddm/install.sh`.
+  installing needs Sir's `sudo ~/.config/bromigos/sddm/install.sh`.

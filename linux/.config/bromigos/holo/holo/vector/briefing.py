@@ -124,11 +124,11 @@ def _compose(system, facts, max_tokens=180):
         return scrub(strip_markers(json.load(r)["choices"][0]["message"]["content"])).strip()
 
 
-ALERT_STYLE = ("You are VECTOR, the caretaker on a line to the host (call him 'host'; never a name). Lab alerts just "
+ALERT_STYLE = ("You are VECTOR, the caretaker on a line to the operator (call him 'Sir', or now and then 'Mr. 007'). Lab alerts just "
                "started firing; the facts are below. In one or two short spoken sentences (under 40 words), say what "
                "is wrong, where, and how serious, plainly; the most severe first. No markdown, no lists, no greeting, "
                "no 'Lab here'. Only what the facts say.")
-BRIEF_STYLE = ("You are VECTOR, the caretaker on a line to the host (call him 'host'; never a name), greeting him as he "
+BRIEF_STYLE = ("You are VECTOR, the caretaker on a line to the operator (call him 'Sir', or now and then 'Mr. 007'), greeting him as he "
                "returns. From the facts below, give a brief of three or four short spoken sentences (under 80 words): "
                "lead with anything broken or failed, then lab health, then ARBITER's paper results since he left, then "
                "anything else worth knowing. Only what the facts say; if everything is fine, say so in one sentence. "
@@ -216,14 +216,14 @@ class Briefing:
         why = busy_reason()
         if why:
             if why != "asked to be quiet":
-                _held(why, f"Welcome back, host. You were away {round(away_s / 60)} minutes; ask me to brief you when you're ready.")
+                _held(why, f"Welcome back, sir. You were away {round(away_s / 60)} minutes; ask me to brief you when you're ready.")
             return
         time.sleep(8)                                   # let him settle in (and the lock fade)
         facts = gather(away_s)
         try:
             text = _compose(BRIEF_STYLE, facts, 220)
         except Exception as e:
-            text = f"Welcome back, host. I couldn't put the brief together ({type(e).__name__})."
+            text = f"Welcome back, sir. I couldn't put the brief together ({type(e).__name__})."
         st["last_brief"] = time.time()
         _save(st)
         self.speak(text, "main")

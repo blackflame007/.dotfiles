@@ -39,7 +39,7 @@ The homelab CA is `~/.config/homelab/homelab-ca.crt`; use it for every `*.{{lan.
 
 ## Addresses on the LAN
 
-This repo is public, so addresses are not written here. Read them live: every lab host's
+This repo is public, so addresses are not written here. Read them live: every lab Sir's
 IP and where it is attached from UniFi (`unpoller_client_uptime_seconds`), the nodes from
 `kube_node_info{internal_ip}`, the gateway from `ip route`. The Network map
 (`bromigos-live netmap`) shows them all.

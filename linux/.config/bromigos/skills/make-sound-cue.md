@@ -38,6 +38,6 @@ when_to_use: "Making a new notification sound, chirp, alert, UI sound, jingle, o
 - Cues are rare and mean something (an event happened); nothing loops forever.
 - Quiet modes are respected (muted, recording, fullscreen).
 - Check: `ffprobe` (duration, rate), `ffmpeg -af ebur128` (loudness); say you haven't
-  heard it, and play it for the host only if he asks (`pw-play out.wav`).
+  heard it, and play it for Sir only if he asks (`pw-play out.wav`).
 - Commit the wav and the config change through the build loop (files under
   `linux/.config/bromigos-live/` or `holo/`).

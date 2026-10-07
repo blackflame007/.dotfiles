@@ -173,7 +173,7 @@ def nolgia_generate(kind, prompt, model=None, out=None, input=None, aspect_ratio
             _pending[key] = time.time()
             return {"needs_approval": True, "estimate_credits": est, "spent_today": today, "daily_cap": cap,
                     "say": f"This would cost about {est:g} credits and take today's spend to {today + est:g}, over the "
-                           f"{cap:g}-credit daily cap. Ask the host; if he says yes, call again with approved=true."}
+                           f"{cap:g}-credit daily cap. Ask Sir; if he says yes, call again with approved=true."}
     day = dt.date.today().isoformat()
     ext = {"image": "png", "video": "mp4", "audio": "mp3"}[kind]
     if out:

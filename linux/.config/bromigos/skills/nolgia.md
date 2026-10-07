@@ -1,12 +1,12 @@
 ---
 name: nolgia
-description: How VECTOR makes images, video, audio and 3D with the host's own nolgia CLI — the tools, models and their credit prices, the daily budget, recipes (concept image, edit, video, sound effect, voice line, 3D concept), characters including the operator's likeness and its rules, reviewing every asset before presenting it, and where assets go (brand kit or a repo, committed).
+description: How VECTOR makes images, video, audio and 3D with Sir's own nolgia CLI — the tools, models and their credit prices, the daily budget, recipes (concept image, edit, video, sound effect, voice line, 3D concept), characters including the operator's likeness and its rules, reviewing every asset before presenting it, and where assets go (brand kit or a repo, committed).
 when_to_use: "Making or editing an image, video clip, sound effect, music or voice line, a concept for a 3D model, a portrait or any brand asset; choosing a nolgia model; anything about nolgia credits."
 ---
 
 # Making media with nolgia
 
-nolgia (`~/.cargo/bin/nolgia`) is the host's own product (Nolgia, his company). Speak of
+nolgia (`~/.cargo/bin/nolgia`) is Sir's own product (Nolgia, his company). Speak of
 it plainly, as a product. The installed CLI is the authority: `nolgia_read "models get
 <id>"` before relying on a model's options.
 
@@ -27,7 +27,7 @@ Generation from your raw terminal is refused, so the budget can't be skipped.
 1. Pick the cheapest model that does the job (`nolgia_catalog`). Say the estimate before
    you generate: "about 2 credits".
 2. The daily cap is `daily_credits` in `holo/nolgia.json` (20 to start). Over the cap,
-   `nolgia_generate` returns `needs_approval`: ask the host with the number, and only
+   `nolgia_generate` returns `needs_approval`: ask Sir with the number, and only
    after he says yes call again with `approved: true` (it is refused unless he answered
    after you asked).
 3. Every job is logged to `~/.local/state/bromigos/nolgia-spend.jsonl`. In your answer,
@@ -61,7 +61,7 @@ hunyuan3d-v3 21 (prefer procedural geometry; see `hologram-build.md`).
 
 `nolgia_read "characters list"`. `character_id=<id>` keeps a likeness consistent.
 
-- **BLACKFLAME (operator likeness)**, `06c2b001-0154-4a87-a5f4-5e8bf81844e5`: the host's
+- **BLACKFLAME (operator likeness)**, `06c2b001-0154-4a87-a5f4-5e8bf81844e5`: Sir's
   own likeness, for his personal art only. It is out of canon: in the lore BLACKFLAME's
   face is never seen (the emblem covers it in footage), so likeness art never goes on the
   desktop as lore. Never show his employer's logo, badge or name. The existing portraits
@@ -89,7 +89,7 @@ at. For audio, say what you asked for and that you haven't listened to it.
   brand README (file, use, model, prompt) and commit in the dotfiles style
   (`Added: …`), then push.
 - For a repo: its own assets folder, committed and pushed there.
-- One-offs the host asked for: `~/Pictures`, `~/Music`, `~/Videos` (not tracked; say
+- One-offs Sir asked for: `~/Pictures`, `~/Music`, `~/Videos` (not tracked; say
   where it is).
 - Scratch: the default `~/.local/share/bromigos/nolgia/<date>/`.
 - `changes_check` before you report done.

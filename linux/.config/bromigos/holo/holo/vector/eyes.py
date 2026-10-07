@@ -263,7 +263,7 @@ class Watch:
         if not self.on or not self.notes:
             return ""
         lines = "\n".join(f"- {time.strftime('%H:%M:%S', time.localtime(t))} {x}" for t, x in self.notes[-4:])
-        return ("\nWHAT YOU'VE SEEN (watch mode is on: the host asked you to follow along; glance notes, newest last)\n"
+        return ("\nWHAT YOU'VE SEEN (watch mode is on: Sir asked you to follow along; glance notes, newest last)\n"
                 + lines + "\n")
 
 

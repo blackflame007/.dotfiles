@@ -1,7 +1,7 @@
 ---
 name: workstation-ops
-description: How VECTOR diagnoses and fixes problems on the host's own workstation (Arch, Hyprland, PipeWire, the Razer keyboard and mouse, systemd user services, Docker, snapshots, the NAS backup) — the method, the tools, and every fault already met here with its real cause and fix.
-when_to_use: The host says something on this machine stopped working or behaves oddly — no sound, mic dead or muted, a key or button doing the wrong thing, the wallpaper animation frozen or gone, panels missing, a hologram empty or closing, VECTOR silent, a service failing, the disk filling, a backup failing, sudo misbehaving — or asks you to manage or tune the system.
+description: How VECTOR diagnoses and fixes problems on Sir's own workstation (Arch, Hyprland, PipeWire, the Razer keyboard and mouse, systemd user services, Docker, snapshots, the NAS backup) — the method, the tools, and every fault already met here with its real cause and fix.
+when_to_use: Sir says something on this machine stopped working or behaves oddly — no sound, mic dead or muted, a key or button doing the wrong thing, the wallpaper animation frozen or gone, panels missing, a hologram empty or closing, VECTOR silent, a service failing, the disk filling, a backup failing, sudo misbehaving — or asks you to manage or tune the system.
 triggers: '(stopped|stops|isn''?t|is not|not|doesn''?t|does not|won''?t|can''?t|cannot)\s+(work|working|moving|playing|loading|showing|responding|turn on|start|hear|record)|does nothing|no (sound|audio|mic|picture|signal)|\b(mic|microphone|sound|audio|speakers?|headphones?|keyboard|mouse|key|button|razer|M[1-5]|wallpaper|animation|panel|widget|bar|waybar|display|monitor|screen|disk|drive|service)\b.*\b(broken|dead|frozen|stuck|muted|silent|missing|gone|full|failing|failed|crash\w*|wrong|weird|off|lagging|slow)\b|\b(wrong|broken)\b.*\b(computer|machine|system|desktop|workstation)\b|\b(failing|failed|crash\w*|errors?)\b.*\b(machine|computer|system|services?|desktop)\b|disk (is |getting )?full|out of (space|memory)'
 ---
 
@@ -17,14 +17,14 @@ were one setting, found in seconds by reading state, not by guessing.
    `journalctl --user -u <unit> -n 50`, the app's own log in `~/.local/state/bromigos*/`,
    `hyprctl configerrors`. Read the exact error line before forming a theory.
 2. **Find what changed.** `git -C ~/.dotfiles log --oneline -10`, recent restarts in the
-   logs, a key or button the host just pressed. A fault that started "just now" usually
+   logs, a key or button Sir just pressed. A fault that started "just now" usually
    follows something that happened just now.
 3. **Fix the cause, not the symptom**, then make it not recur (a config line, a guard),
    commit it to the dotfiles (public repo: no addresses or secrets, the pre-commit guard
    checks), and note anything out of git in `~/.dotfiles/VECTOR-CHANGELOG.md`.
 4. **Snapshot first** for anything system-level (packages, /etc, system services):
    your terminal wraps those in a snapper pre/post pair; "undo that" reverts it.
-5. **Needs sudo?** You can't type the host's passphrase or touch his YubiKey. Write the
+5. **Needs sudo?** You can't type Sir's passphrase or touch his YubiKey. Write the
    exact command and ask him to run it **in a terminal** (kitty, Alt+Shift+Enter): sudo
    can't prompt through Claude Code's `!` prefix. If sudo hangs before prompting, his
    YubiKey isn't answering (pam_u2f waits, then falls back to the password): unplug and
@@ -71,5 +71,5 @@ were one setting, found in seconds by reading state, not by guessing.
 
 - Don't guess and change several things at once; one change, then check.
 - Don't delete user data (Docker named volumes, files outside caches) without asking.
-- Don't restart the host's session, SDDM, or Hyprland with `full-reset` while he's working.
-- Don't edit your own safety files; if a fix needs that, tell the host.
+- Don't restart Sir's session, SDDM, or Hyprland with `full-reset` while he's working.
+- Don't edit your own safety files; if a fix needs that, tell Sir.

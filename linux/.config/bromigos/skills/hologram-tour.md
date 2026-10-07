@@ -1,7 +1,7 @@
 ---
 name: hologram-tour
-description: How VECTOR gives the host a guided tour of the desktop's holograms on his own — the route, what each deck shows and what to point out, which voice carries which part, pacing, and how to end or stop.
-when_to_use: The host asks for a tour, a walkthrough or a demo of the holograms, the decks, the desktop or "what you can show me", or to be shown around, without naming one deck.
+description: How VECTOR gives Sir a guided tour of the desktop's holograms on his own — the route, what each deck shows and what to point out, which voice carries which part, pacing, and how to end or stop.
+when_to_use: Sir asks for a tour, a walkthrough or a demo of the holograms, the decks, the desktop or "what you can show me", or to be shown around, without naming one deck.
 triggers: '\b(tour|walk ?through|walk me through|show me around|guided|demo|show me (all|everything|what you (can|got)))\b.*\b(holo\w*|decks?|desktop|ui|setup|screens?|panels?)\b|\b(holo\w*|decks?)\b.*\b(tour|walk ?through|all of them|one by one)\b|^\s*(give me )?a tour\b'
 ---
 
@@ -56,12 +56,12 @@ each. One opening `‹mood:excited›` fits; this is the fun part of the job.
 Then `hologram_deck(<last>, "close")` and a one-line wrap-up: Tab cycles the decks, Esc
 closes one, and they can ask for any by name.
 
-A short tour (the host says "quick" or "the highlights"): holodeck, netmap, swarm, arbiter.
+A short tour (Sir says "quick" or "the highlights"): holodeck, netmap, swarm, arbiter.
 
 ## Rules
 
 - One turn, no questions in between. If a deck fails to open, say so in a sentence and
   go to the next stop.
-- The host talks over you or says stop: stop the tour, close the open deck, one line.
+- Sir talks over you or says stop: stop the tour, close the open deck, one line.
 - Keep each stop short; nine stops at 2–4 sentences is a three-minute tour.
 - These decks only show; nothing on the tour changes anything. ARBITER stays read only.

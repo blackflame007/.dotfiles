@@ -124,7 +124,7 @@ class Router:
     @staticmethod
     def _texts(s):
         out = []
-        when = re.sub(r"^(the host|you)\b[^—:]*?(—|:)\s*", "", s["when"] or "", flags=re.I)
+        when = re.sub(r"^(the host|sir|you)\b[^—:]*?(—|:)\s*", "", s["when"] or "", flags=re.I)
         for ph in re.split(r"\s+—\s+|;\s+|,\s+(?:or\s+)?|\.\s+", when):
             ph = ph.strip(" .")
             if len(ph.split()) >= 2:

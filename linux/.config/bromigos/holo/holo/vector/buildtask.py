@@ -19,14 +19,14 @@ KEY = os.path.expanduser("~/.local/share/bromigos/litellm-key")
 CA = os.path.expanduser("~/.config/homelab/homelab-ca.crt")
 MAX_REQUESTS = 120
 
-RULES = """You are VECTOR's builder: you change the host's desktop (his ~/.dotfiles) through the build loop, alone, while VECTOR keeps talking to the host. Work in small verified steps and call progress() with one short line at each milestone.
+RULES = """You are VECTOR's builder: you change the host's desktop (his ~/.dotfiles) through the build loop, alone, while VECTOR keeps talking to Sir. Work in small verified steps and call progress() with one short line at each milestone.
 
 THE LOOP (always, in order)
 1. build_begin(slug, title): a worktree on branch vector/<slug>. All paths are relative to the dotfiles root.
 2. Read before you write: the skill for this kind of work (below), and the existing code it names (build_read). Copy the patterns you find; never invent APIs.
 3. Write the change (build_write / build_edit). Prefer the extension points: a widget plugin (linux/.config/bromigos/widgets/plugins/<name>.py), a live-layer shader layer (linux/.config/bromigos-live/layers/<name>.frag + .json) or deck plugin, a hologram model (make-holo.py through build_run). Edit core files only when the task is to change an existing visualization.
 4. build_validate(): compiles, checks the guard, renders offscreen and has the vision model look. Read its problems and reviews. Fix and validate again until it passes AND the render shows what the goal asked for (look at the review; if it is wrong, fix it). Three failed rounds on the same problem: stop and report what blocks you.
-5. build_apply(message, say): the trial. message in the dotfiles style ("Added: …" / "Updated: …" / "Fixed: …"); say = one short spoken line for the host naming what's new ("New panel's up, the GPU temps one."). Then you are done: the host keeps or reverts it with VECTOR.
+5. build_apply(message, say): the trial. message in the dotfiles style ("Added: …" / "Updated: …" / "Fixed: …"); say = one short spoken line for Sir naming what's new ("New panel's up, the GPU temps one."). Then you are done: the host keeps or reverts it with VECTOR.
 
 WHAT KIND OF THING IT IS
 - "A hologram of <an object>" (a dish, a ship, a station, a machine) is a 3D MODEL for the gallery: a spec JSON and linux/.config/bromigos/brand/3d/tools/make-holo.py add (procedural shapes, no credits; the make-hologram-model skill). Not a widget, not a deck, not a core edit.
@@ -52,7 +52,7 @@ def _agent_tools(cb):
     def wrap(fn, name, desc, schema):
         def run(**args):
             if cb.cancelled():
-                return json.dumps({"error": "stopped by the host"})
+                return json.dumps({"error": "stopped by Sir"})
             t0 = time.monotonic()
             try:
                 res = fn(**args)
@@ -89,7 +89,7 @@ def _agent_tools(cb):
         return nolgia_generate("image", prompt, model=model, out=p, aspect_ratio=aspect_ratio)
 
     return [
-        wrap(build.begin, "build_begin", "Start the build: a worktree on branch vector/<slug>. title: what it is, for the host.",
+        wrap(build.begin, "build_begin", "Start the build: a worktree on branch vector/<slug>. title: what it is, for Sir.",
              P({"slug": S, "title": S, "kind": S}, ["slug", "title"])),
         wrap(build.read, "build_read", "Read a file in the worktree (path relative to the dotfiles root).",
              P({"path": S, "start": I, "lines": I}, ["path"])),
@@ -104,9 +104,9 @@ def _agent_tools(cb):
              P({"look": B})),
         wrap(build.apply, "build_apply", "Put the validated change live in trial mode. message: dotfiles style; say: one "
              "spoken line naming what's new.", P({"message": S, "say": S}, ["message", "say"])),
-        wrap(progress, "progress", "One short line for the host about where the build is (and pct 0-100).", P({"note": S, "pct": I}, ["note"])),
+        wrap(progress, "progress", "One short line for Sir about where the build is (and pct 0-100).", P({"note": S, "pct": I}, ["note"])),
         wrap(look, "look", "Look at a render PNG with the vision model and ask about it.", P({"png": S, "question": S}, ["png", "question"])),
-        wrap(knowledge, "knowledge_search", "Search the host's docs (what a piece is and how it works).", P({"query": S}, ["query"])),
+        wrap(knowledge, "knowledge_search", "Search Sir's docs (what a piece is and how it works).", P({"query": S}, ["query"])),
         wrap(lambda name: __import__("holo.vector.skills", fromlist=["load_skill"]).load_skill(name), "load_skill",
              "Load a skill's full text by name (the catalog is in your instructions).", P({"name": S}, ["name"])),
         wrap(nolgia_image, "nolgia_image", "Generate a concept image with nolgia into the worktree (costs credits; under "
@@ -150,7 +150,7 @@ class BuildTask:
         if self.loop and self.future:
             self.loop.call_soon_threadsafe(self.future.cancel)
         try:
-            return build.stop("stopped by the host")
+            return build.stop("stopped by Sir")
         except Exception as e:
             return {"ok": False, "detail": str(e)}
 
@@ -196,7 +196,7 @@ class BuildTask:
             summary = str(res.output)[:2000]
             ok = build.state().get("phase") == "trial"
         except asyncio.CancelledError:
-            summary = "stopped by the host"
+            summary = "stopped by Sir"
         except Exception as e:
             summary = f"the build failed: {type(e).__name__}: {str(e)[:300]}"
             st = build.state()

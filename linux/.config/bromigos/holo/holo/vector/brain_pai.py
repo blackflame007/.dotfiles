@@ -56,7 +56,7 @@ IDLE_GAP = 25.0           # a model streaming tokens never pauses this long; too
 COOLDOWN = 120.0          # a backend that doesn't answer at all
 STALL_COOLDOWN = 20.0     # one stream that went silent: likely that request, not the backend
 CONF = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "voice.json")
-ACKS = ["One moment, host; consulting the deeper records.", "Hm-hm. Let me look properly.",
+ACKS = ["One moment, sir; consulting the deeper records.", "Hm-hm. Let me look properly.",
         "A good question. Allow me a moment."]
 
 

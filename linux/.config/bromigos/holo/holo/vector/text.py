@@ -51,13 +51,11 @@ def _star(m):
     return inner
 
 
-CALLSIGN = re.compile(r"\bblack[\s-]*flame\b", re.I)
-
-
 def scrub(text):
-    """The host is never named on the line: his callsign becomes "the host" (a hard rule,
-    enforced here for display, speech and the transcript, whatever the model wrote)."""
-    return CALLSIGN.sub("the host", text) if text else text
+    """Was: the operator's callsign rewritten to "the host". Since 2026-10-06 VECTOR knows
+    and may say who the operator is (and calls him Sir), and the rewrite mangled
+    "blackflame007" repo names, so this passes text through. Kept for its callers."""
+    return text
 
 
 def plain(text, bullets="· ", streaming=False):

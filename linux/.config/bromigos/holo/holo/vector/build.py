@@ -404,7 +404,7 @@ def apply(message, say):
         dirty = set(l[3:] for l in _git(DOT, "status", "--porcelain=v1").splitlines())
         clash = [f for f in names if f in dirty]
         if clash:
-            raise BuildError(f"the host has uncommitted changes in {clash}; not touching them")
+            raise BuildError(f"Sir has uncommitted changes in {clash}; not touching them")
         moved = [f for f in names if _git(DOT, "diff", "--name-only", st["base"], "HEAD", "--", f).strip()]
         if moved:
             raise BuildError(f"{moved} changed on master since the build began; begin again from the new master")
@@ -472,7 +472,7 @@ def finish(decision, why=""):
             try:
                 _git(wt, "add", "-A")
                 _git(wt, "-c", "user.useConfigOnly=true", "commit", "-q", "-m",
-                     st["message"] + f"\n\nBuilt by VECTOR in trial mode and kept by the host ({st['title']}).")
+                     st["message"] + f"\n\nBuilt by VECTOR in trial mode and kept by Sir ({st['title']}).")
                 _restore(st)                                     # back to the base, then fast-forward
                 if _git(DOT, "rev-parse", "HEAD").strip() != st["base"]:
                     _git(wt, "rebase", "-q", _git(DOT, "rev-parse", "HEAD").strip())   # master moved on meanwhile
@@ -514,11 +514,11 @@ def keep():
     if st.get("phase") != "trial":
         raise BuildError("no trial to keep")
     if LAST_USER["t"] <= st.get("trial_at", 0):
-        raise BuildError("the host hasn't answered since the trial went up; ask him first")
+        raise BuildError("Sir hasn't answered since the trial went up; ask him first")
     return finish("keep")
 
 
-def revert(why="the host said revert"):
+def revert(why="Sir said revert"):
     return finish("revert", why)
 
 

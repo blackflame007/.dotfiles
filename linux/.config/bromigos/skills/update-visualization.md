@@ -1,14 +1,14 @@
 ---
 name: update-visualization
 description: How to change one of the desktop's existing visualizations (a widget panel, VECTOR's console or hologram, the gallery, a live-layer deck or the background) safely through the build loop — find the code, change the least, keep its data honest, check before and after renders.
-when_to_use: "The host asks to change, fix, restyle or extend an existing panel, gauge, hologram, deck, the background or VECTOR's own console."
+when_to_use: "Sir asks to change, fix, restyle or extend an existing panel, gauge, hologram, deck, the background or VECTOR's own console."
 ---
 
 # Changing an existing visualization
 
 ## Find it
 
-| What the host sees | Where it lives (dotfiles root) | Render offscreen |
+| What Sir sees | Where it lives (dotfiles root) | Render offscreen |
 |--------------------|-------------------------------|------------------|
 | SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, SHORTCUTS panels | `linux/.config/bromigos/widgets/panels.py` (+ `draw.py`, `sources.py`) | `widgets/bromigos-widgets render <name> out.png` |
 | A widget plugin | `widgets/plugins/<name>.py` | same, with the file path |
@@ -57,12 +57,12 @@ The answer to "what does X on my wallpaper mean?" is the element's "Shows" line 
 `docs/ELEMENTS.md`, said plainly with its current state if you can read it (for the
 relay beam: whether the lab is all green right now).
 
-## The login screen needs the host's sudo
+## The login screen needs Sir's sudo
 
 The SDDM theme (`linux/.config/bromigos/sddm/`) is the one visualization you can change
 but not apply. Edit the QML, build it into a temp dir with `--test-shots`, run the greeter
 offscreen in test mode at 2560×1440 and 1920×1080 as its README shows, `look` at every
-shot, make sure it prints no QML warnings, and commit. Then tell the host to run
+shot, make sure it prints no QML warnings, and commit. Then tell Sir to run
 `sudo ~/.config/bromigos/sddm/install.sh` (it never restarts SDDM; the change shows at
 the next login). Keep its rules: no network and no readings (it runs as the `sddm` user
 before sign-in), no account name, callsign or likeness on screen, and change

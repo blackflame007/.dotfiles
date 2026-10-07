@@ -1,7 +1,7 @@
 ---
 name: browser-and-media
-description: How VECTOR opens web pages and videos in the host's browser and controls what's playing — find the link, open it in a new tab, check it started, then play, pause, skip, seek and set the volume — and what he can't do in the browser.
-when_to_use: The host asks to play or put on a video, song, stream or YouTube, to open a website or link, to pause, resume, skip, rewind or turn something up or down, or asks what's playing.
+description: How VECTOR opens web pages and videos in Sir's browser and controls what's playing — find the link, open it in a new tab, check it started, then play, pause, skip, seek and set the volume — and what he can't do in the browser.
+when_to_use: Sir asks to play or put on a video, song, stream or YouTube, to open a website or link, to pause, resume, skip, rewind or turn something up or down, or asks what's playing.
 triggers: '\b(youtube|video|music|song|playlist|stream|podcast|spotify|play|pause|resume|unpause|skip|rewind|fast.?forward|volume|turn (it )?(up|down)|what''?s playing|browser|tab|website|web ?page|open (a |the )?(link|site|url))\b'
 ---
 
@@ -12,7 +12,7 @@ triggers: '\b(youtube|video|music|song|playlist|stream|podcast|spotify|play|paus
 1. **Find a real link.** `web_search` with `site:youtube.com` and what they asked for
    ("lofi hip hop radio site:youtube.com"). Take a `youtube.com/watch?v=…` URL
    from the results. Never make up a video id.
-2. **Open it:** `launch` with the URL. It opens in a **new tab** of the host's browser
+2. **Open it:** `launch` with the URL. It opens in a **new tab** of Sir's browser
    (Chrome), in front. Don't launch the browser first, and never use the terminal
    (`xdg-open`) for this; `launch` is the way.
 3. **Check it started:** a few seconds later, `media` status. The tab shows up as a
@@ -28,7 +28,7 @@ with its title, position and volume. With several players, pass `player` from st
 otherwise the most recent one is used.
 
 - "Pause it" / "turn it down a bit": act straight away, then confirm in a few words.
-- `volume` sets the player's own volume. The system volume is the host's (their knob).
+- `volume` sets the player's own volume. The system volume is Sir's (his knob).
 
 ## What you can't do in the browser
 

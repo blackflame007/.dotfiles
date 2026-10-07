@@ -50,7 +50,7 @@ def configs():
 
 
 def _skip():
-    return {"skipped": f"snapper isn't set up yet; the host runs {SETUP} once (it needs sudo)"}
+    return {"skipped": f"snapper isn't set up yet; Sir runs {SETUP} once (it needs sudo)"}
 
 
 def needs_snapshot(command):
@@ -152,4 +152,4 @@ def snapshot_undo(pair=None):
         out[c] = (r.stdout.strip().splitlines()[-1:] or ["done"])[0] if r.returncode == 0 else f"failed: {r.stderr.strip()[:160]}"
     return {"ok": all(not v.startswith("failed") for v in out.values()), "undid": what, "result": out,
             "note": "files are back as they were before; a service that read them may need a restart. A whole-system "
-                    "rollback is the host's: boot the snapshot from the GRUB menu, then snapper rollback."}
+                    "rollback is Sir's: boot the snapshot from the GRUB menu, then snapper rollback."}
