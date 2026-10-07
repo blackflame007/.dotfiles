@@ -19,7 +19,7 @@ uniform vec4 u_rain;            // density, speed, brightness, on
 uniform vec4 u_burst[6];        // x px, t0, strength, colour kind
 uniform vec4 u_floor;           // horizon y, vanish x, lane slope, lane offset
 uniform vec4 u_floor2;          // max x, draw grid, on, -
-uniform vec4 u_net;             // rx level, tx level (0..1), rx speed, tx speed
+uniform vec4 u_net;             // rx level, tx level (0..1, smoothed), rx phase, tx phase (integrated speed, wraps at 4096)
 uniform vec4 u_sweep;           // beam x px, active, direction, schematic on
 uniform vec4 u_scan;            // -, -, held amount, pinned amount
 uniform vec4 u_scan2;           // beam speed px/s, -, -, -
@@ -61,13 +61,15 @@ vec3 floor_pulses(vec2 px) {
     for (int dir = 0; dir < 2; dir++) {
         float lvl = dir == 0 ? u_net.x : u_net.y;
         float h = hash1(k * 3.17 + float(dir) * 41.0);
-        if (h > lvl) continue;
-        float spd = (dir == 0 ? u_net.z : u_net.w) * (0.7 + hash1(k * 5.3 + float(dir)) * 0.6);
-        float s = fract(u_time * spd + hash1(k * 11.1 + float(dir) * 7.0));
+        float on = smoothstep(h - 0.06, h + 0.02, lvl);   // a lane fades in/out as traffic crosses its level
+        if (on <= 0.0) continue;
+        // lane speed: quarter steps 0.75..1.5 so the phase's wrap at 4096 stays seamless
+        float lane_spd = 0.75 + 0.25 * floor(hash1(k * 5.3 + float(dir)) * 4.0);
+        float s = fract((dir == 0 ? u_net.z : u_net.w) * lane_spd + hash1(k * 11.1 + float(dir) * 7.0));
         float wp = dir == 0 ? mix(lfar, lnear, s) : mix(lnear, lfar, s);
         float x = (lw - wp) * (dir == 0 ? -1.0 : 1.0);   // >0 = behind the pulse
         float tail = x > 0.0 ? exp(-x * 9.0) : exp(-x * x * 900.0);
-        float p = tail * (line + halo * 0.45);
+        float p = tail * (line + halo * 0.45) * on;
         acc += (dir == 0 ? SOFT : AMBER) * p * 1.2;
     }
     if (u_floor2.y > 0.5) {                      // own grid when no wallpaper grid

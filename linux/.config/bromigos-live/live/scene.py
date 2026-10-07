@@ -316,7 +316,21 @@ class Background:
             float(fl.get("lane_offset", 0.71)))
         f.f("u_floor2", fl.get("max_x", 1000) * sx, 1.0 if fl.get("draw_grid") or not self.under else 0.0,
             1.0 if (fl.get("enabled", True) and (self.fitted or not self.under)) else 0.0, 0.0)
-        f.f("u_net", lv(rx), lv(tx), 0.10 + 0.35 * lv(rx), 0.10 + 0.35 * lv(tx))
+        # Pulses move by an integrated phase, not u_time * speed: with time-times-speed a
+        # change in the traffic rate jumped every pulse to a new spot mid-travel. The levels
+        # are smoothed (~3 s) so lanes fade in and out instead of blinking. The phase wraps at
+        # 4096 (a multiple of 4; the shader's lane speeds are quarter steps), seamlessly.
+        now = time.monotonic()
+        dt = min(0.25, now - getattr(self, "_net_t", now))
+        self._net_t = now
+        nl = getattr(self, "_net_lv", None) or [lv(rx), lv(tx)]
+        a = 1.0 - math.exp(-dt / 3.0)
+        nl = [nl[0] + (lv(rx) - nl[0]) * a, nl[1] + (lv(tx) - nl[1]) * a]
+        self._net_lv = nl
+        ph = getattr(self, "_net_phase", [0.0, 0.0])
+        ph = [(ph[i] + (0.10 + 0.35 * nl[i]) * dt) % 4096.0 for i in (0, 1)]
+        self._net_phase = ph
+        f.f("u_net", nl[0], nl[1], ph[0], ph[1])
         f.f("u_sweep", sweep_x, sweep_on, 1.0, 1.0 if self.schem_tex else 0.0)
         f.f("u_scan", glow_hold, glow_fade, self.hold_amt, self.pin_amt)
         f.f("u_scan2", self.beam_speed, 0.0, 0.0, 0.0)
