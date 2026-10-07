@@ -1,7 +1,7 @@
 """The turning burn-in on the lock screen.
 
 hyprlock can't animate an image, so the frames are pre-rendered (tools/lock-emblem.py,
-a 24 s loop) and flipped from here while the session is locked: each tick writes the
+one slow turn) and flipped from here while the session is locked: each tick writes the
 next frame's path to `current` and sends hyprlock SIGUSR2. hyprlock.conf's emblem image
 has reload_time = 0 (reload only on SIGUSR2) and reload_cmd = cat of that file, so it
 loads the new frame and keeps showing the last one until it's ready (no flicker).
@@ -28,7 +28,7 @@ def _log(*a):
 
 class LockEmblem:
     def __init__(self):
-        self.frames, self.fps = [], 12
+        self.frames, self.fps = [], 24
         self.pid = None
         self.timer = None
         self.rendering = None
@@ -40,7 +40,8 @@ class LockEmblem:
                 meta = dict(line.strip().split("=", 1) for line in f if "=" in line)
             self.fps = max(1, int(meta.get("fps", 12)))
             n = int(meta.get("frames", 0))
-            frames = [os.path.join(DIR, f"f{i:04d}.png") for i in range(n)]
+            ext = meta.get("ext", "png")
+            frames = [os.path.join(DIR, f"f{i:04d}.{ext}") for i in range(n)]
             self.frames = frames if frames and all(os.path.exists(p) for p in (frames[0], frames[-1])) else []
         except (OSError, ValueError):
             self.frames = []

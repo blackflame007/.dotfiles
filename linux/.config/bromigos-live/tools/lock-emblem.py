@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Render the burn-in's turning ring as a seamless loop of PNG frames for the lock screen.
 
-  lock-emblem.py [OUT_DIR] [--fps N] [--size S] [--emblem E]
+  lock-emblem.py [OUT_DIR] [--fps N] [--turn SECONDS] [--size S] [--emblem E]
 
 hyprlock can't play an animation, but an image widget with reload_time = 0 reloads on
 SIGUSR2; bromigos-lock-anim flips it through these frames while the screen is locked.
 The emblem is the live layer's own (the intercept's settled state: ring, flame and mast
-lit, the ring turning one revolution in 24 s), drawn with its bloom on a transparent
+lit, the ring turning; slower here than the desktop's 24 s), drawn with its bloom on a transparent
 canvas; the glow becomes alpha so it lies over the lock wallpaper as it does on the desktop.
 
-Defaults: OUT_DIR ~/.cache/bromigos/lock-emblem, 12 fps (288 frames), a 560 px canvas
-with a 400 px emblem (the size of the static logo it replaces at hyprlock size = 560).
-Each frame gets its own mtime: hyprlock reloads an image only when the file changed.
+Defaults: OUT_DIR ~/.cache/bromigos/lock-emblem, one turn in 36 s at 24 fps (864 lossless
+WebP frames, ~80 MB: about 1.5 px of travel per frame at the ring, which reads as smooth;
+12 fps at 24 s judders), a 560 px canvas with a 400 px emblem (the size of the static logo
+it replaces at hyprlock size = 560). Each frame gets its own mtime.
 """
 import argparse
 import importlib.util
@@ -27,13 +28,13 @@ sys.path.insert(0, os.path.dirname(HERE))
 os.environ["PYOPENGL_PLATFORM"] = "egl"
 
 TAU = 2 * math.pi
-TURN = 24.0                    # seconds per revolution (overlays.Intercept / the background)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out", nargs="?", default=os.path.expanduser("~/.cache/bromigos/lock-emblem"))
-    ap.add_argument("--fps", type=int, default=12)
+    ap.add_argument("--fps", type=int, default=24)
+    ap.add_argument("--turn", type=float, default=36.0, help="seconds per revolution (the desktop's is 24)")
     ap.add_argument("--size", type=int, default=560)
     ap.add_argument("--emblem", type=int, default=400)
     a = ap.parse_args()
@@ -59,7 +60,7 @@ def main():
 
         def frame(self, t, d):
             return {"backdrop": 0.0, "gadget_fade": 0.0, "glow": 0.6,
-                    "emblems": [{"rect": (m, m, E, E), "angle": -t * TAU / TURN, "ring_t": 1.0, "flame_t": 1.0,
+                    "emblems": [{"rect": (m, m, E, E), "angle": -t * TAU / a.turn, "ring_t": 1.0, "flame_t": 1.0,
                                  "mast_t": 1.0, "alpha": 1.0, "gain": 1.0}]}
 
     cfg = config.load()
@@ -71,9 +72,9 @@ def main():
 
     os.makedirs(a.out, exist_ok=True)
     for f in os.listdir(a.out):
-        if f.startswith("f") and f.endswith(".png"):
+        if f.startswith("f") and f.endswith((".png", ".webp")):
             os.unlink(os.path.join(a.out, f))
-    n = int(round(TURN * a.fps))
+    n = int(round(a.turn * a.fps))
     base = time.time() - n - 10
     for i in range(n):
         clock["t"] = i / a.fps
@@ -89,11 +90,11 @@ def main():
         alpha = img[..., :3].max(axis=2)
         rgb = np.where(alpha[..., None] > 0, img[..., :3] * 255.0 / np.maximum(alpha[..., None], 1), 0)
         out = np.dstack([rgb, alpha]).clip(0, 255).astype(np.uint8)
-        path = os.path.join(a.out, f"f{i:04d}.png")
-        Image.fromarray(out, "RGBA").save(path, optimize=False, compress_level=3)
+        path = os.path.join(a.out, f"f{i:04d}.webp")
+        Image.fromarray(out, "RGBA").save(path, "WEBP", lossless=True, method=4)   # half a PNG's size, faster to decode
         os.utime(path, (base + i, base + i))
     with open(os.path.join(a.out, "loop.txt"), "w") as fh:
-        fh.write(f"fps={a.fps}\nframes={n}\nsize={S}\nemblem={E}\n")
+        fh.write(f"fps={a.fps}\nframes={n}\nturn={a.turn}\next=webp\nsize={S}\nemblem={E}\n")
     print(f"{n} frames at {a.fps} fps, {S}px -> {a.out}", flush=True)
     os._exit(0)                                       # the data threads were never started; skip GL teardown
 
