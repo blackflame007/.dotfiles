@@ -1,7 +1,8 @@
 # bromigos-widgets — the desktop panels
 
-Seven HUD panels pinned to the desktop, showing this machine and the homelab at a
-glance: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES and SHORTCUTS. They sit
+Seven core HUD panels pinned to the desktop, showing this machine and the homelab at a
+glance: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES and SHORTCUTS, plus the
+plugin panels in `plugins/` (GAME SERVERS). They sit
 on the BOTTOM layer-shell layer of the monitor in `layout.json`: above the live
 background, below every window.
 
@@ -11,7 +12,7 @@ psutil), started by Hyprland at login (the `hyprland.start` autostart in `hypr/h
 ## Use
 
 ```bash
-bromigos-widgets toggle all|system|network|storage|lab|workbench|shortcuts|notes
+bromigos-widgets toggle all|system|network|storage|lab|workbench|shortcuts|notes|game_servers
 bromigos-widgets notes        # focus FIELD NOTES for typing (Esc hands focus back)
 bromigos-widgets reload       # re-read layout.json
 bromigos-widgets stats        # draw counts and coverage, to the app's stderr
@@ -42,6 +43,7 @@ in notes (the full table is generated into `AGENTS.md`).
 | WORKBENCH | Recent git repos by local activity and zoxide's most-used folders; rows open nvim, a terminal or a file manager | 60 s |
 | FIELD NOTES | `~/.local/share/bromigos/notes.md`, autosaved | on edit |
 | SHORTCUTS | Every bind, from `keybinds.py` | 5 s |
+| GAME SERVERS (plugin, `plugins/game_servers.py`) | The Pelican game servers (Minecraft network, Satisfactory): state, players online/max, CPU and memory, a network total, from Prometheus (`pelican_server_*`, pelican-exporter); Minecraft player names from a server-list ping to the proxy's public address (`games.minecraft_ping`) when the proxy shares them. A row click opens the server in Pelican (`endpoints.pelican`) | 15 s; ping 60 s |
 
 Redraws pause while windows cover the desktop on that monitor; sampling continues
 cheaply so graphs have history when you come back.

@@ -19,7 +19,7 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 |-------|-------|------------|------|
 | Brand kit | `bromigos/brand/`, `bromigos/identity.json`, `bromigos/lib/bromigos_emblem.py`, `bromigos/bin/bromigos-emblem` | Palette, the burn-in emblem (one SVG source), logos, portraits, icons, wallpapers, 3D models | `brand/README.md`, `brand/3d/README.md` |
 | Theme | `hypr/`, `waybar/`, `rofi/`, `dunst/`, `bromigos/gtk/`, `~/.local/share/{themes,icons,color-schemes}` | Hyprland look, bar, launcher, notifications, GTK/Qt themes, cursor, lock and idle | this file, "Theme" |
-| Widgets | `bromigos/widgets/` | Seven GTK layer-shell panels on the BOTTOM layer: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS | `widgets/README.md` |
+| Widgets | `bromigos/widgets/` | Seven GTK layer-shell panels on the BOTTOM layer: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS, plus plugin panels (GAME SERVERS) | `widgets/README.md` |
 | Live layer | `bromigos-live/` | The animated background behind every window, the summoned decks and holograms, event animations, codec calls, the screensaver, sounds | `../bromigos-live/README.md`; each wallpaper element: `../bromigos-live/docs/ELEMENTS.md` |
 | VECTOR and the holo daemon | `bromigos/holo/` | VECTOR (chat, voice, memory, tools, his terminal), the shared 3D hologram renderer and the model gallery | `holo/README.md` |
 | Skills | `bromigos/skills/` | Markdown know-how VECTOR loads on demand (how the desktop is built, its data sources, homelab ops) | each file's frontmatter |
