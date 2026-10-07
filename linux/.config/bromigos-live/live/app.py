@@ -261,7 +261,10 @@ class App:
         hypr.Events(lambda ev, arg: GLib.idle_add(self.on_hypr, ev, arg)).start()
         self.notif = Notifications(self.on_notify)
         self.notif.start()
-        LockWatch(self.on_lock).start()
+        self.lockwatch = LockWatch(self.on_lock)
+        self.lockwatch.start()
+        from .lockemblem import LockEmblem
+        self.lock_emblem = LockEmblem() if self.cfg["events"].get("lock_emblem", True) else None
         self._serve()
         GLib.timeout_add_seconds(3, self._watch_config)
         self.output_gone = False
@@ -548,6 +551,9 @@ class App:
         if locked != was:
             self.history.event("lock" if locked else "unlock")
         self.locked = locked
+        le = getattr(self, "lock_emblem", None)
+        if le:
+            le.start(self.lockwatch.pid) if locked else le.stop()      # the turning burn-in on the lock screen
         if locked:
             for k in ("screensaver", "holodeck", "radial"):
                 if k in self.overlays:

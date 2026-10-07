@@ -48,6 +48,7 @@ The full verb list is the header of `bin/bromigos-live`. Keys are in `AGENTS.md`
 | `live/codec.py`, `codec_panel.py` | Codec calls (rate-limited voiced transmissions) |
 | `live/watch.py`, `hypr.py` | Notification (D-Bus monitor) and lock watching; Hyprland IPC |
 | `live/sound.py`, `sounds/` | Cues through PipeWire, one mute file, an optional sink |
+| `live/lockemblem.py`, `tools/lock-emblem.py` | The turning burn-in on the lock screen: a pre-rendered 24 s loop (12 fps, `~/.cache/bromigos/lock-emblem/`, rendered on first run) flipped into hyprlock while locked (next frame's path to `current`, then SIGUSR2; never SIGUSR1, which unlocks). `[events] lock_emblem` turns it off |
 | `tools/offscreen.py` | Renders the background or any deck headless (NVIDIA EGL) to PNG or MP4, with scripted verbs and test events |
 
 ## Decks
