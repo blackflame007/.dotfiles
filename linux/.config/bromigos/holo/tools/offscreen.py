@@ -4,7 +4,8 @@ without touching the desktop. For screenshots and tuning.
 
   offscreen.py gallery OUT.png [model] [explode 0..1] [iso part id] [t seconds]
   offscreen.py vector OUT.png [state] [exhibit] [t seconds]
-      (env OFF_CHAT=0 folds the chat box away; OFF_CONV=1 shows conversation mode)
+      (env OFF_CHAT=0 folds the chat box away; OFF_CONV=1 shows conversation mode;
+       OFF_LONG=1 a long conversation, OFF_SCROLL=N scrolled back N px)
 """
 import ctypes
 import os
@@ -112,6 +113,11 @@ def main():
         p.history_open = os.environ.get("HISTORY_OPEN") == "1"
         p.conversation = os.environ.get("OFF_CONV") == "1"          # conversation mode's notice
         p.panel = p.panel_to = float(os.environ.get("OFF_CHAT", 1))  # 0: chat box folded away
+        if os.environ.get("OFF_LONG") == "1":                        # a long conversation, for scrollback
+            for k in range(12):
+                p.add_user(f"question {k + 1}: how is the lab doing?")
+                p.begin_reply(); p.feed(f"Answer {k + 1}. All six nodes are up and every service answers. " * 2); p.end_reply()
+        p.scroll = float(os.environ.get("OFF_SCROLL", 0))              # pixels scrolled back
         p.fade = 1.0
         for k in range(int(tt * 30)):
             p.advance(1 / 30)

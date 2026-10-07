@@ -504,7 +504,7 @@ from .reach import (herdr_read, herdr_send, herdr_start, herdr_status, herdr_wai
 from .act import (argocd_refresh, argocd_sync, argocd_wait, ci_watch, k8s_delete_pod,  # noqa: E402
                   k8s_restart, k8s_run_job, k8s_scale, kb_write)
 from .vault import vault_copy, vault_list, vault_put  # noqa: E402
-from .desk import app_search, launch_app, open_path, run_detached, window, windows  # noqa: E402
+from .desk import app_search, launch_app, media, open_path, run_detached, window, windows  # noqa: E402
 from .track import changes_check, github_repo_create  # noqa: E402
 from .skills import load_skill  # noqa: E402
 from .eyes import active_window, look, read_screen_text, watch  # noqa: E402
@@ -712,7 +712,7 @@ SPECS = {
                    _p({"agent": S, "status": S, "timeout_s": I}, ["agent"])),
     "notes_read": ("Read the end of FIELD NOTES, the operator's notepad.", _p({"last_lines": I})),
     "notes_append": ("Append a line to FIELD NOTES (only when the operator asks to note something).", _p({"text": S}, ["text"])),
-    "launch": ("Open an app (terminal, browser, chrome, files, discord, spotify, obs, steam, or any installed program by name), a switchboard entry (arbiter, lab, grafana, argocd, …) or an http(s) URL.",
+    "launch": ("Open an app (terminal, browser, chrome, files, discord, spotify, obs, steam, or any installed program by name), a switchboard entry (arbiter, lab, grafana, argocd, …) or an http(s) URL. A URL opens in a new tab of the host's browser: to play a video, find its URL (web_search), launch the URL, then use media.",
                _p({"target": S}, ["target"])),
     "panel": ("Toggle a desktop widget panel: all, system, network, storage, lab, switchboard, notes, shortcuts.",
               _p({"name": S, "action": S}, ["name"])),
@@ -778,6 +778,10 @@ SPECS = {
                      "limits as your terminal.", _p({"command": S, "workspace": S}, ["command"])),
     "open_path": ("Open a file, folder or URL with its default application.", _p({"target": S}, ["target"])),
     "windows": ("The open windows: address, app, title, workspace, which is focused.", _p({})),
+    "media": ("What's playing on the desktop and control it (a YouTube tab, Spotify, mpv): action status (players, "
+              "title, position, volume), play, pause, toggle, next, previous, stop, seek (value +10, -30 or an absolute "
+              "second), volume (value 0-100, +10, -10). player optional (from status; default the most recent).",
+              _p({"action": S, "player": S, "value": S})),
     "window": ("Act on one window (by address, app class or title words): focus, close (say so first), or move to a "
                "workspace.", _p({"action": S, "target": S, "workspace": S}, ["action", "target"])),
     "changes_check": ("Before you say a task is done: lists every repo you touched with changes you left uncommitted or "

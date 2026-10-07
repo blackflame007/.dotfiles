@@ -412,6 +412,7 @@ class App:
         self.vector.win.connect("enter-notify-event", self._chat_enter)
         self.vector.win.connect("leave-notify-event", self._chat_leave)
         self.vector.area.connect("button-press-event", self._chat_click)
+        self.vector.area.connect("scroll-event", self._chat_scroll)
         GLib.timeout_add(300, self._chat_watch)
         self.brain = Brain(self._BrainCB(self), ui=self._ui_from_brain, live=self.live)
         try:
@@ -1025,8 +1026,8 @@ class App:
         shown = self.chat_visible()
         self.pscene.panel_to = 1.0 if shown else 0.0
         self.vector.input_skip = frozenset() if shown else frozenset(self.chat_widgets)
-        if self._chat_base():
-            self.vector.hot_rects = ()
+        if self._chat_base():                # pinned open: the transcript takes the wheel
+            self.vector.hot_rects = (self._transcript_rect(),)
         elif shown:      # opened by the pointer: the whole console holds it, so moving from him to the box keeps it open
             self.vector.hot_rects = ((0, 0, self.vector.win.get_allocated_width(), self.vector.win.get_allocated_height()),)
         else:
@@ -1073,6 +1074,25 @@ class App:
             return False
         self.chat_leave_timer = GLib.timeout_add(900, unhover)
         return False
+
+    def _transcript_rect(self):
+        lw = self.pscene.left_w * self.pscene.scale
+        W, H = self.vector.win.get_allocated_width(), self.vector.win.get_allocated_height()
+        return (lw, 60, W - lw, H - 120)
+
+    def _chat_scroll(self, w, ev):
+        """The wheel over the transcript scrolls back through the conversation."""
+        if not self.chat_visible() or self.histpanel.get_visible() or ev.x < self.pscene.left_w * self.pscene.scale:
+            return False
+        if ev.direction == Gdk.ScrollDirection.SMOOTH:
+            ok, dx, dy = ev.get_scroll_deltas()
+            step = -dy * 48 if ok else 0
+        else:
+            step = {Gdk.ScrollDirection.UP: 48, Gdk.ScrollDirection.DOWN: -48}.get(ev.direction, 0)
+        if step:
+            self.pscene.scroll_by(step)
+            self.vector.set_fps(60)
+        return True
 
     def _chat_click(self, w, ev):
         x, y, rw, rh = self._chat_hot(self.pscene.panel_to > 0.5)

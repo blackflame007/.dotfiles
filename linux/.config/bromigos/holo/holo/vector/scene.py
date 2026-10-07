@@ -49,6 +49,9 @@ class VectorScene:
         # table (conversation mode hides it until the pointer is over him; app.py drives it)
         self.panel = 1.0
         self.panel_to = 1.0
+        # transcript scrollback: pixels scrolled up from the newest line (mouse wheel)
+        self.scroll = 0.0
+        self.scroll_max = 0.0
 
     # ------------------------------------------------------------------ conversation
     def set_state(self, s):
@@ -104,6 +107,7 @@ class VectorScene:
     def add_user(self, text):
         self.msgs.append(Msg("you", text))
         self._trim()
+        self.scroll = 0.0                    # a new turn: back to the newest line
 
     def add_tool(self, text):
         self.end_reply()                 # whatever it said before the lookup is finished
@@ -113,6 +117,7 @@ class VectorScene:
 
     def begin_reply(self):
         self.msgs.append(Msg("vector", "", done=False))
+        self.scroll = 0.0
 
     def feed(self, delta):
         if not self.msgs or self.msgs[-1].role != "vector" or self.msgs[-1].done:
@@ -145,7 +150,14 @@ class VectorScene:
         self._trim()
 
     def _trim(self):
-        self.msgs = self.msgs[-40:]
+        self.msgs = self.msgs[-200:]
+
+    def scroll_by(self, dy):
+        """Wheel over the transcript: dy > 0 goes back in time. Clamped to what's there."""
+        self.scroll = max(0.0, min(self.scroll_max, self.scroll + dy))
+
+    def scroll_home(self):
+        self.scroll = 0.0
 
     def revealing(self):
         return any(m.role == "vector" and m.shown < len(m.text) for m in self.msgs)
@@ -325,9 +337,12 @@ class VectorScene:
             return
         # transcript, newest at the bottom, above the input line
         width = w - x0 - 32 * sc
-        y = h - 78 * sc
+        bottom = h - 78 * sc
+        y = bottom + self.scroll * sc
         top = 72 * sc
         rows = []
+        hidden_below = 0
+        reached_oldest = True
         for m in ([] if getattr(self, "history_open", False) else reversed(self.msgs)):   # the history panel covers it
             if m.role == "vector":
                 text = plain(m.text[:int(m.shown)], streaming=True).strip()
@@ -347,8 +362,14 @@ class VectorScene:
             tw_, th_ = H.measure(text, int(size * sc), weight, width=(width - ind * sc) / sc)
             y -= th_ + (10 if m.role != "tool" else 4) * sc
             if y < top:
+                reached_oldest = False
                 break
+            if y + th_ > bottom + 4 * sc:     # scrolled past: below the box
+                hidden_below += 1
+                continue
             rows.append((text, x0 + ind * sc, y, c, int(size * sc), weight, (width - ind * sc) / sc))
+        # how far back the wheel may go: no further once the oldest line is on screen
+        self.scroll_max = self.scroll if reached_oldest else self.scroll + 1e6
         # a dark backing under the transcript and the entry, only as tall as the text
         y_top = min([r[2] for r in rows] + [h - 78 * sc]) - 12 * sc
         H.rect(x0 - 14 * sc, y_top, w - x0 - 4 * sc, h - y_top - 10 * sc, (0.0, 0.035, 0.0, 0.8 * pf))
@@ -356,6 +377,9 @@ class VectorScene:
         H.rect(12 * sc, 12 * sc, 330 * sc, 52 * sc, (0.0, 0.035, 0.0, 0.5 * f))
         for text, x, yy, c, size, weight, wd in rows:
             H.label(text, x, yy, (c[0], c[1], c[2], c[3] * self.panel), size, weight, width=wd)
+        if hidden_below:                     # scrolled back: say there's more below
+            H.label(f"▼ {hidden_below} NEWER · SCROLL DOWN", w - 32 * sc, bottom + 2 * sc, col("amber", 1, pf),
+                    int(11 * sc), "bold", anchor="rt", spacing=1.5)
         hint = ("Enter sends · Esc hands the keyboard back · Shift+Esc minimizes" if self.typing else
                 "click the box to type · clicks elsewhere go to your windows · SUPER+E minimizes")
         H.label(hint, w - 28 * sc, h - 14 * sc, col("static", 1, 0.8 * pf), int(11 * sc), anchor="rb")

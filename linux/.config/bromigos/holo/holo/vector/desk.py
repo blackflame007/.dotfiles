@@ -216,3 +216,60 @@ def window(action, target, workspace=None):
         raise ValueError("action: focus, close or move")
     return {"ok": True, "action": action, "window": f"{w['class']} '{w['title'][:50]}'",
             **({"workspace": workspace} if action == "move" else {})}
+
+
+# ------------------------------------------------------------------ media (MPRIS)
+# Anything playing on the desktop (a YouTube tab in Chrome, Spotify, mpv) is an MPRIS
+# player; playerctl drives it with fixed argv, no shell.
+MEDIA_ACTIONS = {"status", "play", "pause", "toggle", "next", "previous", "stop", "seek", "volume"}
+
+
+def _players():
+    out = subprocess.run(["playerctl", "-l"], capture_output=True, text=True, timeout=5).stdout
+    return [p for p in out.split() if p]
+
+
+def media(action="status", player="", value=""):
+    """Control or read what's playing. player: a name from status (default: the most recent
+    one). seek value: +10 / -30 (seconds) or an absolute second; volume value: 0-100, +10, -10."""
+    action = (action or "status").strip().lower()
+    if action not in MEDIA_ACTIONS:
+        raise ValueError(f"action: one of {sorted(MEDIA_ACTIONS)}")
+    players = _players()
+    if not players:
+        return {"players": [], "note": "nothing is playing or paused on the desktop"}
+    if player and player not in players:
+        match = [p for p in players if p.split(".")[0] == player.split(".")[0]]
+        if not match:
+            raise ValueError(f"player: one of {players}")
+        player = match[0]
+    base = ["playerctl"] + (["-p", player] if player else [])
+    if action == "status":
+        fmt = "{{playerName}}\t{{status}}\t{{artist}}\t{{title}}\t{{position}}\t{{mpris:length}}\t{{volume}}"
+        rows = []
+        for p in players:
+            r = subprocess.run(["playerctl", "-p", p, "metadata", "--format", fmt], capture_output=True, text=True, timeout=5)
+            f = (r.stdout.strip().split("\t") + [""] * 7)[:7]
+            pos = int(f[4]) // 1_000_000 if f[4].isdigit() else None
+            length = int(f[5]) // 1_000_000 if f[5].isdigit() else None
+            st = subprocess.run(["playerctl", "-p", p, "status"], capture_output=True, text=True, timeout=5).stdout.strip()
+            rows.append({"player": p, "status": st or f[1] or "nothing loaded", "artist": f[2], "title": f[3][:120],
+                         "position_s": pos, "length_s": length,
+                         "volume": round(float(f[6]) * 100) if f[6].replace(".", "", 1).isdigit() else None})
+        return {"players": rows}
+    if action in ("seek", "volume"):
+        v = (value or "").strip()
+        if not re.fullmatch(r"[+-]?\d{1,4}(\.\d+)?", v):
+            raise ValueError("value: a number like 30, +10 or -10")
+        sign, num = (v[0], v[1:]) if v[0] in "+-" else ("", v)   # playerctl: 10+ forward, 10- back, 10 absolute
+        if action == "seek":
+            cmd = base + ["position", num + sign]
+        else:
+            cmd = base + ["volume", f"{min(float(num), 100) / 100:.2f}" + sign]
+    else:
+        cmd = base + [{"toggle": "play-pause"}.get(action, action)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or r.stdout).strip()[:200] or f"playerctl {action} failed")
+    return media("status", player)
+
