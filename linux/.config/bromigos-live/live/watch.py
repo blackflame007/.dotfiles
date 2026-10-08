@@ -2,7 +2,7 @@
 
 * desktop notifications, observed on the session bus with a monitor-mode
   connection (no dunstrc edits, no polling): Notify calls and closures;
-* the session lock, by watching for the hyprlock process (cheap: one stat per
+* the session lock, by watching for the locker process, gtklock or hyprlock (cheap: one stat per
   second while locked, a /proc scan every 2 s otherwise).
 """
 import os
@@ -63,10 +63,12 @@ class Notifications:
 
 
 class LockWatch(threading.Thread):
-    def __init__(self, cb, name="hyprlock"):
+    LOCKERS = ("hyprlock", "gtklock")         # bromigos-lock runs gtklock, falling back to hyprlock
+
+    def __init__(self, cb, names=LOCKERS):
         super().__init__(daemon=True, name="lock-watch")
         self.cb = cb
-        self.name = name
+        self.names = set(names)
         self.pid = None
 
     def _find(self):
@@ -75,7 +77,7 @@ class LockWatch(threading.Thread):
                 continue
             try:
                 with open(f"/proc/{d.name}/comm") as f:
-                    if f.read().strip() == self.name:
+                    if f.read().strip() in self.names:
                         return int(d.name)
             except OSError:
                 continue

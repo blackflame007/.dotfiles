@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # bromigos-lock: lock the screen, and keep it locked if the locker crashes.
 #
-# Runs the screen locker (hyprlock, or $BROMIGOS_LOCKER). Exit 0 means Sir unlocked it
+# Runs the screen locker: gtklock (the burn-in's ring turns), falling back to hyprlock.
+# $BROMIGOS_LOCKER overrides the list ("gtklock hyprlock"). Exit 0 means Sir unlocked it
 # with his password: done. Anything else (a crash, a kill) means the session is still
-# locked with no lock screen on it, so the locker is started again at once; Hyprland's
-# misc.allow_session_lock_restore lets the new one take over. He always types his
-# password; this never unlocks anything.
+# locked with no lock screen on it, so a locker is started again at once; Hyprland's
+# misc.allow_session_lock_restore lets the new one take over. A locker that fails twice
+# within seconds of starting (missing, broken config) gives way to the next in the list.
+# He always types his password; this never unlocks anything.
 #
 # hypridle's lock_cmd runs this (Super+L and before-sleep go through loginctl
 # lock-session -> hypridle). One instance at a time (flock); a second call is a no-op.
@@ -13,13 +15,29 @@ set -u
 run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 exec 9>"$run/bromigos-lock.flock"
 flock -n 9 || exit 0
-locker=${BROMIGOS_LOCKER:-hyprlock}
+read -ra lockers <<<"${BROMIGOS_LOCKER:-gtklock hyprlock}"
+i=0
+quick=0
 for try in $(seq 1 30); do
-    "$locker"
-    rc=$?
+    locker=${lockers[$i]}
+    if ! command -v "$locker" >/dev/null; then
+        rc=127
+        started=$(date +%s)
+    else
+        started=$(date +%s)
+        "$locker"
+        rc=$?
+    fi
     [ "$rc" -eq 0 ] && exit 0
+    if [ $(( $(date +%s) - started )) -lt 3 ]; then quick=$((quick + 1)); else quick=0; fi
+    if [ "$quick" -ge 2 ] && [ $((i + 1)) -lt ${#lockers[@]} ]; then
+        logger -t bromigos-lock "$locker won't start (exit $rc); falling back to ${lockers[$((i + 1))]}"
+        i=$((i + 1))
+        quick=0
+        continue
+    fi
     logger -t bromigos-lock "$locker exited $rc while locked (try $try); starting it again"
     sleep 0.5
 done
-logger -t bromigos-lock "$locker kept failing; giving up after 30 tries"
+logger -t bromigos-lock "no locker stays up; giving up after 30 tries"
 exit 1

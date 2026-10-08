@@ -139,7 +139,7 @@ class Briefing:
     def __init__(self, speak, note, locked=None):
         """speak(text, voice) says it (and shows it); note(text) is transcript-only; locked() -> bool."""
         self.speak, self.note = speak, note
-        self.locked = locked or (lambda: subprocess.run(["pgrep", "-x", "hyprlock"], capture_output=True).returncode == 0)
+        self.locked = locked or (lambda: subprocess.run(["pgrep", "-x", "gtklock|hyprlock"], capture_output=True).returncode == 0)
         self.seen = None              # alert keys already explained
         self.lock_t = None
         self.last_cursor, self.cursor_t = None, time.time()
