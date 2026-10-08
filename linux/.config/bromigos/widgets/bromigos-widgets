@@ -28,6 +28,13 @@ import sys
 import threading
 import time
 
+# bromigOS packages the widgets (bromigos-widgets, /usr/bin): when it's installed this copy
+# hands over to it. BROMIGOS_WIDGETS_FROM_DOTFILES=1 runs this one.
+_PKG = "/usr/bin/bromigos-widgets"
+if (os.path.exists(_PKG) and not os.environ.get("BROMIGOS_WIDGETS_FROM_DOTFILES")
+        and os.path.realpath(__file__) != os.path.realpath(_PKG)):
+    os.execv(_PKG, ["bromigos-widgets"] + sys.argv[1:])
+
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
 

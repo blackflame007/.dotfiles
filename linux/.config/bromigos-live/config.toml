@@ -93,6 +93,10 @@ ambient_sounds = true    # the world's creature sounds, by your activity (mute a
 [holodeck]               # SUPER+H: arc rings, the cluster constellation, the machine hologram
 enabled = true
 
+[swarm]                  # SUPER+SHIFT+S: the repos under ~/github.com/<org>, one orbit per org (inner first)
+orgs = ["bromigos-org", "nolgiainc", "blackflame007"]
+rings = { "bromigos-org" = 0.48, "nolgiainc" = 0.80, "blackflame007" = 1.10 }
+
 [driftmap]               # SUPER+M: the lore as a star chart; relays = the lab's live services
 catalog = "~/github.com/bromigos-org/platform/agents/lore/catalog.json"
 

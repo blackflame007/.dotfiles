@@ -21,6 +21,11 @@
 #                                  set <signal> <value> (hold one, to try it), clear, rollcall
 #   bromigos-live ctl <cmd>        raw control command (burst, transmission, reload, state, theme, activity idle|active)
 #   bromigos-live status
+# bromigOS packages the live layer (bromigos-live, /usr/bin; docs/plugins.md in bromigOS):
+# when it's installed this copy hands over to it. BROMIGOS_LIVE_FROM_DOTFILES=1 runs this one.
+if [ -x /usr/bin/bromigos-live ] && [ -z "${BROMIGOS_LIVE_FROM_DOTFILES:-}" ]; then
+    exec /usr/bin/bromigos-live "$@"
+fi
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 RUN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
