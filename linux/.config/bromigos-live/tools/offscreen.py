@@ -8,6 +8,7 @@ real readings, without touching the desktop. For screenshots and tuning.
   offscreen.py world OUT ...              a theme's world (OFF_WORLD = the theme directory, default
                                           the current theme), with real readings unless scripted
   offscreen.py bench SECONDS [world|bg]   render in real time at 30 fps and report the cost
+                                          (OFF_BENCH_W="event flyby; set cpu 0.1": world verbs first)
 
 OFF_SCRIPT drives it with timed steps ("at verb args; ..."): burst, select, cmd (a VECTOR
 verb), event, key, part, notes, scan, pin, radial, and for the zoomable maps
@@ -247,6 +248,9 @@ def bench(cfg, data):
     tgt = glkit.Target(W, H)
     q = GL.glGenQueries(1)[0]
     gpu = []
+    for item in filter(None, (x.strip() for x in os.environ.get("OFF_BENCH_W", "").split(";"))):
+        verb, _, rest = item.partition(" ")      # OFF_BENCH_W="event flyby:petrel; set cpu 0.1": world verbs first
+        print("world:", r.command(verb, rest), file=sys.stderr)
     for _ in range(30):                          # warm up
         r.render(tgt.fbo, 30)
     GL.glFinish()

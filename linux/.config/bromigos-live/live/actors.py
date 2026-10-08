@@ -15,6 +15,10 @@ says where its instances come from and which states they have:
            starts off-screen, from its signal (the Wick's ship rule: nothing pops).
   event    spawned by events (notify, critical, fill_win, fill_loss, ...): `[[actors.on]]`
            variants, each with its own motion, sprite, depth and lifetime.
+  flyby    craft crossing the sky now and then: one of its `[[actors.craft]]` at a time, at
+           a random distance (nearer = bigger, faster, clearer), its gap shrinking with its
+           signal; nav lights, strobes and an exhaust trail that stays where it was laid.
+           Off with the `ships` animation switch and under reduced motion.
 
 Every state names a `motion` (below) and how its lights burn. The "needs you" gesture is
 shared by every kind: `turn = true` stops the actor, turns it to face the viewer (the
@@ -63,7 +67,7 @@ class Def:
         self.t = t
         self.id = t["id"]
         self.kind = t.get("kind", "signal")
-        self.sprite = sprites[t["sprite"]]
+        self.sprite = sprites[t["sprite"] if t.get("sprite") else t["craft"][0]["sprite"]]
         self.sprites = sprites
         self.height = float(t.get("height", 100))
         self.depth = float(t.get("depth", 25))
@@ -166,6 +170,10 @@ class Actors:
             if inst is not None and inst.state == "working":
                 t0 = t + float(ev.get("after", 0.0))
                 inst.override = (ev, t0, t0 + float(ev.get("seconds", 3.0)))
+        if name.startswith("flyby"):                # a pass now (testing): "flyby" or "flyby:<craft id>"
+            for d in self.defs:
+                if d.kind == "flyby":
+                    self._flyby(d, t, name.partition(":")[2] or None)
         if name == "rollcall":
             i = 0
             for inst in sorted(self.insts.values(), key=lambda s: (s.d.depth, s.x)):
@@ -191,6 +199,9 @@ class Actors:
             self._step(inst, t, dt, sig)
             if inst.dead:
                 del self.insts[key]
+                continue
+            if inst.d.kind == "flyby":
+                self._emit_flyby(inst, t, sprites, glows)
                 continue
             self._emit(inst, t, sig, sprites, glows, wakes)
         lamp_glows = []
@@ -312,6 +323,162 @@ class Actors:
                 inst.state = "crossing"
                 self.insts[(d.id, k)] = inst
 
+    # ---- craft overhead
+    SWITCHES = {"ships": ("space", "traffic")}       # `bromigos anim off ships`
+
+    @classmethod
+    def _flyby_on(cls, d):
+        cfg = d.world.cfg if d.world is not None else {}
+        sec, key = cls.SWITCHES.get(d.t.get("switch", "ships"), ("space", "traffic"))
+        return bool(cfg.get(sec, {}).get(key, True)) and not cfg.get("general", {}).get("reduced_motion", False)
+
+    def _sync_flyby(self, d, t, sig):
+        """Now and then a craft crosses: time runs toward the next pass faster with the
+        signal (1 + gain x level), so a busy network brings them more often."""
+        st = self.lanes.setdefault(d.id, {})
+        dt = max(0.0, min(t - st.get("t", t), 1.0))
+        st["t"] = t
+        if not self._flyby_on(d):
+            for key in [k for k in self.insts if k[0] == d.id]:
+                del self.insts[key]                      # switched off: the sky clears at once
+            return
+        if "need" not in st:
+            f = d.t.get("first", (30, 120))
+            st["need"], st["acc"] = f[0] + (f[1] - f[0]) * random.random(), 0.0
+        lv = float(sig.get(d.signal, 0.0) or 0.0) if d.signal else 0.0
+        st["acc"] += dt * (1.0 + float(d.t.get("gain", 1.0)) * max(0.0, min(lv, 1.0)))
+        if st["acc"] >= st["need"]:
+            if sum(1 for k in self.insts if k[0] == d.id) < int(d.t.get("max", 1)):
+                self._flyby(d, t)
+            ev = d.t.get("every", (240, 600))
+            st["need"], st["acc"] = ev[0] + (ev[1] - ev[0]) * random.random(), 0.0
+
+    def _flyby(self, d, t, which=None):
+        crafts = d.t.get("craft") or []
+        if which:
+            crafts = [c for c in crafts if c.get("id") == which] or crafts
+        if not crafts:
+            return
+        self.n_event += 1
+        inst = Inst(d, f"fly{self.n_event}", t)
+        r = inst.r
+        tot = sum(float(c.get("weight", 1.0)) for c in crafts)
+        pick, c = r.random() * tot, crafts[-1]
+        for cand in crafts:
+            pick -= float(cand.get("weight", 1.0))
+            if pick <= 0:
+                c = cand
+                break
+        lo, hi = c.get("distance", (0.0, 1.0))
+        z = lo + (hi - lo) * r.random()                  # 0 near .. 1 far
+        hs, sp, ys = c.get("height", (60, 30)), c.get("speed", (140, 60)), c.get("y", (200, 400))
+        h = hs[0] + (hs[1] - hs[0]) * z
+        direction = float(c.get("dir", 0)) or (1.0 if r.random() < 0.5 else -1.0)
+        sprite = d.sprites[c["sprite"]]
+        w = h * sprite.frame(0)[4]
+        x0, x1 = d.t.get("span", (0, 2560))
+        x0, x1 = x0 - w * 0.6 - 40, x1 + w * 0.6 + 40
+        y = ys[0] + (ys[1] - ys[0]) * (0.55 * z + 0.45 * r.random())   # the farther, the lower toward the horizon
+        climb = (r.random() - 0.5) * float(c.get("climb", 40))
+        band = d.t.get("sky")                            # the whole craft stays inside [top, bottom], climb and bob too
+        if band:
+            room = h * 0.5 + abs(climb) * 0.5 + float(c.get("bob", 3.0)) * 1.3
+            y = max(float(band[0]) + room, min(y, float(band[1]) - room))
+        speed = sp[0] + (sp[1] - sp[0]) * z
+        inst.v = None
+        inst.state = "flying"
+        inst.extra.update(craft=c, z=z, h=h, w=w, y=y, dir=direction, speed=speed, x0=x0, x1=x1,
+                          dur=(x1 - x0) / speed, climb=climb, trails={})
+        inst.face = direction
+        self.insts[(d.id, inst.key)] = inst
+
+    def _step_flyby(self, inst, t):
+        e = inst.extra
+        a = t - inst.born
+        f = a / e["dur"]
+        if f >= 1.0:
+            inst.dead = True
+            return
+        c = e["craft"]
+        inst.x = e["x0"] + (e["x1"] - e["x0"]) * f if e["dir"] > 0 else e["x1"] - (e["x1"] - e["x0"]) * f
+        ph = inst.seed * TAU
+        bob = float(c.get("bob", 3.0)) * (1.0 - 0.5 * e["z"])
+        inst.y = e["y"] + e["climb"] * (f - 0.5) + math.sin(a * 0.7 + ph) * bob + math.sin(a * 1.9 + 2 * ph) * bob * 0.3
+        # a gentle bank with the bob, and the climb's pitch
+        inst.rot = math.radians(float(c.get("bank", 2.0))) * math.sin(a * 0.45 + ph) - e["dir"] * math.atan2(e["climb"], e["x1"] - e["x0"])
+        inst.alpha = min(1.0, a / 1.5, (e["dur"] - a) / 1.5)
+
+    def _emit_flyby(self, inst, t, sprites, glows):
+        d, e = inst.d, inst.extra
+        c = e["craft"]
+        sprite = d.sprites[c["sprite"]]
+        u0, v0, u1, v1, asp = sprite.frame(0)
+        h = e["h"]
+        w = h * asp
+        sx = e["dir"] * (-1.0 if c.get("faces", "right") == "left" else 1.0)
+        z = e["z"]
+        hz = d.t.get("haze", (0.05, 0.08, 0.07, 0.5))
+        haze = float(hz[3]) * (float(c.get("haze", 0.15)) + (1.0 - float(c.get("haze", 0.15))) * z ** 0.8)
+        bright = float(c.get("bright", 0.6)) * (1.0 - 0.35 * z)
+        depth = float(c.get("depth", d.depth)) + 0.2 * (1.0 - z)        # nearer craft over farther ones
+        x, base = inst.x, inst.y + h * 0.5                               # inst.y is the craft's middle
+        sprites.append((depth, {"x": x, "y": base, "w": w * sx, "h": h, "uv": (u0, v0, u1, v1), "rot": inst.rot,
+                                "video": sprite.video, "alpha": inst.alpha, "cut": -1.0, "tint": (hz[0], hz[1], hz[2], haze),
+                                "bright": bright, "fog": False, "reflect": 0.0, "par": d.parallax, "add": False,
+                                "craft": True, "clouds": float(d.t.get("clouds", 0.0)),
+                                "cloud_luma": tuple(d.t.get("cloud_luma", (0.1, 0.3))),
+                                "rim": tuple(d.t.get("rim", (0.6, 0.7, 0.8, 0.5)))}))
+        lit = inst.alpha * (1.0 - 0.6 * haze)
+        cloud = float(d.t.get("clouds", 0.0))
+        luma = d.t.get("cloud_luma", (0.1, 0.3))
+        cover = (lambda px, py: 1.0 - cloud * d.world.sky_cover(px, py, luma)) if cloud and d.world is not None \
+            else (lambda px, py: 1.0)
+        ca, sa = math.cos(inst.rot), math.sin(inst.rot)
+        scale = (h / max(float(c.get("height", (60, 30))[0]), 1.0)) ** 0.5
+
+        def place(u, v):
+            if sx < 0:
+                u = 1.0 - u
+            lx, ly = (u - 0.5) * w, -(1.0 - v) * h
+            return x + lx * ca - ly * sa, base + lx * sa + ly * ca
+
+        for L in c.get("lights") or []:
+            k = 1.0
+            blink = L.get("blink")
+            if blink == "strobe":                        # a double white flash
+                u = (t + inst.seed * 3.0) % float(L.get("period", 1.6))
+                k = math.exp(-((u - 0.05) ** 2) / 0.0006) + 0.8 * math.exp(-((u - 0.2) ** 2) / 0.0006)
+            elif isinstance(blink, (int, float)) and blink > 0:   # a beacon's slow pulse
+                u = ((t + inst.seed * blink) % blink) / blink
+                k = math.exp(-((u - 0.1) ** 2) / 0.006) + float(L.get("floor", 0.08))
+            if k * lit < 0.01:
+                continue
+            gx, gy = place(*L["at"])
+            col = L.get("color", (1.0, 1.0, 1.0))
+            rad = float(L.get("radius", 4)) * scale
+            k *= cover(gx, gy)                           # a lamp behind a cloud goes with the hull
+            glows.append((depth + 0.01, (gx, gy, rad, rad, col[0], col[1], col[2], k * lit * float(L.get("gain", 1.0)), 0.0)))
+        # trails: puffs laid where the exhaust was, drifting and spreading as they fade
+        for i, T in enumerate(c.get("trails") or []):
+            hist = e["trails"].setdefault(i, [])
+            every = float(T.get("every", 0.12))
+            if inst.alpha > 0.05 and (not hist or t - hist[-1][2] >= every):
+                hist.append((*place(*T["at"]), t))
+            life = float(T.get("life", 3.0))
+            while hist and t - hist[0][2] > life:
+                hist.pop(0)
+            col = T.get("color", (0.8, 0.85, 0.9))
+            rad0 = float(T.get("radius", 3)) * scale
+            gap = every * e["speed"] * 0.8          # puffs stretched along the path, so they join into one streak
+            for (px, py, t0) in hist:
+                age = (t - t0) / life
+                k = float(T.get("gain", 0.2)) * (1.0 - age) ** 2 * (1.0 - 0.6 * haze) * min(1.0, (t - t0) / 0.15 + 0.3) \
+                    * cover(px, py)
+                if k < 0.004:
+                    continue
+                r = rad0 * (1.0 + age * float(T.get("spread", 2.5)))
+                glows.append((depth - 0.01, (px, py + age * float(T.get("sink", 6.0)), max(r * 1.6, gap * 0.6), r, col[0], col[1], col[2], k, 0.0)))
+
     @staticmethod
     def _play_clip(inst, rel, hold):
         sp = inst.d.sprites.get(rel) if rel else None
@@ -364,6 +531,8 @@ class Actors:
     # ---- motions
     def _step(self, inst, t, dt, sig):
         d = inst.d
+        if d.kind == "flyby":
+            return self._step_flyby(inst, t)
         if inst.v is not None:
             return self._step_event(inst, t, dt, sig)
         if d.kind == "traffic":

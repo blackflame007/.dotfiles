@@ -11,13 +11,14 @@ docs/ELEMENTS.md ("Worlds"); in short, paths relative to the theme directory:
   [camera] [clock] [water]       how the layers sway, the light by the hour, the water
   [[layers]]                     art files back to front: depth, parallax, sky/water/fog
   [[effects]]                    reusable effect blocks, each bound to a signal
-  [[actors]]                     creatures and craft (live/actors.py), bound to signals
+  [[actors]]                     creatures and craft (live/actors.py), bound to signals;
+                                 kind = "flyby": craft crossing the sky now and then
   [sounds] [rollcall]            ambient cues by the user's activity; the login roll call
 
 Signals (World.signals): cpu, gpu, mem, net, net_rx, net_tx, health (0/1/2), lab_green,
 storm, ingress, user (working/dozing/asleep), activity, vector, agents, hour, daylight,
 moon_phase, tide. Events: notify, critical, fill, fill_win, fill_loss, fill_open,
-lab_alert, login (the roll call).
+lab_alert, login (the roll call), flyby[:<craft id>] (a pass now, for testing).
 
 Frame: every layer and actor group shallower than the water is drawn into the back
 target; the water/effects pass (shaders/world.frag) composes the frame from it (the
@@ -241,6 +242,13 @@ class World:
         loops = sp.get("loops", {})
         self.layers = sorted((Layer(L, self.root, loops, self.sync) for L in sp.get("layers", [])), key=lambda L: L.depth)
         self.water_layer = next((L for L in self.layers if L.water), None)
+        self.sky_layer = next((L for L in self.layers if L.sky), None)
+        self.sky_luma = None                      # the sky layer's luminance at 1/8 size: what hides a flyby's lamps
+        if self.sky_layer is not None and self.sky_layer.t.get("file"):
+            from PIL import Image
+            im = Image.open(os.path.join(self.root, self.sky_layer.t["file"])).convert("L")
+            self.sky_luma = np.asarray(im.resize((max(1, im.width // 8), max(1, im.height // 8)), Image.BILINEAR),
+                                       dtype=np.float32) / 255.0
         self.water = sp.get("water", {})
         self.water_depth = self.water_layer.depth if self.water_layer else 1e9
         self.split = self.water.get("mode", "mirror") == "split"
@@ -249,7 +257,9 @@ class World:
         # actors and their sprites
         rels = []
         for a in sp.get("actors", []):
-            rels.append(a["sprite"])
+            if a.get("sprite"):
+                rels.append(a["sprite"])
+            rels += [c["sprite"] for c in a.get("craft", []) if c.get("sprite")]
             if a.get("emissive"):
                 rels.append(a["emissive"])
             rels += [a[k] for k in ("front_sprite",) if a.get(k)]
@@ -505,6 +515,21 @@ class World:
         lx, ly = (u - 0.5) * abs(w), -(1.0 - v) * h
         ca, sa = math.cos(rot), math.sin(rot)
         return (x + lx * ca - ly * sa, base + lx * sa + ly * ca)
+
+    def sky_cover(self, x, y, luma):
+        """How much of the sky layer's lit cloud is in front of plate point (x, y): 0..1, the
+        moon's disc clear (luma = [cloud from, cloud full, moon from, moon full])."""
+        a = self.sky_luma
+        if a is None:
+            return 0.0
+        h, w = a.shape
+        l = float(a[min(h - 1, max(0, int(y * h / PLATE_H))), min(w - 1, max(0, int(x * w / PLATE_W)))])
+        lu = list(luma) + [2.0, 3.0]
+
+        def ss(e0, e1, v):
+            v = max(0.0, min(1.0, (v - e0) / max(e1 - e0, 1e-6)))
+            return v * v * (3 - 2 * v)
+        return ss(lu[0], lu[1], l) * (1.0 - ss(lu[2], lu[3], l))
 
     def line_end(self):
         e = self.fx.by.get("line", {})
@@ -767,7 +792,9 @@ class World:
             cut = s["cut"] * sy + oy if s["cut"] >= 0 else -1.0
             tint = s.get("tint")
             tr = (tint[0], tint[1], tint[2], tint[3] if len(tint) > 3 else 0.5) if tint else (0.0, 0.0, 0.0, 0.0)
-            base = [x, y, w, h, *s["uv"], s["rot"], s["alpha"], cut, 0.0, *tr, s["reflect"],
+            craft = s.get("craft")                # a flyby: tint = the air's haze; clouds in the sky layer hide it
+            base = [x, y, w, h, *s["uv"], s["rot"], s["alpha"], cut, 2.0 if craft else 0.0, *tr,
+                    s.get("clouds", 0.0) if craft else s["reflect"],
                     1.0 if s["fog"] else 0.0, s["bright"], 1.0 if s.get("emissive") else 0.0]
             if s["reflect"] > 0 and cut > 0:
                 r = list(base)
@@ -785,6 +812,20 @@ class World:
         p.f("u_time", t)
         p.f("u_water", *[float(x) for x in self.water.get("tint", (0.03, 0.06, 0.07))])
         self._fog(p)
+        rim = next((s["rim"] for s in sprs if s.get("rim")), None)
+        p.f("u_rim", *([float(x) for x in rim] if rim else (0.0, 0.0, 0.0, 0.0)))
+        cloudy = next((s for s in sprs if s.get("clouds")), None)
+        sky = self.sky_layer if cloudy else None
+        if sky is not None:                       # the sky's own clouds pass in front of craft behind them
+            GL.glActiveTexture(GL.GL_TEXTURE1)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, sky.tex)
+            GL.glActiveTexture(GL.GL_TEXTURE0)
+            p.i("u_sky", 1)
+            p.f("u_skyview", *self._layer_view(sky), 1.0)
+            cl = [float(x) for x in cloudy.get("cloud_luma", (0.1, 0.3))]
+            p.f("u_cloud", *(cl + [2.0, 3.0])[:4])       # [cloud from, cloud full, moon from, moon full]
+        else:
+            p.f("u_skyview", 0.0, 0.0, 1.0, 0.0)
         buf.draw()
 
     def _draw_glows(self, i, glows, depth):

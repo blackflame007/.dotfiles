@@ -2,9 +2,9 @@
 // A world actor's sprite: one instance per actor (live/actors.py), anchored at its feet.
 layout(location = 0) in vec4 a0;   // x, y px (bottom centre), w (signed: facing), h px
 layout(location = 1) in vec4 a1;   // atlas u0, v0, u1, v1
-layout(location = 2) in vec4 a2;   // rotation, alpha, cut y px (-1 none), mode (1 = reflection)
+layout(location = 2) in vec4 a2;   // rotation, alpha, cut y px (-1 none), mode (1 = reflection, 2 = flyby)
 layout(location = 3) in vec4 a3;   // tint rgb, tint amount
-layout(location = 4) in vec4 a4;   // reflection strength, fog, brightness, emissive (1)
+layout(location = 4) in vec4 a4;   // reflection strength (a flyby: cloud cover), fog, brightness, emissive (1)
 uniform vec2 u_res;
 out vec2 v_uv;
 out float v_y0;                    // the un-mirrored y px
@@ -17,7 +17,7 @@ void main() {
     float cr = cos(a2.x), sr = sin(a2.x);
     vec2 p = a0.xy + vec2(cr * l.x - sr * l.y, sr * l.x + cr * l.y);
     v_y0 = p.y;
-    if (a2.w > 0.5) p.y = 2.0 * a2.z - p.y;
+    if (a2.w > 0.5 && a2.w < 1.5) p.y = 2.0 * a2.z - p.y;
     v_uv = mix(a1.xy, a1.zw, c);
     v_q = c;
     v_a1 = a1; v_a2 = a2; v_a3 = a3; v_a4 = a4;
