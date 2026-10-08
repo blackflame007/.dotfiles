@@ -16,6 +16,9 @@
 # $XDG_RUNTIME_DIR/hypr holds hyprland.lock: its PID, then its Wayland socket. The real
 # session is the running instance that isn't itself a Wayland client (a nested copy has
 # WAYLAND_DISPLAY in its environment); with none of those, the newest running one.
+# bromigOS's Rust core does this now (`bromigos session`, package bromigos-core); this script
+# is the fallback for a machine without it.
+if [ -x /usr/bin/bromigos ]; then exec /usr/bin/bromigos session "$@"; fi
 set -u
 run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 best= fallback=

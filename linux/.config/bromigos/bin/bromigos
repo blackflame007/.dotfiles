@@ -20,6 +20,11 @@ import subprocess
 import sys
 import tomllib
 
+# bromigOS's Rust core is the `bromigos` command now (package bromigos-core, /usr/bin);
+# this Python version is the fallback for a machine without it.
+if os.path.exists("/usr/bin/bromigos") and os.path.realpath(sys.argv[0]) != "/usr/bin/bromigos":
+    os.execv("/usr/bin/bromigos", ["bromigos"] + sys.argv[1:])
+
 HOME = os.path.expanduser("~")
 LIVE_CONF = os.path.join(HOME, ".config/bromigos-live/config.toml")
 OVERRIDES = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "bromigos/live/overrides.toml")

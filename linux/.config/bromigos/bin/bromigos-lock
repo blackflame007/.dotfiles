@@ -11,6 +11,9 @@
 #
 # hypridle's lock_cmd runs this (Super+L and before-sleep go through loginctl
 # lock-session -> hypridle). One instance at a time (flock); a second call is a no-op.
+# bromigOS's Rust core does this now (`bromigos lock-run`, package bromigos-core); this script
+# is the fallback for a machine without it.
+if [ -x /usr/bin/bromigos ]; then exec /usr/bin/bromigos lock-run "$@"; fi
 set -u
 run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 exec 9>"$run/bromigos-lock.flock"
