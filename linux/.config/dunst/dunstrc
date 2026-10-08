@@ -1,7 +1,8 @@
 # Bromigos notifications: panel background, 1px phosphor rule, square corners.
 # Title line = the sending app in uppercase, wide-tracked; then summary, then body.
 # Critical = danger red. Notices that arrive without their own icon (system and
-# script notices) carry the burn-in dial as a small "transmission" mark.
+# script notices) carry the emblem's dial (the theme's: a world's post has its own) as a
+# small "transmission" mark.
 # Colours (and the formats, which carry colours) are the active bromigOS theme's:
 # dunstrc.d/90-bromigos-theme.conf links to the file `bromigos theme set` renders,
 # and drop-ins override this file key by key.
@@ -50,7 +51,7 @@
     min_icon_size = 32
     max_icon_size = 48
     icon_corner_radius = 0
-    default_icon = ~/.config/bromigos/brand/emblem-small-64.png
+    default_icon = ~/.local/state/bromigos/emblem/emblem-small-64.png
     enable_recursive_icon_lookup = true
 
     sticky_history = yes

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the Bromigos SDDM theme into a directory, from the dotfiles alone.
 
-  build.py OUT [--test-shots DIR] [--variant empty|masked] [--home DIR]
+  build.py OUT [--test-shots DIR] [--variant empty|masked] [--home DIR] [--emblem-theme DIR]
 
 Copies the QML theme (bromigos/), Geist Mono and its licence, renders the burn-in's
 two parts with the brand kit's own emblem code (assets/ring.png: the motto ring with
@@ -12,6 +12,10 @@ still), and picks the den for the background by the lock screen's rules:
     choice in ~/.local/state/bromigos/wallpaper/variant);
   * only the "empty" or "masked" variants: the login screen is seen by anyone at the
     desk, so a variant with the operator in it falls back to "empty".
+
+The emblem is the burn-in. --emblem-theme DIR (a bromigOS world theme, e.g. themes/mire)
+draws that post's own mark instead; the login screen is system-wide and installed with
+sudo, so `bromigos theme set` doesn't switch it.
 
 Run as the operator, or by install.sh under sudo (then the choice is read from
 $SUDO_USER's home). Needs python3-gobject with Rsvg (the brand kit's renderer).
@@ -52,9 +56,9 @@ def chosen_variant(home):
     return v if v in SAFE_VARIANTS else "empty"
 
 
-def render_emblem(out, size=1024):
-    ring = E.svg(parts=("ring",), glow=True, size=size)
-    flame = E.svg(parts=("halo", "flame"), size=size)
+def render_emblem(out, size=1024, spec=None):
+    ring = E.svg(parts=("ring",), glow=True, size=size, spec=spec)
+    flame = E.svg(parts=("halo", "flame"), size=size, spec=spec)
     # the ring's glow pads its viewBox by 40 units; give the flame the same frame so they align
     flame = flame.replace('viewBox="0 0 1000 1000"', 'viewBox="-40 -40 1080 1080"', 1)
     E.render_png(ring, os.path.join(out, "ring.png"), size)
@@ -72,7 +76,7 @@ def set_conf(path, values):
         f.write(text)
 
 
-def build(out, test_shots="", variant=None, home=None):
+def build(out, test_shots="", variant=None, home=None, emblem_theme=None):
     if os.path.exists(out):
         shutil.rmtree(out)
     shutil.copytree(THEME_SRC, out, ignore=shutil.ignore_patterns("*.qmlc", "__pycache__"))
@@ -82,7 +86,7 @@ def build(out, test_shots="", variant=None, home=None):
             shutil.copy2(os.path.join(FONTS, name), os.path.join(out, "fonts", name))
     assets = os.path.join(out, "assets")
     os.makedirs(assets, exist_ok=True)
-    render_emblem(assets)
+    render_emblem(assets, spec=E.post_spec(emblem_theme) if emblem_theme else None)
     v = variant if variant in SAFE_VARIANTS else chosen_variant(home or operator_home())
     shutil.copy2(os.path.join(WALLPAPERS, f"bromigos-lock-{v}-2560x1440.jpg"), os.path.join(assets, "background.jpg"))
     ident = E.identity()
@@ -105,8 +109,10 @@ def main():
     ap.add_argument("--test-shots", default="")
     ap.add_argument("--variant", choices=SAFE_VARIANTS)
     ap.add_argument("--home", help="the operator's home (where the wallpaper choice is kept)")
+    ap.add_argument("--emblem-theme", help="a world theme directory whose post's emblem to draw")
     a = ap.parse_args()
-    v = build(os.path.abspath(a.out), a.test_shots, a.variant, a.home)
+    v = build(os.path.abspath(a.out), a.test_shots, a.variant, a.home,
+              os.path.abspath(a.emblem_theme) if a.emblem_theme else None)
     print(f"built {a.out} (den variant: {v})")
 
 

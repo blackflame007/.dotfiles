@@ -5,6 +5,9 @@ emblem.braille next to this script: one line per text row, ANSI escapes
 included, so the shell only has to print it.
 
 Rebuild after the emblem changes:  ./build-emblem-braille.py [cols]
+A post's emblem (a world theme's emblem/; bromigos-emblem build --theme runs this):
+  ./build-emblem-braille.py [cols] --svg DIR/emblem-small.svg --out DIR/emblem.braille \
+      --palette '#b8e05a,#5d7a4b,#58e0e8'
 """
 import os
 import subprocess
@@ -23,8 +26,26 @@ BITS = {(0, 0): 0x01, (0, 1): 0x02, (0, 2): 0x04, (1, 0): 0x08,
         (1, 1): 0x10, (1, 2): 0x20, (0, 3): 0x40, (1, 3): 0x80}
 
 
+def _hex(h):
+    h = h.strip().lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
+
+
 def main():
-    cols = int(sys.argv[1]) if len(sys.argv) > 1 else 22
+    global SVG, OUT, PALETTE
+    args = sys.argv[1:]
+    for flag in ("--svg", "--out", "--palette"):
+        if flag in args:
+            i = args.index(flag)
+            val = args[i + 1]
+            del args[i:i + 2]
+            if flag == "--svg":
+                SVG = val
+            elif flag == "--out":
+                OUT = val
+            else:
+                PALETTE = [_hex(v) for v in val.split(",")]
+    cols = int(args[0]) if args else 22
     w = cols * 2
     rows = (w + 3) // 4
     k = 4   # supersample: each dot is the brightest of a k x k block, so thin lines survive

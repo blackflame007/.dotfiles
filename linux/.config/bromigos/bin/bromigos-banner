@@ -1,12 +1,15 @@
 #!/usr/bin/env zsh
 # bromigos-banner: the emblem beside live readings from /proc (kernel, uptime, load,
 # memory, disk). zsh-bromigos prints it when a login shell starts; `bromigos banner`
-# runs it too. The emblem is pre-rendered braille (~/.config/bromigos/shell/emblem.braille).
+# runs it too. The emblem is pre-rendered braille: the theme's emblem/emblem.braille, else
+# ~/.config/bromigos/shell/emblem.braille (the burn-in).
 # Pure zsh except one `df`; well under 50 ms.
 setopt extendedglob
 [[ -r /proc/uptime ]] || { print -u2 "bromigos-banner: needs /proc (Linux)"; exit 1; }
 local -a art info
-local f=$HOME/.config/bromigos/shell/emblem.braille
+# the theme's emblem (a world's post has its own mark), else the burn-in
+local f=${XDG_STATE_HOME:-$HOME/.local/state}/bromigos/emblem/emblem.braille
+[[ -r $f ]] || f=$HOME/.config/bromigos/shell/emblem.braille
 [[ -r $f ]] && art=("${(@f)$(<$f)}")
 
 local L=$'\e[38;2;126;146;126m' V=$'\e[38;2;156;255;138m' H=$'\e[38;2;57;255;20m'

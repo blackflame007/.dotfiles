@@ -41,7 +41,7 @@ box-header {
 icon-emblem {
     expand: false;
     size: 88px;
-    filename: "~/.config/bromigos/brand/emblem-256.png";
+    filename: "~/.local/state/bromigos/emblem/emblem-256.png";   /* the theme's emblem (hooks/theme-set.d/emblem) */
     vertical-align: 0.5;
 }
 

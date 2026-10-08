@@ -3,6 +3,7 @@
 
   lock-emblem.py [OUT_DIR] [--fps N] [--turn SECONDS] [--size S] [--emblem E]
   lock-emblem.py --layers OUT_DIR      ring.png + flame.png, still, for gtklock (it turns the ring in CSS)
+  ... --kit DIR                         draw that emblem kit (a theme's emblem/) instead of the current one
 
 hyprlock can't play an animation, but an image widget with reload_time = 0 reloads on
 SIGUSR2; bromigos-lock-anim flips it through these frames while the screen is locked.
@@ -39,6 +40,7 @@ def main():
     ap.add_argument("--size", type=int, default=560)
     ap.add_argument("--emblem", type=int, default=400)
     ap.add_argument("--layers", action="store_true", help="two still layers (ring, flame+mast) instead of a loop")
+    ap.add_argument("--kit", help="an emblem kit directory (default: the current theme's, else brand/)")
     a = ap.parse_args()
 
     spec = importlib.util.spec_from_file_location("offscreen", os.path.join(HERE, "offscreen.py"))
@@ -50,6 +52,9 @@ def main():
     from PIL import Image
 
     from live import config, glkit
+    if a.kit:
+        from live import emblem as kit_mod
+        kit_mod.kit = lambda: os.path.abspath(a.kit)
     from live.data import Data
     from live.overlays import Base
 

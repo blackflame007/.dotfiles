@@ -15,6 +15,11 @@ Below 64 px the text band becomes a dial scale all round ("small" variant).
 Parts are exported separately (ring / flame) so anything that animates the
 ring (the live layer, the lock screen) can turn it while the flame holds still.
 Canon motion: counter-clockwise, one turn per ~24 s.
+
+A post's own mark (a world theme's emblem/, LORE.md "Worlds of the Drift") is the same
+emblem with that post's motto, colours, tuning gap and the sigil's surroundings: pass
+`spec` (from the theme's emblem/emblem.toml, see post_spec()). Without one, every
+function draws the canonical burn-in exactly as before.
 """
 import json
 import math
@@ -37,6 +42,21 @@ R_OUT, R_IN, LINE = 495.0, 400.0, 10.0
 R_BAND = (R_OUT + R_IN) / 2                         # 447.5
 GAP_DEG = 60.0
 FLAME_H, FLAME_TOP = 500.0, 272.0                   # spans 272..772: base a little below centre
+
+
+WICK = {"ring": PHOSPHOR, "hairline": PHOSPHOR_DIM, "flame": BLACK, "void": VOID,
+        "gap": "ticks", "sigil": "none"}
+
+
+def style(spec=None):
+    """The colours and shapes in force: the burn-in's, overridden by a post's spec."""
+    st = dict(WICK)
+    for k, v in (spec or {}).items():
+        if k == "colors":
+            st.update(v)
+        else:
+            st[k] = v
+    return st
 
 
 def identity():
@@ -76,17 +96,18 @@ def _mast_shapes():
     return shapes
 
 
-def flame_svg(hairline=3.0):
+def flame_svg(hairline=3.0, st=None):
     """The flame with the mast cut through it (needs the <defs> from flame_defs())."""
+    st = st or WICK
     t, k = _flame_transform()
     sw = hairline / (k * 0.1)                       # potrace paths carry scale(0.1,-0.1)
     _, _, paths = _flame_src()
     d = " ".join(paths)
     mast = "".join(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}"/>'
                    for x, y, w, h in _mast_shapes())
-    return (f'<g mask="url(#bi-mast)"><path transform="{t}" d="{d}" fill="{BLACK}" '
-            f'stroke="{PHOSPHOR_DIM}" stroke-width="{sw:.1f}"/></g>'
-            f'<g clip-path="url(#bi-flameclip)" fill="none" stroke="{PHOSPHOR_DIM}" '
+    return (f'<g mask="url(#bi-mast)"><path transform="{t}" d="{d}" fill="{st['flame']}" '
+            f'stroke="{st['hairline']}" stroke-width="{sw:.1f}"/></g>'
+            f'<g clip-path="url(#bi-flameclip)" fill="none" stroke="{st['hairline']}" '
             f'stroke-width="{min(hairline * 2, 6):.1f}">{mast}</g>')
 
 
@@ -108,7 +129,12 @@ def _tick(a_deg, r1, r2, w):
             f'x2="{C + r2 * math.sin(a):.2f}" y2="{C - r2 * math.cos(a):.2f}" stroke-width="{w}"/>')
 
 
-def _gap_ticks():
+def _gap_ticks(st=None):
+    st = st or WICK
+    if st["gap"] == "reeds":
+        return _gap_reeds(st)
+    if st["gap"] == "song":
+        return _gap_song(st)
     out = []
     for i in range(11):
         a = -GAP_DEG / 2 + GAP_DEG * (i + 0.5) / 11
@@ -116,10 +142,44 @@ def _gap_ticks():
             out.append(_tick(a, R_BAND - 36, R_BAND + 36, 7))       # centre: twice as tall
         else:
             out.append(_tick(a, R_BAND - 18, R_BAND + 18, 6))
-    return f'<g stroke="{PHOSPHOR}" stroke-linecap="butt">' + "".join(out) + "</g>"
+    return f'<g stroke="{st['ring']}" stroke-linecap="butt">' + "".join(out) + "</g>"
 
 
-def _text_band(text, font):
+def _gap_angles():
+    return [-GAP_DEG / 2 + GAP_DEG * (i + 0.5) / 11 for i in range(11)]
+
+
+def _gap_reeds(st):
+    """Mire: eleven reeds leaning a little in the draught; the centre one a cattail."""
+    out = []
+    lean = (2.5, -1.5, 1.0, -2.0, 1.5, 0.0, -1.0, 2.0, -2.5, 1.0, -1.5)
+    tall = (0.70, 0.95, 0.80, 1.00, 0.85, 0.0, 0.90, 1.00, 0.75, 0.95, 0.65)
+    for i, a in enumerate(_gap_angles()):
+        if i == 5:
+            out.append(f'<g transform="rotate({a:.3f} {C} {C})">'
+                       f'<line x1="{C}" y1="{C - R_BAND + 40:.1f}" x2="{C}" y2="{C - R_BAND - 40:.1f}" stroke-width="6"/>'
+                       f'<rect x="{C - 8}" y="{C - R_BAND - 34:.1f}" width="16" height="34" rx="8" '
+                       f'fill="{st['ring']}" stroke="none"/></g>')
+        else:
+            h = 22 * tall[i]
+            x2 = C + lean[i] * 1.3
+            out.append(f'<g transform="rotate({a:.3f} {C} {C})"><path d="M{C} {C - R_BAND + 20:.1f} '
+                       f'Q{C} {C - R_BAND:.1f} {x2:.1f} {C - R_BAND - h:.1f}" fill="none" stroke-width="5"/></g>')
+    return f'<g stroke="{st['ring']}" stroke-linecap="round">' + "".join(out) + "</g>"
+
+
+def _gap_song(st):
+    """Tidewell: a stretch of the Choir's song as Maren logs it, the centre bar the loudest."""
+    out = []
+    amp = (0.30, 0.55, 0.40, 0.75, 0.50, 1.0, 0.65, 0.45, 0.80, 0.35, 0.25)
+    for i, a in enumerate(_gap_angles()):
+        h = 36 * amp[i]
+        out.append(_tick(a, R_BAND - h, R_BAND + h, 7 if i == 5 else 6))
+    return f'<g stroke="{st['ring']}" stroke-linecap="round">' + "".join(out) + "</g>"
+
+
+def _text_band(text, font, st=None):
+    st = st or WICK
     chars = list(text.strip())
     n = max(1, len(chars))
     span = 360.0 - GAP_DEG
@@ -130,23 +190,28 @@ def _text_band(text, font):
         a = GAP_DEG / 2 + span * (i + 0.5) / n
         out.append(f'<text x="{C}" y="{C - R_BAND + 17.5:.1f}" transform="rotate({a:.3f} {C} {C})" '
                    f'text-anchor="middle">{sx.escape(ch)}</text>')
-    return (f'<g fill="{PHOSPHOR}" font-family="{font}" font-weight="700" font-size="50">'
+    return (f'<g fill="{st['ring']}" font-family="{font}" font-weight="700" font-size="50">'
             + "".join(out) + "</g>")
 
 
-def ring_svg(angle=0.0, ident=None):
+def ring_svg(angle=0.0, ident=None, st=None):
     """Both lines + text band + tuning gap. angle in degrees (negative = counter-clockwise)."""
+    st = st or WICK
     ident = ident or identity()
-    lines = (f'<circle cx="{C}" cy="{C}" r="{R_OUT}" fill="none" stroke="{PHOSPHOR}" stroke-width="{LINE}"/>'
-             f'<circle cx="{C}" cy="{C}" r="{R_IN}" fill="none" stroke="{PHOSPHOR}" stroke-width="{LINE}"/>')
-    band = _text_band(ident.get("ring_text", ""), ident.get("ring_font", "Geist Mono")) + _gap_ticks()
+    ring = st["ring"]
+    lines = (f'<circle cx="{C}" cy="{C}" r="{R_OUT}" fill="none" stroke="{ring}" stroke-width="{LINE}"/>'
+             f'<circle cx="{C}" cy="{C}" r="{R_IN}" fill="none" stroke="{ring}" stroke-width="{LINE}"/>')
+    motto = st.get("motto") or ident.get("ring_text", "")
+    band = _text_band(motto, ident.get("ring_font", "Geist Mono"), st) + _gap_ticks(st)
     return f'<g transform="rotate({angle:.3f} {C} {C})">{lines}{band}</g>'
 
 
-def dial_svg(angle=0.0):
+def dial_svg(angle=0.0, st=None):
     """Small-size ring (< 64 px): no text, the dial scale all round, heavier strokes."""
-    out = [f'<circle cx="{C}" cy="{C}" r="{R_OUT - 15}" fill="none" stroke="{PHOSPHOR}" stroke-width="40"/>',
-           f'<circle cx="{C}" cy="{C}" r="{R_IN - 10}" fill="none" stroke="{PHOSPHOR}" stroke-width="34"/>']
+    st = st or WICK
+    ring = st["ring"]
+    out = [f'<circle cx="{C}" cy="{C}" r="{R_OUT - 15}" fill="none" stroke="{ring}" stroke-width="40"/>',
+           f'<circle cx="{C}" cy="{C}" r="{R_IN - 10}" fill="none" stroke="{ring}" stroke-width="34"/>']
     ticks = []
     for i in range(24):
         if i == 0:
@@ -154,41 +219,158 @@ def dial_svg(angle=0.0):
         else:
             ticks.append(_tick(i * 15, R_IN + 16, R_OUT - 38, 20))
     return (f'<g transform="rotate({angle:.3f} {C} {C})">' + "".join(out)
-            + f'<g stroke="{PHOSPHOR}">' + "".join(ticks) + "</g></g>")
+            + f'<g stroke="{ring}">' + "".join(ticks) + "</g></g>")
 
 
-def halo_svg(strength=0.34, reach=0.52):
+def halo_svg(strength=0.34, reach=0.52, st=None):
     """The dark halo: glow off the inner line that drains toward the flame.
     reach = radius fraction where the glow has fully drained (smaller = closer to the flame)."""
+    st = st or WICK
+    ring = st["ring"]
     return (f'<radialGradient id="bi-halo" cx="{C}" cy="{C}" r="{R_IN}" gradientUnits="userSpaceOnUse">'
-            f'<stop offset="0" stop-color="{PHOSPHOR}" stop-opacity="0"/>'
-            f'<stop offset="{reach}" stop-color="{PHOSPHOR}" stop-opacity="0"/>'
-            f'<stop offset="0.85" stop-color="{PHOSPHOR}" stop-opacity="{strength * 0.35:.3f}"/>'
-            f'<stop offset="1" stop-color="{PHOSPHOR}" stop-opacity="{strength:.3f}"/></radialGradient>',
+            f'<stop offset="0" stop-color="{ring}" stop-opacity="0"/>'
+            f'<stop offset="{reach}" stop-color="{ring}" stop-opacity="0"/>'
+            f'<stop offset="0.85" stop-color="{ring}" stop-opacity="{strength * 0.35:.3f}"/>'
+            f'<stop offset="1" stop-color="{ring}" stop-opacity="{strength:.3f}"/></radialGradient>',
             f'<circle cx="{C}" cy="{C}" r="{R_IN}" fill="url(#bi-halo)"/>')
 
 
+# ------------------------------------------------------------------ a post's sigil
+# What stands round the flame at a post. The flame and its mast never change: every post
+# carries the burn-in (LORE.md, "Worlds of the Drift"); the post adds where it stands.
+WATERLINE = 748.0                                   # the flood line / the swell, across the flame's base
+
+
+def _flood(st, small):
+    """Mire: the flame scorched in just above the flood line. Still water in three ripple lines,
+    the flame's reflection broken into dashes, and a Sleeper's two eye-lamps low in the water."""
+    w = st.get("water", st["hairline"])
+    k = 2.6 if small else 1.0
+    y = WATERLINE
+    lines = ((y, 300, 700, 6), (y + 22, 340, 660, 5), (y + 44, 380, 620, 4)) if not small else \
+        ((y, 290, 710, 16), (y + 40, 360, 640, 13))
+    out = [f'<g stroke="{w}" stroke-linecap="round" fill="none">']
+    out += [f'<line x1="{x1}" y1="{yy:.1f}" x2="{x2}" y2="{yy:.1f}" stroke-width="{sw}"/>' for yy, x1, x2, sw in lines]
+    out.append("</g>")
+    if not small:
+        # the reflection: the flame upside down, read in broken dashes, the mast a gap in each
+        refl = []
+        for i, (half, off) in enumerate(((78, 6), (66, 10), (54, 12), (40, 10), (28, 8), (16, 6))):
+            yy = y + 60 + i * 14
+            cx = C + off
+            refl.append(f'<line x1="{cx - half:.1f}" y1="{yy:.1f}" x2="{cx - 12:.1f}" y2="{yy:.1f}"/>'
+                        f'<line x1="{cx + 12:.1f}" y1="{yy:.1f}" x2="{cx + half:.1f}" y2="{yy:.1f}"/>')
+        out.append(f'<g stroke="{w}" stroke-width="5" stroke-linecap="round" opacity="0.75">{"".join(refl)}</g>')
+    eye = st.get("eyes", st["ring"])
+    ex, ey, r = (322, y + 78, 9) if not small else (368, y + 66, 22)
+    gap = 40 if not small else 62
+    out.append(f'<g fill="{eye}"><circle cx="{ex}" cy="{ey:.1f}" r="{r * 2.4:.1f}" opacity="0.18"/>'
+               f'<circle cx="{ex + gap}" cy="{ey:.1f}" r="{r * 2.4:.1f}" opacity="0.18"/>'
+               f'<circle cx="{ex}" cy="{ey:.1f}" r="{r}"/><circle cx="{ex + gap}" cy="{ey:.1f}" r="{r}"/></g>')
+    return "".join(out)
+
+
+def _wave(y, x1, x2, amp, waves, phase=0.0):
+    n = 64
+    pts = []
+    for i in range(n + 1):
+        t = i / n
+        x = x1 + (x2 - x1) * t
+        yy = y + amp * math.sin(2 * math.pi * waves * t + phase)
+        pts.append(f"{x:.1f},{yy:.1f}")
+    return "M" + " L".join(pts)
+
+
+def _swell(st, small):
+    """Tidewell: the flame riding above the swell, and under it the long back of one of the
+    Choir, read as a line of light."""
+    w = st.get("water", st["hairline"])
+    y = WATERLINE
+    sw1, sw2 = (9, 7) if not small else (24, 20)
+    out = [f'<g fill="none" stroke="{w}" stroke-linecap="round">'
+           f'<path d="{_wave(y, 280, 720, 12, 1.5, 0.6)}" stroke-width="{sw1}"/>'
+           f'<path d="{_wave(y + (30 if not small else 52), 310, 690, 10, 1.5, 2.2)}" stroke-width="{sw2}"/></g>']
+    choir = st.get("choir", st["ring"])
+    n, span = (15, 22) if not small else (5, 13)
+    dots = []
+    for i in range(n):
+        t = i / (n - 1)
+        a = math.radians(-span + 2 * span * t)
+        R = 600
+        cx = C + R * math.sin(a)
+        cy = (y + 82 if not small else y + 62) + R * (1 - math.cos(a))
+        r = (2.5 + 6.5 * math.sin(math.pi * t)) * (1 if not small else 2.6)
+        dots.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r:.1f}"/>')
+    out.append(f'<g fill="{choir}">' + "".join(dots) + "</g>")
+    return "".join(out)
+
+
+SIGILS = {"flood": _flood, "swell": _swell}
+
+
+def sigil_svg(st, small=False):
+    f = SIGILS.get(st.get("sigil", "none"))
+    return f(st, small) if f else ""
+
+
 # ------------------------------------------------------------------ documents
-def svg(parts=("halo", "ring", "flame"), angle=0.0, background=None, glow=False, size=1000, small=False):
-    """A complete SVG document. parts: any of halo, ring, flame. small=True: dial ring, heavier lines."""
+def svg(parts=("halo", "ring", "flame"), angle=0.0, background=None, glow=False, size=1000, small=False,
+        spec=None):
+    """A complete SVG document. parts: any of halo, ring, flame. small=True: dial ring, heavier lines.
+    spec: a post's emblem (post_spec()); None draws the burn-in."""
+    st = style(spec)
     defs = flame_defs()
     body = ""
     if "halo" in parts:
-        hd, hb = halo_svg(0.85, 0.18) if small else halo_svg(0.34)
+        hd, hb = halo_svg(0.85, 0.18, st) if small else halo_svg(0.34, st=st)
         defs += hd
         body += hb
-    ring = (dial_svg(angle) if small else ring_svg(angle)) if "ring" in parts else ""
+    ring = (dial_svg(angle, st) if small else ring_svg(angle, st=st)) if "ring" in parts else ""
     if glow and ring:
         defs += ('<filter id="bi-glow" x="-10%" y="-10%" width="120%" height="120%">'
                  '<feGaussianBlur stdDeviation="10"/></filter>')
         body += f'<g filter="url(#bi-glow)" opacity="0.7">{ring}</g>'
     body += ring
     if "flame" in parts:
-        body += flame_svg(14.0 if small else 3.0)
+        flame = flame_svg(14.0 if small else 3.0, st)
+        if st.get("sigil", "none") != "none":
+            # the flame stands on the water: nothing of it below the line
+            defs += (f'<clipPath id="bi-above"><rect x="0" y="0" width="1000" '
+                     f'height="{WATERLINE + 4:.0f}"/></clipPath>')
+            flame = f'<g clip-path="url(#bi-above)">{flame}</g>' + sigil_svg(st, small)
+        body += flame
     bg = f'<rect x="-60" y="-60" width="1120" height="1120" fill="{background}"/>' if background else ""
     pad = 40 if glow else 0
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
             f'viewBox="{-pad} {-pad} {1000 + 2 * pad} {1000 + 2 * pad}"><defs>{defs}</defs>{bg}{body}</svg>')
+
+
+def post_spec(theme_dir):
+    """A world theme's emblem/emblem.toml, its colours resolved against the theme's colors.toml
+    (a value may name a role: "primary", "dim", "cyan"). None when the theme has no emblem."""
+    import tomllib
+    path = os.path.join(theme_dir, "emblem", "emblem.toml")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as f:
+        spec = tomllib.load(f)
+    roles = {}
+    try:
+        with open(os.path.join(theme_dir, "colors.toml"), "rb") as f:
+            c = tomllib.load(f)
+        roles.update({k: v for k, v in c.items() if isinstance(v, str)})
+        roles.update({k: v for k, v in c.get("colors", {}).items() if isinstance(v, str)})
+    except OSError:
+        pass
+
+    def resolve(v, depth=0):
+        if isinstance(v, str) and not v.startswith("#") and v in roles and depth < 8:
+            return resolve(roles[v], depth + 1)
+        return v
+    spec["colors"] = {k: resolve(v) for k, v in spec.get("colors", {}).items()}
+    if "void" not in spec["colors"] and "background" in roles:
+        spec["colors"]["void"] = resolve("background")
+    return spec
 
 
 def _rsvg(svg_text, size):

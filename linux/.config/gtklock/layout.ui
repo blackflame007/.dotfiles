@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- gtklock layout: gtklock's own widget ids (window-box, clock-label, date-label,
      body-revealer, body-grid, input-field, message-*, warning/error-label, unlock-button)
-     kept as in its built-in gtklock.ui; the burn-in and the captions added. -->
+     kept as in its built-in gtklock.ui; the burn-in and the captions added. The emblem is the
+     current theme's (~/.local/state/bromigos/emblem: a world's post has its own mark; the
+     link falls back to the brand kit), kept by the theme-set hook hooks/theme-set.d/emblem. -->
 <interface>
   <object class="GtkBox" id="window-box">
     <property name="name">window-box</property>
@@ -16,13 +18,13 @@
         <child>
           <object class="GtkImage" id="emblem-flame">
             <property name="name">emblem-flame</property>
-            <property name="file">/home/blackflame/.config/bromigos/brand/lock/flame.png</property>
+            <property name="file">/home/blackflame/.local/state/bromigos/emblem/lock/flame.png</property>
           </object>
         </child>
         <child type="overlay">
           <object class="GtkImage" id="emblem-ring">
             <property name="name">emblem-ring</property>
-            <property name="file">/home/blackflame/.config/bromigos/brand/lock/ring.png</property>
+            <property name="file">/home/blackflame/.local/state/bromigos/emblem/lock/ring.png</property>
           </object>
         </child>
       </object>

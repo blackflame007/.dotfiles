@@ -30,6 +30,7 @@ import numpy as np
 
 from . import glkit
 from .glkit import col
+from .emblem import BRAND
 from .overlays import Base
 from .zoomcam import ZoomCam, lod
 
@@ -175,6 +176,7 @@ def cached_layout(path, nodes, edges):
 class DriftMap(Base):
     name = "driftmap"
     rebuild_every = 2.0
+    emblem_kit = BRAND         # the map marks the Wick itself: always the burn-in, whatever the theme
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)

@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 # bromigos:summary=Build the burn-in emblem assets (brand kit, lock image)
-# bromigos:args=build
+# bromigos:args=build [--theme DIR]
 """Build every burn-in asset from identity.json + brand/flame.svg.
 
-  bromigos-emblem build    brand kit (SVGs + PNGs) and the lock-screen image
+  bromigos-emblem build                brand kit (SVGs + PNGs) and the lock-screen image
+  bromigos-emblem build --theme DIR    a post's own emblem (a world theme, e.g. bromigOS
+                                       themes/mire): the same kit, drawn from
+                                       DIR/emblem/emblem.toml, into DIR/emblem/, plus the
+                                       shell banner's emblem.braille and gtklock's
+                                       lock/ring.png + lock/flame.png
 
 Outputs in ~/.config/bromigos/brand/ (shared with the live layer):
   emblem.svg            the single source asset, text as outlines
@@ -38,27 +43,48 @@ def outline(svg_text, out):
         shutil.copy(tmp, out)
 
 
-def main():
+def main(theme=None):
     os.makedirs(CACHE, exist_ok=True)
+    spec = None
     b = E.BRAND
-    outline(E.svg(), os.path.join(b, "emblem.svg"))
-    outline(E.svg(parts=("ring",)), os.path.join(b, "emblem-ring.svg"))
-    outline(E.svg(parts=("halo", "flame")), os.path.join(b, "emblem-flame.svg"))
-    outline(E.svg(small=True), os.path.join(b, "emblem-small.svg"))
+    if theme:
+        spec = E.post_spec(theme)
+        if spec is None:
+            sys.exit(f"no {os.path.join(theme, 'emblem', 'emblem.toml')}")
+        b = os.path.join(theme, "emblem")
+    st = E.style(spec)
+    outline(E.svg(spec=spec), os.path.join(b, "emblem.svg"))
+    outline(E.svg(parts=("ring",), spec=spec), os.path.join(b, "emblem-ring.svg"))
+    outline(E.svg(parts=("halo", "flame"), spec=spec), os.path.join(b, "emblem-flame.svg"))
+    outline(E.svg(small=True, spec=spec), os.path.join(b, "emblem-small.svg"))
     for s in (512, 1024, 2048):
-        E.render_png(E.svg(), os.path.join(b, f"emblem-{s}.png"), s)
+        E.render_png(E.svg(spec=spec), os.path.join(b, f"emblem-{s}.png"), s)
     for s in (1024, 2048):
-        E.render_png(E.svg(background=E.VOID, glow=True), os.path.join(b, f"emblem-void-{s}.png"), s)
+        E.render_png(E.svg(background=st["void"], glow=True, spec=spec), os.path.join(b, f"emblem-void-{s}.png"), s)
     for s in (32, 48, 64, 128):
-        E.render_png(E.svg(small=True), os.path.join(b, f"emblem-small-{s}.png"), s)
+        E.render_png(E.svg(small=True, spec=spec), os.path.join(b, f"emblem-small-{s}.png"), s)
     # Launcher header and notification icon sizes (text readable from 160 px up).
-    E.render_png(E.svg(), os.path.join(b, "emblem-256.png"), 256)
+    E.render_png(E.svg(spec=spec), os.path.join(b, "emblem-256.png"), 256)
     # Lock screen hero: static, tuning gap at 12 o'clock (hyprlock cannot rotate an image smoothly).
-    E.render_png(E.svg(glow=True), os.path.join(b, "emblem-glow-1024.png"), 1024)
-    print("brand kit ->", b)
+    E.render_png(E.svg(glow=True, spec=spec), os.path.join(b, "emblem-glow-1024.png"), 1024)
+    if theme:
+        # the shell banner, in the post's own colours
+        # (the burn-in's own palette when the post keeps the burn-in's colours, as the Wick does)
+        cmd = [sys.executable, os.path.join(ROOT, "shell", "build-emblem-braille.py"),
+               "--svg", os.path.join(b, "emblem-small.svg"), "--out", os.path.join(b, "emblem.braille")]
+        if set(spec.get("colors", {})) - {"void"}:
+            cmd += ["--palette", ",".join(dict.fromkeys(
+                c for c in (st["ring"], st.get("water", st["hairline"]),
+                            st.get("eyes") or st.get("choir") or st["ring"])))]
+        subprocess.run(cmd, check=True)
+        # gtklock's two still layers (it turns the ring in CSS), drawn by the live layer
+        lock = os.path.join(os.path.dirname(ROOT), "bromigos-live", "tools", "lock-emblem.py")
+        subprocess.run([sys.executable, lock, "--layers", os.path.join(b, "lock"), "--kit", b], check=True)
+    print("emblem kit ->", b)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] not in ("build",):
+    a = sys.argv[1:]
+    if a[:1] not in ([], ["build"]) or (len(a) > 1 and (a[1:2] != ["--theme"] or len(a) != 3)):
         sys.exit(__doc__)
-    main()
+    main(os.path.abspath(a[2]) if len(a) == 3 else None)
