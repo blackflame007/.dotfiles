@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# theme-set hook: the wallpaper and the lock screen's background follow the theme.
+# `bromigos theme set NAME` runs it (bromigOS core, hooks/theme-set.d); running it by hand
+# is safe too. A world theme's painting becomes the wallpaper under the live layer and,
+# darkened and softened, the lock background (gtklock and hyprlock read
+# ~/.local/state/bromigos/wallpaper/lock.jpg); the Wick gets its den variant back.
+set -eu
+exec "$HOME/.config/bromigos/bin/bromigos-wallpaper" apply

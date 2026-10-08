@@ -55,13 +55,57 @@ restart_swaybg() {
     fi
 }
 
+# A world theme (bromigos theme set mire|tidewell|…) brings its own painting: the wallpaper
+# under the live layer and the lock screen's background are made from it, the lock one
+# darkened and softened like the den's. The den variants are the Wick's; the choice is kept
+# for when the Wick is back.
+THEME="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos/theme/current"
+
+world_images() {
+    # prints "den lock" for the current world theme, rendering them when missing or stale.
+    # The painting is its layers stacked (backgrounds/layers/*.webp, in name order: what the
+    # live layer draws, kept current by every repaint); comp.webp only when there are none.
+    local bg="$THEME/backgrounds" name out src newest
+    [ -d "$bg/layers" ] || [ -f "$bg/comp.webp" ] || return 1
+    name=$(cat "$THEME/name" 2>/dev/null || echo world)
+    out="$STATE/world"
+    mkdir -p "$out"
+    newest=$(ls -t "$bg"/layers/*.webp "$bg"/comp.webp 2>/dev/null | head -1)
+    if [ ! -f "$out/$name-lock.jpg" ] || [ "$newest" -nt "$out/$name-lock.jpg" ]; then
+        python3 - "$bg" "$out/$name-den.jpg" "$out/$name-lock.jpg" <<'PY' || return 1
+import glob, os, sys
+from PIL import Image, ImageEnhance, ImageFilter
+bg, den, lock = sys.argv[1:4]
+layers = sorted(glob.glob(os.path.join(bg, "layers", "*.webp")))
+if layers:
+    im = Image.new("RGBA", (2560, 1440), (0, 0, 0, 255))
+    for f in layers:
+        im.alpha_composite(Image.open(f).convert("RGBA").resize((2560, 1440), Image.LANCZOS))
+    im = im.convert("RGB")
+else:
+    im = Image.open(os.path.join(bg, "comp.webp")).convert("RGB").resize((2560, 1440), Image.LANCZOS)
+im.save(den + ".tmp.jpg", quality=92)
+soft = im.filter(ImageFilter.GaussianBlur(6))
+ImageEnhance.Brightness(soft).enhance(0.4).save(lock + ".tmp.jpg", quality=92)
+os.replace(den + ".tmp.jpg", den)
+os.replace(lock + ".tmp.jpg", lock)
+PY
+    fi
+    echo "$out/$name-den.jpg $out/$name-lock.jpg"
+}
+
 set_variant() {
-    local name="$1" den lock
+    local name="$1" den lock wd wl
     read -r den lock < <(files_for "$name") || { echo "unknown variant: $name" >&2; exit 2; }
     [ -f "$WP/$den" ] || { echo "missing $WP/$den" >&2; exit 1; }
+    echo "$name" >"$STATE/variant"
+    if read -r wd wl < <(world_images); then
+        ln -sfn "$wd" "$STATE/den.jpg"
+        ln -sfn "$wl" "$STATE/lock.jpg"
+        return
+    fi
     ln -sfn "$WP/$den" "$STATE/den.jpg"
     if [ -f "$WP/$lock" ]; then ln -sfn "$WP/$lock" "$STATE/lock.jpg"; else ln -sfn "$WP/bromigos-lock-2560x1440.jpg" "$STATE/lock.jpg"; fi
-    echo "$name" >"$STATE/variant"
 }
 
 case "${1:-status}" in
@@ -74,7 +118,8 @@ case "${1:-status}" in
         echo "den -> $(readlink "$STATE/den.jpg")"
         ;;
     apply)
-        # session start: recreate the links from the saved choice, then start swaybg
+        # session start, and every theme switch (hooks/theme-set.d/wallpaper): recreate the
+        # links from the saved choice and the theme in force, then start swaybg
         set_variant "$(current)"
         restart_swaybg "$STATE/den.jpg"
         ;;
