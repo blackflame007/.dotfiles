@@ -265,6 +265,7 @@ class World:
             if a.get("emissive"):
                 rels.append(a["emissive"])
             rels += [a[k] for k in ("front_sprite",) if a.get(k)]
+            rels += list(a.get("sprites") or [])        # a crowd's own art per member (actors.py, "sprites")
             if isinstance(a.get("tow"), dict) and a["tow"].get("sprite"):
                 rels.append(a["tow"]["sprite"])          # a trawler's net (actors.py, "tow")
             rels += list((a.get("poses") or {}).values())

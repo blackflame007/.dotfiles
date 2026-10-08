@@ -323,6 +323,12 @@ class Actors:
                 tints = d.t.get("tints")              # and its own colour, from these, dealt in turn
                 if tints:                             # so five residents are five colours
                     inst.extra["tint"] = tuple(tints[i % len(tints)])
+                own = d.t.get("sprites")              # its own art (a colour variant), dealt in turn
+                if own:
+                    inst.extra["sprite"] = own[i % len(own)]
+                lc = d.t.get("light_colors")          # its light organs' colour, dealt in turn
+                if lc:
+                    inst.extra["light_color"] = tuple(lc[i % len(lc)])
                 self.insts[(d.id, i)] = inst
             self._set_state(inst, sig.get("user", "working"), t)
 
@@ -1013,7 +1019,8 @@ class Actors:
             inst.clip = clip = None                 # the clip is over: chain into the state's loop or sprite
         sprite = sprite or clip or (d.sprites.get(st_sprite) if st_sprite else None) \
             or (d.sprites.get(cfg.get("sprite")) if cfg.get("sprite") else None) \
-            or (d.sprites.get(sc.get("sprite")) if sc.get("sprite") else None) or d.sprite
+            or (d.sprites.get(sc.get("sprite")) if sc.get("sprite") else None) \
+            or (d.sprites.get(inst.extra["sprite"]) if inst.extra.get("sprite") else None) or d.sprite
         ov = self._override(inst, t)                 # a keeper's pose for an event (Hollis's catch)
         if ov:
             sprite = d.sprites.get(ov.get("sprite")) or sprite
@@ -1164,7 +1171,7 @@ class Actors:
                 gy = base + lx * sa + ly * ca
                 if wade > 0 and gy > cut + 1:
                     continue
-                own = inst.extra.get("tint")          # a creature with its own colour: its lights wear it too
+                own = inst.extra.get("light_color") or inst.extra.get("tint")   # its own colour: its lights wear it
                 c = col_sig or tuple(cfg.get("color") or (own[:3] if own else None) or L.get("color", (1, 1, 1)))
                 rad = float(L.get("radius", 6)) * (h / max(d.height, 1)) ** 0.5
                 if col_sig:
