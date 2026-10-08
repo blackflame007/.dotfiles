@@ -453,7 +453,20 @@ class World:
                 f"net={s.get('net', 0):.2f} hour={s.get('hour', 0):.2f} moon={s.get('moon_phase', 0):.2f} "
                 f"tide={s.get('tide', 0):+.2f}\n"
                 f"agents={len(s.get('agents') or [])} actors: " + ", ".join(f"{k}×{v}" for k, v in sorted(n.items()))
-                + (f"\nforced: {self.forced}" if self.forced else ""))
+                + (f"\nforced: {self.forced}" if self.forced else "")
+                + self._describe_agents())
+
+    def _describe_agents(self):
+        """One line per agent creature: whose it is, its state, where it swims (plate px)."""
+        names = {str(a.get("key")): (a.get("name") or os.path.basename(a.get("cwd") or "") or a.get("key"))
+                 for a in (self.sig.get("agents") or [])}
+        rows = []
+        for (did, key), inst in sorted(self.actors.insts.items(), key=lambda kv: (kv[0][0], str(kv[0][1]))):
+            if inst.d.t.get("kind") != "agents":
+                continue
+            far = " far" if "zscale" in inst.extra else ""
+            rows.append(f"  {did} {names.get(str(key), key)}: {inst.state}{far} at ({inst.x:.0f}, {inst.y:.0f})")
+        return ("\n" + "\n".join(rows)) if rows else ""
 
     # ---- signals
     def _ease(self, key, v, dt, tau):

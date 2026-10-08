@@ -260,9 +260,16 @@ class Actors:
                 inst = Inst(d, k, t)
                 zones = d.zones or [(d.at[0] - 200, d.at[1], d.at[0] + 200, d.at[1] + 30)]
                 others = [(o.x, o.y) for (did, _), o in self.insts.items() if did == d.id and o.state != "gone"]
+                # the far bands (a zone's 5th number, behind a layer) are overflow: the first
+                # `far_after` (3) creatures at work swim in the near water where they're seen,
+                # so one agent never ends up small and dim behind the kelp
+                near = [z for z in zones if len(z) < 5 or z[4] >= d.depth]
+                busy = sum(1 for (did, _), o in self.insts.items()
+                           if did == d.id and o.state in ("working", "needs_you") and "zscale" not in o.extra)
+                pool = near if near and busy < int(d.t.get("far_after", 3)) else zones
                 best = None
                 for _ in range(10):                 # the spot farthest from the others
-                    z = zones[inst.r.randrange(len(zones))]
+                    z = pool[inst.r.randrange(len(pool))]
                     p = (z[0] + (z[2] - z[0]) * inst.r.random(), z[1] + (z[3] - z[1]) * inst.r.random())
                     gap = min((abs(p[0] - ox) + 2 * abs(p[1] - oy) for ox, oy in others), default=1e9)
                     if best is None or gap > best[0]:
