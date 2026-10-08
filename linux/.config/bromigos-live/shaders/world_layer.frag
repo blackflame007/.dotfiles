@@ -15,7 +15,7 @@ uniform vec3 u_twi;       // twilight colour
 uniform vec4 u_moon;      // x, y px, radius px (0 = none), phase 0..1
 uniform vec4 u_moon2;     // brightness, -, -, -
 uniform vec4 u_bolt;      // x px, bottom y px, amount, seed
-uniform vec4 u_fog;       // surface y px, fog distance px, on, -
+uniform vec4 u_fog;       // surface y px, fog distance px, on, how much of it reaches this layer
 uniform vec3 u_fogcol;
 #include world_common
 
@@ -67,7 +67,7 @@ void main() {
     }
     if (u_fog.z > 0.5 && px.y > u_fog.x) {
         float f = 1.0 - exp(-(px.y - u_fog.x) / u_fog.y);
-        c = mix(c, u_fogcol * a, f);
+        c = mix(c, u_fogcol * a, f * u_fog.w);
     }
     o = vec4(c, a);
 }

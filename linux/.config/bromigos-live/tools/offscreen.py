@@ -252,9 +252,12 @@ def bench(cfg, data):
     ru0, t0 = resource.getrusage(resource.RUSAGE_SELF), time.monotonic()
     n = 0
     nxt = t0
+    frame_cpu = 0.0
     while time.monotonic() - t0 < secs:
         GL.glBeginQuery(GL.GL_TIME_ELAPSED, q)
+        c0 = time.thread_time()
         r.render(tgt.fbo, 30)
+        frame_cpu += time.thread_time() - c0
         GL.glEndQuery(GL.GL_TIME_ELAPSED)
         if n % 15 == 0:
             v = ctypes.c_uint64(0)
@@ -267,7 +270,8 @@ def bench(cfg, data):
     ru1, t1 = resource.getrusage(resource.RUSAGE_SELF), time.monotonic()
     cpu = (ru1.ru_utime - ru0.ru_utime + ru1.ru_stime - ru0.ru_stime) / (t1 - t0) * 100
     gpu.sort()
-    print(f"{what} {W}x{H}: {n / (t1 - t0):.1f} fps, process CPU {cpu:.1f}% of one core, "
+    print(f"{what} {W}x{H}: {n / (t1 - t0):.1f} fps, process CPU {cpu:.1f}% of one core "
+          f"(frames alone {frame_cpu / (t1 - t0) * 100:.1f}%, {frame_cpu / max(n, 1) * 1000:.2f} ms each), "
           f"GPU {gpu[len(gpu) // 2]:.2f} ms median, {gpu[int(len(gpu) * 0.95)]:.2f} ms p95 per frame")
     data.stop.set()
     if hasattr(r, "close"):

@@ -74,6 +74,7 @@ class Program:
         GL.glDeleteShader(a)
         GL.glDeleteShader(b)
         self._loc = {}
+        self.cache = None          # a dict: f() skips a value the program already holds (opt-in)
 
     def use(self):
         GL.glUseProgram(self.id)
@@ -84,6 +85,10 @@ class Program:
         return self._loc[name]
 
     def f(self, name, *v):
+        if self.cache is not None:
+            if self.cache.get(name) == v:
+                return
+            self.cache[name] = v
         n = len(v)
         (GL.glUniform1f, GL.glUniform2f, GL.glUniform3f, GL.glUniform4f)[n - 1](self.loc(name), *v)
 

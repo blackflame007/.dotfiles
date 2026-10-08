@@ -400,7 +400,8 @@ class Actors:
         if d.kind == "crowd" and m == "circle":
             around = d.t.get("around", inst.spot)
             rad = float(cfg.get("radius", 120))
-            a = t * TAU * rate * (0.8 + 0.4 * inst.seed) + ph
+            spread = float(d.t.get("spread", 1.0))      # 1 = round the whole circle; small = one school
+            a = t * TAU * rate * (1.0 + (0.4 * inst.seed - 0.2) * spread) + ph * spread
             inst.x = around[0] + math.cos(a) * rad * (0.7 + 0.5 * inst.seed)
             inst.y = around[1] + math.sin(a) * rad * 0.25 + (inst.seed - 0.5) * 60
             inst.dx = inst.dy = 0.0

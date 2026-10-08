@@ -161,7 +161,8 @@ class Layer:
         self.parallax = float(t.get("parallax", 0.0))
         self.sky = bool(t.get("sky", False))
         self.water = bool(t.get("water", False))
-        self.fog = bool(t.get("fog", False))
+        fog = t.get("fog", False)                 # true, or how much of the fog reaches it (0..1)
+        self.fog = float(fog) if not isinstance(fog, bool) else (1.0 if fog else 0.0)
         px, w, h = load_rgba(os.path.join(root, t["file"]))
         self.tex = glkit.texture_rgba(np.ascontiguousarray(px), w, h, GL.GL_RGBA)
 
@@ -188,7 +189,7 @@ class Effects:
     def defines(self):
         d = []
         for k, flag in (("rain", "FX_RAIN"), ("mist", "FX_MIST"), ("fireflies", "FX_FIREFLIES"),
-                        ("line", "FX_LINE"), ("beam", "FX_BEAM"), ("spray", "FX_SPRAY")):
+                        ("line", "FX_LINE"), ("beam", "FX_BEAM"), ("spray", "FX_SPRAY"), ("rays", "FX_RAYS")):
             if k in self.by:
                 d.append(flag)
         return d
@@ -237,6 +238,7 @@ class World:
             "#version 330 core", "#version 330 core\n" + "".join(f"#define {x}\n" for x in defs), 1)
         self.p_world = glkit.Program(glkit.read_shader("fs.vert"), src)
         self.p_layer = glkit.program("fs.vert", "world_layer.frag")
+        self.p_world.cache, self.p_layer.cache = {}, {}
         self.sprites_gl = []
         self.glows_gl = []
         self.fs = glkit.Fullscreen()
@@ -528,10 +530,10 @@ class World:
         p.f("u_flash", float(self.flash))
         p.f("u_lift", *self.lift)
 
-    def _fog(self, p):
+    def _fog(self, p, amount=None):
         wt = self.water
         p.f("u_fog", self.surface_y * self.sy, float(wt.get("fog_distance", 260)) * self.sy, 1.0 if self.split else 0.0,
-            float(wt.get("fog_actors", 0.6)))
+            float(wt.get("fog_actors", 0.6)) if amount is None else amount)
         p.f("u_fogcol", *[float(x) for x in wt.get("fog", (0.01, 0.04, 0.07))])
 
     def _draw_items(self, items, t, sig):
@@ -588,7 +590,7 @@ class World:
             p.f("u_moon", 0.0, 0.0, 0.0, 0.0)
             p.f("u_bolt", 0.0, 0.0, 0.0, 0.0)
         if L.fog:
-            self._fog(p)
+            self._fog(p, L.fog)
         else:
             p.f("u_fog", 0.0, 1.0, 0.0, 0.0)
         self.fs.draw()
@@ -596,6 +598,7 @@ class World:
     def _inst_buf(self, pool, i, vs, fs, n):
         while len(pool) <= i:
             pool.append(glkit.Instanced(vs, fs, n))
+            pool[-1].prog.cache = {}
         return pool[i]
 
     def _draw_sprites(self, i, sprs, depth, t):
@@ -766,6 +769,15 @@ class World:
         else:
             p.f("u_swell", 0.0, 400.0, 0.0, 0.0)
             p.f("u_caus", 0.3, 0.0, 0.0, 0.0)
+        e = fx.by.get("rays")
+        if e:
+            day = skyclock.daylight(sig["hour"])
+            mx, my = skyclock.moon_place(sig["hour"], sig["moon_phase"])
+            moon = skyclock.illumination(sig["moon_phase"]) * max(0.0, min(1.0, (my + 0.1) / 0.3))
+            light = max(day, moon * 0.8) * (0.4 if sig.get("storm") else 1.0)
+            p.f("u_rays", float(e.get("gain", 0.25)) * (float(e.get("base", 0.15)) + (1.0 - float(e.get("base", 0.15))) * light),
+                float(e.get("slant", 0.18)), float(e.get("reach", 520)) * sy, 0.0)
+            p.f("u_rayscol", *[float(x) for x in e.get("color", (0.45, 0.75, 0.85))])
         wk = np.zeros((12, 4), np.float32)
         ox, oy = self._par(self.water_depth)
         for i, (x, y, s) in enumerate(wakes[:12]):

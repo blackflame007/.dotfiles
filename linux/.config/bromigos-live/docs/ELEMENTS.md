@@ -437,9 +437,12 @@ bromigOS `docs/theming.md` ("Worlds"); this section is how the live layer runs i
 - **Pause rules:** the den's: 30 fps visible, 20 under windows, 0 locked, under a
   true fullscreen window or a full-screen deck. A world catches up when it resumes:
   after an unlock the keeper wakes over a few seconds, the lantern brightening.
-- **Cost** (measured headless at 2560×1440, 30 fps, RTX 5070, `tools/offscreen.py
-  bench 30 world`, whole process with its pollers): Mire 3.7% of one core, GPU 0.34 ms
-  a frame; the den 5.2%, 0.44 ms on the same bench.
+- **Cost:** a frame's own CPU, best of 15 batches of 40 frames at 2560×1440 (RTX 5070,
+  Ryzen 7 3700X): Mire 0.59 ms, Tidewell 0.74 ms, the den 0.56 ms; at 30 fps that is
+  about 2% of one core either way. GPU 0.2–0.4 ms a frame (the den 0.44). The world's own
+  pollers add about 0.4% (herdr every 2 s). So a world costs what the den does in the
+  daemon (7–9% of one core with GTK and the data threads). Whole-process headless runs
+  (`tools/offscreen.py bench 40 world`) vary 3–8% with the machine's other load.
 - **Try it without switching themes:** `tools/offscreen.py world out.mp4 20` with
   `OFF_WORLD=<theme dir>` and `OFF_SCRIPT` steps `w set <signal> <value>`, `w event
   <name>`; on the desktop, with a world up: `bromigos-live world state|event critical|
@@ -464,19 +467,24 @@ bromigOS `docs/theming.md` ("Worlds"); this section is how the live layer runs i
 
 ### Tidewell
 
+The sea at night seen from just under the surface: the waterline a fifth of the way
+down, a strip of sky with Greywater Light small on its rock in the upper right, and the
+water column below as the stage.
+
 | Thing | Shows | Signal |
 |---|---|---|
-| The Choir (glowing swimmers) | herdr agents: a cyan glow at work; rise, face you and breach with light and spray (needs you); dive leaving a trail (finished) | `agents` |
-| Maren (the keeper) | about the gallery while you work, by the lamp-room glass when idle, asleep (her window dark) when locked | `user` |
-| Greywater Light's beam | its colour is lab health (white, amber, red); its turn the ingress rate | `health`, `ingress` |
-| Storm, lightning | something in the lab is down | `storm` |
-| Trawlers, haulers | download (in, left to right), upload (out, right to left) | `net_rx`, `net_tx` |
-| Jellyfish blooms | notifications, rising; red when critical | `notify`, `critical` |
-| Silver fish in the net | ARBITER fills: green flashes for a win, red for a loss | fills |
+| The Choir (glowing swimmers) | herdr agents: gliding through the deep with a cyan glow; rise, face you and breach with light and spray (needs you); dive leaving a trail (finished) | `agents` |
+| Maren (the keeper) | a tiny figure in the lamp room: moving about while you work, sitting by the glass when idle, asleep with the room dark when locked | `user` |
+| Greywater Light's beam | sweeps the surface strip; its colour is lab health (white, amber, red), its turn the ingress rate | `health`, `ingress` |
+| Storm | rain and lightning on the surface strip when something in the lab is down; the flashes flicker down the light shafts | `storm` |
+| Light shafts, caustics | the moon's or the day's light under the surface, moved by the swell | clock, `cpu` |
+| Hulls at the surface | trawlers coming in (download, left to right), haulers going out (upload), seen from below with their running lights | `net_rx`, `net_tx` |
+| Jellyfish blooms | notifications, rising through the water column; red when critical | `notify`, `critical` |
+| Silver fish in the moored trawler's net | ARBITER fills: green flashes for a win, red for a loss, silver for an opening | fills |
+| A school of fish, seabirds | your activity: schooling and wheeling while you work, still when idle, gone when locked | `user` |
 | The swell | CPU | `cpu` |
 | The tide | the moon, computed locally | clock |
-| Seabirds | your activity: wheeling round the light, on the rock when idle, gone when locked | `user` |
-| The lamp-drone | VECTOR | `vector` |
+| The lamp-drone under the surface | VECTOR | `vector` |
 
 ## The den plate and its variants
 

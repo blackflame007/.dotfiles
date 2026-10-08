@@ -9,6 +9,8 @@
 //   FX_LINE       a fishing line from a rod tip, slack or taut (ARBITER fills in Mire)
 //   FX_BEAM       a lighthouse beam turning (lab health in Tidewell)
 //   FX_SPRAY      spray bursts (a breach, a catch)
+//   FX_RAYS       light shafts down from the surface (split worlds): the moon's or the day's
+//                 light, moved by the swell, flickering with the storm's lightning
 //   WATER_SPLIT   the surface as a moving line with the deep below (Tidewell)
 // Layers and actors in front of the water are drawn after this pass.
 in vec2 v_uv;
@@ -39,6 +41,8 @@ uniform vec4 u_beam;            // lamp x, y px, angle, on
 uniform vec4 u_beam2;           // reach px, -, -, -
 uniform vec3 u_beamcol;
 uniform vec4 u_caus;            // caustics gain, -, -, -
+uniform vec4 u_rays;            // gain, slant (px across per px down), reach px, -
+uniform vec3 u_rayscol;
 #include world_common
 
 float surface(float x) {
@@ -100,6 +104,12 @@ vec3 water(vec2 px, vec3 c) {
         float ca = pow(abs(sin(px.x * 0.021 / u_scale + sin(px.y * 0.033 / u_scale + u_time * 0.7) * 2.0 + u_swell.z * 0.8)
                          * sin(px.y * 0.027 / u_scale - u_time * 0.6 + sin(px.x * 0.013 / u_scale) * 2.0)), 7.0);
         c += vec3(0.35, 0.75, 0.85) * ca * exp(-depth / (170.0 * u_scale)) * u_caus.x * u_grade.rgb;
+#ifdef FX_RAYS
+        float lx = (px.x + depth * u_rays.y) / u_scale;
+        float sh = w_noise(vec2(lx * 0.006, u_swell.z * 0.04)) * 0.65 + w_noise(vec2(lx * 0.017, u_swell.z * 0.07 + 3.0)) * 0.35;
+        sh = pow(clamp(sh * 1.35 - 0.3, 0.0, 1.0), 2.5);
+        c += u_rayscol * sh * exp(-depth / max(u_rays.z, 1.0)) * u_rays.x * (1.0 + u_flash * 7.0);
+#endif
     } else {
         // the sea surface just above the line catches the swell's crests
         float above = -depth;
@@ -272,7 +282,11 @@ void main() {
     c += spray(px);
 #endif
 #ifdef FX_RAIN
+#ifdef WATER_SPLIT
+    if (px.y < surface(px.x)) c += rain(px);              // the storm plays out on the surface
+#else
     c += rain(px);
+#endif
 #endif
     c += vec3(0.6, 0.65, 0.75) * u_flash * 0.12;
     o = vec4(c, 1.0);
