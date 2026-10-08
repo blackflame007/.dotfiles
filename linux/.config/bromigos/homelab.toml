@@ -73,3 +73,13 @@ roles = "@private:netmap.roles"
 aliases = "@private:netmap.aliases"
 show_prefixes = "@private:netmap.show_prefixes"
 show_hosts = "@private:netmap.show_hosts"
+
+[[source]]
+name = "voice"                                       # the lab's voice (homelab chart voice): VECTOR speaks and listens through it first
+type = "bromigos-voice"
+endpoint = "@private:endpoints.tts"
+
+[[source]]
+name = "comfyui"                                     # the 5090's ComfyUI: queue, VRAM, models (bromigos art's homelab provider)
+type = "comfyui"
+endpoint = "@private:env.BROMIGOS_COMFYUI_URL"

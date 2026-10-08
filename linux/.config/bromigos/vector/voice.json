@@ -1,7 +1,10 @@
 {
   "_comment": "VECTOR's voices, all local. engine qwen speaks each role from its reference (rendered once by voices/make-refs.py from the operator's own Brodec cast voices on Fish, stored in ~/.local/share/bromigos/voices, never committed; no Fish calls at runtime); kokoro is the fallback. A role's 'use' text is what the brain is told about when to switch to it, so changing a role's job (e.g. floor -> lore and recaps) is just editing 'use'. shimmer: projector DSP per role, 0 = dry, 1 = very machine. colour: the hologram's tint while that voice speaks. mode: auto (VECTOR picks) unless `bromigos-holo voice <role>` pins one.",
-  "engine": "qwen",
-  "fallback": "kokoro",
+  "engine": "lab",
+  "fallback": [
+    "qwen",
+    "kokoro"
+  ],
   "qwen": {
     "model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
     "temperature": 0.7,
@@ -103,7 +106,8 @@
     "model": "large-v3-turbo",
     "device": "cuda",
     "compute_type": "float16",
-    "prompt": "VECTOR, the Wick, ARBITER, the rack room, Argo CD, Prometheus, EchoCraft Lab, vLLM, Qwen, crackle, pop, snap."
+    "prompt": "VECTOR, the Wick, ARBITER, the rack room, Argo CD, Prometheus, EchoCraft Lab, vLLM, Qwen, crackle, pop, snap.",
+    "provider": "lab"
   },
   "fish": {
     "reference_id": null,
@@ -148,5 +152,14 @@
     "sentence_tail_s": 0.11
   },
   "mic_source": null,
-  "release_tail_ms": 250
+  "release_tail_ms": 250,
+  "lab": {
+    "_comment": "The lab's voice (homelab chart `voice`) first: the url comes from homelab.toml's `voice` source. Down, loading or slow: the local cast voice (qwen) loads and Kokoro answers meanwhile; local whisper for speech-to-text.",
+    "url": "",
+    "first_audio_timeout_s": 2.5,
+    "timeout_s": 3,
+    "stream_timeout_s": 10,
+    "chunk_size": 4,
+    "temperature": 0.7
+  }
 }
