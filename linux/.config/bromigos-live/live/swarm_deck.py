@@ -44,7 +44,6 @@ STATE = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.loc
 CI_CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")), "bromigos-live", "ci.json")
 RING = {"bromigos-org": 0.48, "nolgiainc": 0.80, "blackflame007": 1.10}
 FLEET = 24
-PHOS, AMBER, DANGER, SOFT = (0.2235, 1.0, 0.0784), (0.831, 0.686, 0.216), (1.0, 0.463, 0.435), (0.612, 1.0, 0.541)
 VECTOR_AT = (-1.28, 0.55, -0.6)
 
 
@@ -291,12 +290,12 @@ class SwarmDeck(Deck3D):
             st = sh.status
             L = {"working": (1.0, 0.85, 1.0, 1.0), "idle": (0.5, 0.45, 0.25, 0.35), "blocked": (0.8, 0.7, 0.45, 0.55),
                  "error": (0.7, 0.6, 0.3, 0.8)}.get(st, (0.5, 0.5, 0.3, 0.4))
-            colour, beacon = PHOS, 0.35
+            colour, beacon = col("phosphor")[:3], 0.35
             if st == "blocked":
-                colour, beacon = AMBER, 0.3 + 0.7 * (0.5 + 0.5 * math.sin(t * TAU * 0.55))    # calm, ~0.55 Hz
+                colour, beacon = col("amber")[:3], 0.3 + 0.7 * (0.5 + 0.5 * math.sin(t * TAU * 0.55))    # calm, ~0.55 Hz
             elif st == "error":
                 flick = 0.55 + 0.45 * (0.5 + 0.5 * math.sin(t * 7.0) * math.sin(t * 2.3))
-                colour, beacon = DANGER, flick
+                colour, beacon = col("danger")[:3], flick
                 L = tuple(x * flick for x in L)
             elif st == "idle":
                 beacon = 0.18

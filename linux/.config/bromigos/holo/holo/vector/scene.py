@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 from .. import gl
-from ..render import Holo, approach, col, ease, lin
+from ..render import T, Holo, approach, col, ease, lin, wick
 from ..stage import Stage
 from .avatar import Avatar
 from .text import plain
@@ -71,7 +71,7 @@ class VectorScene:
 
     def set_voice(self, role, switch=True):
         """The voice now speaking: its colour crossfades in (with a tremor if it changed)."""
-        col = self._voices().get(role, {}).get("colour", "#39ff14")
+        col = T.retint(self._voices().get(role, {}).get("colour", "#39ff14"))   # in the theme's hues
         changed = role != getattr(self, "voice_role", "main")
         self.voice_role = role
         self.avatar.set_voice_colour(col, switch and changed)
@@ -227,6 +227,10 @@ class VectorScene:
         self.advance(dt)
         H = self.holo
         sc = self.scale
+        if T.version() != getattr(self, "_theme_seen", None):   # `bromigos theme set`: recolour
+            if getattr(self, "_theme_seen", None) is not None:
+                self.set_voice(getattr(self, "voice_role", "main"), switch=False)
+            self._theme_seen = T.version()
         H.begin(w, h, t)
         lw = self.left_w * sc
         ox = self.slide(w, lw)
@@ -253,7 +257,7 @@ class VectorScene:
         self._text(H, w, h, lw)
         # nearly clear behind the hologram (under the compositor's blur threshold) so the
         # window you click through to stays visible; the transcript gets its own backing
-        H.end(fbo, bg=(0.0, 0.02, 0.0, 0.12 * self.panel), bloom=1.2, fade=self.fade)
+        H.end(fbo, bg=wick((0.0, 0.02, 0.0, 0.12 * self.panel)), bloom=1.2, fade=self.fade)
 
     def slide(self, w, lw):
         """How far right VECTOR's column sits: 0 with the transcript shown, flush with the
@@ -372,9 +376,9 @@ class VectorScene:
         self.scroll_max = self.scroll if reached_oldest else self.scroll + 1e6
         # a dark backing under the transcript and the entry, only as tall as the text
         y_top = min([r[2] for r in rows] + [h - 78 * sc]) - 12 * sc
-        H.rect(x0 - 14 * sc, y_top, w - x0 - 4 * sc, h - y_top - 10 * sc, (0.0, 0.035, 0.0, 0.8 * pf))
-        H.rect(x0 - 14 * sc, 12 * sc, w - x0 - 4 * sc, 84 * sc, (0.0, 0.035, 0.0, 0.62 * pf))   # header backing
-        H.rect(12 * sc, 12 * sc, 330 * sc, 52 * sc, (0.0, 0.035, 0.0, 0.5 * f))
+        H.rect(x0 - 14 * sc, y_top, w - x0 - 4 * sc, h - y_top - 10 * sc, wick((0.0, 0.035, 0.0, 0.8 * pf)))
+        H.rect(x0 - 14 * sc, 12 * sc, w - x0 - 4 * sc, 84 * sc, wick((0.0, 0.035, 0.0, 0.62 * pf)))   # header backing
+        H.rect(12 * sc, 12 * sc, 330 * sc, 52 * sc, wick((0.0, 0.035, 0.0, 0.5 * f)))
         for text, x, yy, c, size, weight, wd in rows:
             H.label(text, x, yy, (c[0], c[1], c[2], c[3] * self.panel), size, weight, width=wd)
         if hidden_below:                     # scrolled back: say there's more below

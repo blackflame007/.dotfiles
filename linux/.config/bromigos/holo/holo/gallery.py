@@ -6,7 +6,7 @@ import time
 import numpy as np
 
 from . import bind, fmt
-from .render import Holo, col
+from .render import Holo, col, wick
 from .stage import Stage
 
 HINTS = "DRAG rotate   SCROLL explode   CLICK isolate a part   ←/→ model   SPACE explode   S scan   R reset   ESC close"
@@ -95,7 +95,7 @@ class Gallery:
             self.dirty_pick = False
         s.draw_callouts(H, (24 * sc, top, w - 48 * sc, vh), size=int(14 * sc), edges=True)
         self._hud(H, w, h, s, t)
-        H.end(fbo, bg=(0.0, 0.02, 0.0, 0.9), bloom=1.15)
+        H.end(fbo, bg=wick((0.0, 0.02, 0.0, 0.9)), bloom=1.15)
 
     def _hud(self, H, w, h, s, t):
         sc = self.scale

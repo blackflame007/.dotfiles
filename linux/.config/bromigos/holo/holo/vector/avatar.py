@@ -20,7 +20,7 @@ import random
 import numpy as np
 
 from .. import gl
-from ..render import GpuModel, lin
+from ..render import GpuModel, T, lin
 
 R = 0.2          # bezel radius (world units; the construct floats about 0.55 above the table)
 NBLADE = 6
@@ -164,11 +164,14 @@ VOICE_STATES = ("idle", "speaking")       # states that wear the speaking voice'
 
 
 def hex_lin(h, k=1.0):
-    h = h.lstrip("#")
+    """A Wick #rrggbb, in the theme in force, in linear light."""
+    h = T.retint_hex(h).lstrip("#")
     return np.array([((int(h[i:i + 2], 16) / 255.0) ** 2.2) * k for i in (0, 2, 4)], np.float32)
 
 
-DANGER, RUST, AMBER = hex_lin("#ff766f"), hex_lin("#4a0e0e"), hex_lin("#d4af37")
+def signals():
+    """danger, rust and amber (the moods' colours) in the theme in force."""
+    return lin("danger"), lin("rust"), lin("amber")
 
 
 class Avatar:
@@ -224,6 +227,7 @@ class Avatar:
         """The construct's current colour (linear rgb) and the edge colour."""
         base = self.tint if self.state in VOICE_STATES else lin(STATE_COL.get(self.state, "phosphor"))
         c = np.asarray(base, np.float32)
+        DANGER, RUST, AMBER = (np.asarray(v, np.float32) for v in signals())
         e, cn, a = self.mood["excited"], self.mood["concerned"], self.mood["alarmed"]
         if cn > 0:   # desaturate toward amber, keeping a trace of the voice
             grey = np.full(3, c.mean(), np.float32)

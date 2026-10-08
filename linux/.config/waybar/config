@@ -1,6 +1,9 @@
 {
   // Bromigos HUD. Every module is a real reading or an action; hover any of
   // them for what it is. Scripts live in ~/.config/waybar/scripts.
+  // The markup colours (mpris, network, the calendar) come from the theme in force:
+  // `bromigos theme set` renders them here, and they merge into the modules below.
+  "include": ["~/.local/state/bromigos/theme/current/waybar-markup.jsonc"],
   "layer": "bottom",
   "position": "top",
   "output": ["DP-1", "DP-2"],
@@ -36,8 +39,6 @@
   },
 
   "mpris": {
-    "format": "{artist} · {title}  <span color='#7e927e'>{position}/{length}</span>",
-    "format-paused": "<span color='#7e927e'>‖</span> {artist} · {title}",
     "format-stopped": "",
     "max-length": 70,
     "interval": 1,
@@ -99,8 +100,6 @@
 
   "network": {
     "interval": 2,
-    "format-wifi": "<span color='#7e927e'>⇣</span>{bandwidthDownBytes:>8} <span color='#7e927e'>⇡</span>{bandwidthUpBytes:>8}",
-    "format-ethernet": "<span color='#7e927e'>⇣</span>{bandwidthDownBytes:>8} <span color='#7e927e'>⇡</span>{bandwidthUpBytes:>8}",
     "format-linked": "{ifname} NO ADDRESS",
     "format-disconnected": "DISCONNECTED",
     "tooltip-format-wifi": "{ifname} · {essid} · {signalStrength}% ({signaldBm} dBm)\naddress {ipaddr}/{cidr} via {gwaddr}\nclick: copy the address",
@@ -130,14 +129,7 @@
     "calendar": {
       "mode": "month",
       "weeks-pos": "left",
-      "on-scroll": 1,
-      "format": {
-        "months": "<span color='#39ff14'><b>{}</b></span>",
-        "weeks": "<span color='#159b09'>{}</span>",
-        "weekdays": "<span color='#7e927e'>{}</span>",
-        "days": "<span color='#9cff8a'>{}</span>",
-        "today": "<span background='#39ff14' color='#000500'><b>{}</b></span>"
-      }
+      "on-scroll": 1
     },
     "actions": { "on-click-right": "mode", "on-scroll-up": "shift_up", "on-scroll-down": "shift_down" }
   }

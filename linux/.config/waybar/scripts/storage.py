@@ -5,6 +5,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.expanduser("~/.config/bromigos/widgets"))
+sys.path.insert(0, os.path.expanduser("~/.config/bromigos/lib"))
+import bromigos_theme as T  # noqa: E402  (spans are written in the Wick's colours; T.retint -> the theme's)
 from sources import human, storage  # noqa: E402
 
 mounts = storage()
@@ -21,8 +23,8 @@ for m in mounts:
     else:
         rows.append(f"{m['device']:<12} {human(m['size']):>9} {'not mounted':>20} ({m['fstype']})")
 worst = max((m["pct"] for m in mounts if m["mounted"]), default=0)
-print(json.dumps({
+print(T.retint(json.dumps({
     "text": "  ".join(bar),
     "tooltip": "<tt>" + "\n".join(rows) + "</tt>\nclick: open the file manager",
     "class": "critical" if worst >= 92 else "warning" if worst >= 80 else "",
-}))
+})))

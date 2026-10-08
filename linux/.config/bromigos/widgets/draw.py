@@ -3,6 +3,8 @@ brackets, 1px vector rules, wide-tracked uppercase labels, segment numerals,
 fuel-cell bars and ring gauges. No scanlines or vignettes here: the desktop UI
 stays crisp; atmosphere lives in the wallpaper and the lock screen."""
 import math
+import os
+import sys
 
 import gi
 
@@ -10,6 +12,11 @@ gi.require_version("Pango", "1.0")
 gi.require_version("PangoCairo", "1.0")
 from gi.repository import Pango, PangoCairo  # noqa: E402
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib"))
+import bromigos_theme as T  # noqa: E402
+
+# The Wick's names for the colours. The theme in force supplies them
+# (bromigos_theme: phosphor is the theme's primary, amber its warn, …).
 PAL = {
     "void": "#000500", "panel": "#001300", "guard": "#003b00",
     "phosphor": "#39ff14", "soft": "#9cff8a", "dim": "#159b09",
@@ -21,8 +28,8 @@ PANEL_ALPHA = 0.84
 
 
 def rgb(name):
-    h = PAL.get(name, name).lstrip("#")
-    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    """A colour by its Wick name, theme role or "#rrggbb", in the theme in force."""
+    return T.rgb(name)
 
 
 def src(cr, name, a=1.0):

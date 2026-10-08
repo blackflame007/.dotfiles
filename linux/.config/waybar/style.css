@@ -44,7 +44,7 @@ tooltip label {
 #custom-launcher {
   min-width: 34px;
   padding: 0 4px;
-  background-image: url("../bromigos/brand/emblem-small-48.png");
+  background-image: url("../../.local/state/bromigos/theme/current/icons/emblem.svg");
   background-size: 24px 24px;
   background-position: center;
   background-repeat: no-repeat;
@@ -132,7 +132,7 @@ window#waybar.empty #window {
   background-color: alpha(@warn, 0.25);
 }
 
-/* ---- icons: 16px, 1px-stroke set from ~/.config/bromigos/brand/icons ----------
+/* ---- icons: 16px, 1px-stroke set (bromigOS theme/icons), drawn in the theme in force by `bromigos theme set` ----------
    Each module draws its icon as a background at the left of the cell; the warning
    and critical classes swap to the amber/danger variant so icon and value match. */
 #cpu, #memory, #custom-gpu, #temperature, #custom-storage, #network,
@@ -142,47 +142,47 @@ window#waybar.empty #window {
   background-position: 12px center;
   background-repeat: no-repeat;
 }
-#cpu                  { background-image: url("../bromigos/brand/icons/cpu.svg"); }
-#cpu.warning          { background-image: url("../bromigos/brand/icons/cpu-amber.svg"); }
-#cpu.critical         { background-image: url("../bromigos/brand/icons/cpu-danger.svg"); }
-#memory               { background-image: url("../bromigos/brand/icons/ram.svg"); }
-#memory.warning       { background-image: url("../bromigos/brand/icons/ram-amber.svg"); }
-#memory.critical      { background-image: url("../bromigos/brand/icons/ram-danger.svg"); }
-#custom-gpu           { background-image: url("../bromigos/brand/icons/gpu.svg"); }
-#custom-gpu.warning   { background-image: url("../bromigos/brand/icons/gpu-amber.svg"); }
-#custom-gpu.critical  { background-image: url("../bromigos/brand/icons/gpu-danger.svg"); }
-#temperature          { background-image: url("../bromigos/brand/icons/temp.svg"); }
-#temperature.warning  { background-image: url("../bromigos/brand/icons/temp-amber.svg"); color: @warn; }
-#temperature.critical { background-image: url("../bromigos/brand/icons/temp-danger.svg"); }
-#custom-storage          { background-image: url("../bromigos/brand/icons/disk.svg"); }
-#custom-storage.warning  { background-image: url("../bromigos/brand/icons/disk-amber.svg"); }
-#custom-storage.critical { background-image: url("../bromigos/brand/icons/disk-danger.svg"); }
-#network              { background-image: url("../bromigos/brand/icons/net.svg"); }
+#cpu                  { background-image: url("../../.local/state/bromigos/theme/current/icons/cpu.svg"); }
+#cpu.warning          { background-image: url("../../.local/state/bromigos/theme/current/icons/cpu-amber.svg"); }
+#cpu.critical         { background-image: url("../../.local/state/bromigos/theme/current/icons/cpu-danger.svg"); }
+#memory               { background-image: url("../../.local/state/bromigos/theme/current/icons/ram.svg"); }
+#memory.warning       { background-image: url("../../.local/state/bromigos/theme/current/icons/ram-amber.svg"); }
+#memory.critical      { background-image: url("../../.local/state/bromigos/theme/current/icons/ram-danger.svg"); }
+#custom-gpu           { background-image: url("../../.local/state/bromigos/theme/current/icons/gpu.svg"); }
+#custom-gpu.warning   { background-image: url("../../.local/state/bromigos/theme/current/icons/gpu-amber.svg"); }
+#custom-gpu.critical  { background-image: url("../../.local/state/bromigos/theme/current/icons/gpu-danger.svg"); }
+#temperature          { background-image: url("../../.local/state/bromigos/theme/current/icons/temp.svg"); }
+#temperature.warning  { background-image: url("../../.local/state/bromigos/theme/current/icons/temp-amber.svg"); color: @warn; }
+#temperature.critical { background-image: url("../../.local/state/bromigos/theme/current/icons/temp-danger.svg"); }
+#custom-storage          { background-image: url("../../.local/state/bromigos/theme/current/icons/disk.svg"); }
+#custom-storage.warning  { background-image: url("../../.local/state/bromigos/theme/current/icons/disk-amber.svg"); }
+#custom-storage.critical { background-image: url("../../.local/state/bromigos/theme/current/icons/disk-danger.svg"); }
+#network              { background-image: url("../../.local/state/bromigos/theme/current/icons/net.svg"); }
 #network.disconnected,
-#network.linked       { background-image: url("../bromigos/brand/icons/net-amber.svg"); }
-#pulseaudio           { background-image: url("../bromigos/brand/icons/vol.svg"); }
-#pulseaudio.muted     { background-image: url("../bromigos/brand/icons/vol-muted-amber.svg"); }
-#mpris                { background-image: url("../bromigos/brand/icons/tape.svg"); }
-#mpris.paused         { background-image: url("../bromigos/brand/icons/tape-dim.svg"); }
-#clock                { background-image: url("../bromigos/brand/icons/clock.svg"); }
+#network.linked       { background-image: url("../../.local/state/bromigos/theme/current/icons/net-amber.svg"); }
+#pulseaudio           { background-image: url("../../.local/state/bromigos/theme/current/icons/vol.svg"); }
+#pulseaudio.muted     { background-image: url("../../.local/state/bromigos/theme/current/icons/vol-muted-amber.svg"); }
+#mpris                { background-image: url("../../.local/state/bromigos/theme/current/icons/tape.svg"); }
+#mpris.paused         { background-image: url("../../.local/state/bromigos/theme/current/icons/tape-dim.svg"); }
+#clock                { background-image: url("../../.local/state/bromigos/theme/current/icons/clock.svg"); }
 
 /* VECTOR pip (bromigos-holo): the iris in the state's colour; hidden while the daemon is off */
-#custom-vector             { background-image: url("../bromigos/brand/icons/vector.svg"); color: @primary;
+#custom-vector             { background-image: url("../../.local/state/bromigos/theme/current/icons/vector.svg"); color: @primary;
                             font-weight: 700; letter-spacing: 0.08em; }
-#custom-vector.minimized   { color: @muted; background-image: url("../bromigos/brand/icons/vector-dim.svg"); }
+#custom-vector.minimized   { color: @muted; background-image: url("../../.local/state/bromigos/theme/current/icons/vector-dim.svg"); }
 #custom-vector.thinking,
-#custom-vector.listening   { color: @warn; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
-#custom-vector.speaking    { color: @primary; background-image: url("../bromigos/brand/icons/vector.svg");
+#custom-vector.listening   { color: @warn; background-image: url("../../.local/state/bromigos/theme/current/icons/vector-amber.svg"); }
+#custom-vector.speaking    { color: @primary; background-image: url("../../.local/state/bromigos/theme/current/icons/vector.svg");
                             text-shadow: 0 0 8px alpha(@primary, 0.6); }
-#custom-vector.error       { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg"); }
+#custom-vector.error       { color: @danger; background-image: url("../../.local/state/bromigos/theme/current/icons/vector-danger.svg"); }
 #custom-vector.unread      { text-shadow: 0 0 8px alpha(@warn, 0.6); }
 /* the speaking voice tints the pip; a mood overrides it */
 #custom-vector.voice-robot     { color: @cyan; }
 #custom-vector.voice-scientist { color: @warn; }
 #custom-vector.voice-floor     { color: @gold; }
 #custom-vector.voice-notify    { color: @soft; }
-#custom-vector.conversation   { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg"); }
+#custom-vector.conversation   { color: @danger; background-image: url("../../.local/state/bromigos/theme/current/icons/vector-danger.svg"); }
 #custom-vector.mood-excited    { text-shadow: 0 0 10px alpha(@primary, 0.8); }
-#custom-vector.mood-concerned  { color: @warn; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
-#custom-vector.mood-alarmed    { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg");
+#custom-vector.mood-concerned  { color: @warn; background-image: url("../../.local/state/bromigos/theme/current/icons/vector-amber.svg"); }
+#custom-vector.mood-alarmed    { color: @danger; background-image: url("../../.local/state/bromigos/theme/current/icons/vector-danger.svg");
                                  text-shadow: 0 0 8px alpha(@danger, 0.7); }

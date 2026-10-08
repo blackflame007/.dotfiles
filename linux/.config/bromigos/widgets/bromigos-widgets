@@ -177,9 +177,9 @@ def gdk_monitor(name):
 
 
 # ------------------------------------------------------------------ windows
-CSS = b"""
+CSS = """
 window.bromigos { background: transparent; }
-.notes-box { background-color: rgba(0, 19, 0, 0.84); }
+.notes-box { background-color: rgba(PANEL, 0.84); }
 textview.notes, textview.notes text {
   background-color: transparent; color: #9cff8a; caret-color: #39ff14;
   font-family: "Geist Mono"; font-size: 13px;
@@ -188,6 +188,11 @@ textview.notes text selection { background-color: #39ff14; color: #000500; }
 tooltip, tooltip.background { background-color: #000500; border: 1px solid #159b09; border-radius: 0; }
 tooltip label { color: #9cff8a; font-family: "Geist Mono"; font-size: 13px; padding: 4px 6px; }
 """
+
+
+def theme_css():
+    """CSS in the theme in force (written in the Wick's colours; bromigos_theme retints)."""
+    return D.T.retint(CSS).replace("PANEL", ", ".join(str(v) for v in D.T.rgb255("panel"))).encode()
 
 
 def layer_window(monitor, x, y, w, h, keyboard=False):
@@ -415,9 +420,10 @@ class App:
     def __init__(self):
         self.cfg = self.read_layout()
         self.monitor_name = self.cfg.get("monitor", "DP-1")
-        prov = Gtk.CssProvider()
-        prov.load_from_data(CSS)
-        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov,
+        self.css = Gtk.CssProvider()
+        self.css.load_from_data(theme_css())
+        self.theme_seen = D.T.version()
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.css,
                                                  Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         mon = gdk_monitor(self.monitor_name)
         self.windows = {}
@@ -649,6 +655,12 @@ class App:
         10 fps only while a panel runs a short animation (the Lab's sync pulse)."""
         now = time.monotonic()
         show = not self.coverage.covered
+        if D.T.version() != self.theme_seen:   # `bromigos theme set`: new colours, redraw
+            self.theme_seen = D.T.version()
+            self.css.load_from_data(theme_css())
+            for w in self.windows.values():
+                if getattr(w, "panel", None) is not None and w.visible():
+                    w.redraw()
         for w in self.windows.values():
             p = getattr(w, "panel", None)
             if p is None:

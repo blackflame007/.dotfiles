@@ -8,7 +8,7 @@ import time
 import numpy as np
 
 from . import bind, fmt, gl
-from .render import GpuModel, LEVEL_COL, approach, col, ease, lin
+from .render import GpuModel, LEVEL_COL, approach, col, ease, lin, wick
 
 LEVELS = ["off", "ok", "warn", "crit"]
 
@@ -231,7 +231,7 @@ class Stage:
                     holo.line2d(ax + 3.5 * math.cos(an), ay + 3.5 * math.sin(an),
                                 ax + 3.5 * math.cos(an + math.pi / 4), ay + 3.5 * math.sin(an + math.pi / 4),
                                 (c[0], c[1], c[2], a), 1.4)
-                holo.rect(bx, by, tw, th, (0.0, 0.03, 0.0, 0.78 * a))
+                holo.rect(bx, by, tw, th, wick((0.0, 0.03, 0.0, 0.78 * a)))
                 holo.brackets(bx, by, tw, th, (c[0], c[1], c[2], 0.9 * a), arm=9)
                 yy = by + 8
                 _, hh = holo.label(head, bx + 11, yy, (c[0], c[1], c[2], a), size, "bold", spacing=1.5)

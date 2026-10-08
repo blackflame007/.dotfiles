@@ -37,12 +37,13 @@ class Base:
     """Shared overlay renderer: emissive batch + bloom + ov.frag + emblem pass."""
     name = "base"
     rebuild_every = 1.0
+    emblem_kit = None          # the current theme's emblem (a post's own mark); a path pins one
 
     def __init__(self, cfg, data, w, h, app=None, **kw):
         self.cfg, self.data, self.w, self.h, self.app = cfg, data, w, h, app
         self.st = data.static
         self.stage = Stage(w, h, "ov.frag")
-        self.emblem = Emblem(1024, 128)
+        self.emblem = Emblem(1024, 128, kit_dir=self.emblem_kit)
         self.t0 = time.monotonic()
         self.built_at = None
         self.frozen = None
@@ -68,7 +69,8 @@ class Base:
     def render(self, fbo, fps):
         t = self.now()
         d = self.data.snapshot()
-        if self.rebuild_due(t):
+        if self.rebuild_due(t) or getattr(self, "theme_seen", None) != glkit.T.version():
+            self.theme_seen = glkit.T.version()        # a theme switch recolours it at once
             b = glkit.Batch(self.stage.atlas)
             self.build(b, d, t)
             self.stage.painter.upload(b)

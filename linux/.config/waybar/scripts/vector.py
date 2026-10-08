@@ -4,6 +4,10 @@ bromigos-holo daemon ($XDG_RUNTIME_DIR/bromigos-vector.json), refreshed on SIGRT
 Empty (hidden) when the daemon isn't running."""
 import json
 import os
+import sys
+
+sys.path.insert(0, os.path.expanduser("~/.config/bromigos/lib"))
+import bromigos_theme as T  # noqa: E402  (spans are written in the Wick's colours; T.retint -> the theme's)
 
 path = os.path.join(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "bromigos-vector.json")
 try:
@@ -58,4 +62,4 @@ cls += ["listening", "conversation"] if st.get("conversation") else []
 cls += [f"voice-{st.get('voice') or 'main'}"] if state == "speaking" else []
 cls += [f"mood-{mood}"] if mood != "calm" else []
 cls += ["watching"] if w.get("on") else []
-print(json.dumps({"text": text, "tooltip": tip, "class": cls}))
+print(T.retint(json.dumps({"text": text, "tooltip": tip, "class": cls})))

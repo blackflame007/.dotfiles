@@ -23,6 +23,12 @@ from OpenGL import GL  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHADERS = os.path.join(os.path.dirname(HERE), "shaders")
 
+import sys  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.expanduser("~"), ".config", "bromigos", "lib"))
+import bromigos_theme as T  # noqa: E402
+
+# The Wick's names for the colours; col() takes them from the theme in force
+# (bromigos_theme: phosphor is the theme's primary, amber its warn, guard its selection).
 PAL = {
     "void": (0x00, 0x05, 0x00), "panel": (0x00, 0x13, 0x00), "guard": (0x00, 0x3b, 0x00),
     "phosphor": (0x39, 0xff, 0x14), "soft": (0x9c, 0xff, 0x8a), "dim": (0x15, 0x9b, 0x09),
@@ -32,8 +38,8 @@ PAL = {
 
 
 def col(name, a=1.0):
-    r, g, b = PAL[name]
-    return (r / 255.0, g / 255.0, b / 255.0, a)
+    r, g, b = T.rgb(name)
+    return (r, g, b, a)
 
 
 def level(v, warn, crit):
@@ -44,7 +50,27 @@ def level(v, warn, crit):
 
 def read_shader(name):
     with open(os.path.join(SHADERS, name)) as f:
-        return f.read()
+        return theme_consts(f.read())
+
+
+# The shaders' named UI colours, written as the Wick's: in another theme they are
+# swapped for its colours when the shader is compiled (an overlay opened after a theme
+# switch has them). The Wick's shader text is left exactly as written.
+_CONSTS = {"VOID": "void", "PHOS": "primary", "SOFT": "soft", "DIM": "dim", "AMBER": "warn",
+           "DANGER": "danger", "amber": "warn", "danger": "danger"}
+
+
+def theme_consts(src):
+    import re
+    if T.is_wick():
+        return src
+
+    def vec(name):
+        return "vec3(%.4f, %.4f, %.4f)" % T.rgb(name)
+    src = re.sub(r"\b((?:const\s+)?vec3\s+(\w+)\s*=\s*)vec3\([^)]*\)",
+                 lambda m: m.group(1) + vec(_CONSTS[m.group(2)]) if m.group(2) in _CONSTS else m.group(0), src)
+    # ov.frag's plates under the gadgets: the panel colour
+    return src.replace("mix(c, vec3(0.0, 0.03, 0.0), plate)", "mix(c, %s, plate)" % vec("panel"))
 
 
 def _includes(src):

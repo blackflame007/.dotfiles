@@ -30,6 +30,7 @@ from gi.repository import Gdk, GLib, Gtk, GtkLayerShell  # noqa: E402
 from OpenGL import GL  # noqa: E402
 
 from .live import Live  # noqa: E402
+from .render import T  # noqa: E402  (bromigos_theme: the theme in force)
 
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 SOCK = os.path.join(RUNTIME, "bromigos-holo.sock")
@@ -298,9 +299,11 @@ class HoloWindow:
 
 class App:
     def __init__(self):
-        prov = Gtk.CssProvider()
-        prov.load_from_data(CSS)
-        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), prov, Gtk.STYLE_PROVIDER_PRIORITY_USER)
+        self.css = Gtk.CssProvider()            # written in the Wick's colours; T.retint -> the theme's
+        self.css.load_from_data(T.retint(CSS.decode()).encode())
+        self._theme_seen = T.version()
+        GLib.timeout_add_seconds(2, self._theme_watch)
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), self.css, Gtk.STYLE_PROVIDER_PRIORITY_USER)
         self.live = Live()
         disp = Gdk.Display.get_default()           # hotplug: reopen windows that were shown
         disp.connect("monitor-removed", lambda *_: HoloWindow.output_lost())
@@ -327,6 +330,14 @@ class App:
         GLib.timeout_add(400, self._publish_state)
 
     # ------------------------------------------------------------------ VECTOR
+    def _theme_watch(self):
+        """`bromigos theme set`: the chat box's CSS in the new colours (the holograms
+        follow on their own next frame)."""
+        if T.version() != self._theme_seen:
+            self._theme_seen = T.version()
+            self.css.load_from_data(T.retint(CSS.decode()).encode())
+        return True
+
     def ensure_vector(self):
         if self.vector:
             return

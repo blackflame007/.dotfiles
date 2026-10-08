@@ -12,6 +12,8 @@ moving pieces), an rgba colour (status colour x brightness, alpha = isolation) a
 line-width factor. Geometry never changes after upload; all motion is uniforms.
 """
 import math
+import os
+import sys
 
 import numpy as np
 from OpenGL import GL
@@ -19,6 +21,11 @@ from OpenGL import GL
 from . import gl, shaders
 from .text import TextCache
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__)))), "lib"))
+import bromigos_theme as T  # noqa: E402
+
+# The Wick's names for the colours; col() and lin() take them from the theme in force
+# (bromigos_theme: phosphor is the theme's primary, amber its warn, …).
 PAL = {
     "void": (0x00, 0x05, 0x00), "panel": (0x00, 0x13, 0x00), "guard": (0x00, 0x3b, 0x00),
     "phosphor": (0x39, 0xff, 0x14), "soft": (0x9c, 0xff, 0x8a), "dim": (0x15, 0x9b, 0x09),
@@ -29,13 +36,18 @@ PAL = {
 
 
 def col(name, k=1.0, a=1.0):
-    r, g, b = PAL[name]
+    r, g, b = T.rgb255(name)
     return (r / 255 * k, g / 255 * k, b / 255 * k, a)
 
 
 def lin(name, k=1.0):
     """Palette colour in linear light (the scene is linear HDR)."""
-    return tuple(((c / 255.0) ** 2.2) * k for c in PAL[name])
+    return tuple(((c / 255.0) ** 2.2) * k for c in T.rgb255(name))
+
+
+def wick(rgba):
+    """A colour written in the Wick's values (a backing, a clear colour), in the theme in force."""
+    return T.retint_rgb(rgba)
 
 
 LEVEL_COL = {"ok": "phosphor", "warn": "amber", "crit": "danger", "off": "static", "info": "soft"}
@@ -327,7 +339,8 @@ class Holo:
         self.quad.draw(GL.GL_TRIANGLES)
 
     # ------------------------------------------------------------------ post
-    def end(self, out_fbo, bg=(0.0, 0.02, 0.0, 0.0), bloom=1.0, fade=1.0):
+    def end(self, out_fbo, bg=None, bloom=1.0, fade=1.0):
+        bg = wick((0.0, 0.02, 0.0, 0.0)) if bg is None else bg
         W, H = self.size
         src = self.ms.resolve()
         GL.glDisable(GL.GL_DEPTH_TEST)
