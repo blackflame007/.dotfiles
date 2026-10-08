@@ -57,11 +57,13 @@ class Fireflies:
     def scatter(self, x, y, t):
         self.disturb.append((float(x), float(y), t))
 
-    def update(self, t, dt, level, night):
+    def update(self, t, dt, level, night, shelter=0.0):
+        """`shelter` 0..1: the share that has gone to ground (rain), fading out smoothly."""
         e = self.e
         dt = max(0.0, min(dt, 0.1))
         target = float(e.get("base", 6)) + float(e.get("gain", 380)) * max(0.0, level) ** float(e.get("curve", 1.4))
         target *= 0.75 + 0.45 * night                       # more in deep night, fewer toward dawn
+        target *= 1.0 - max(0.0, min(1.0, shelter))
         target = min(target, self.n)
         k = 1.0 - math.exp(-dt / float(e.get("smooth", 3.0))) if dt > 0 else 0.0
         self.count += (target - self.count) * k

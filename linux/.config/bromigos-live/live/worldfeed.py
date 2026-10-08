@@ -3,6 +3,12 @@
   agents   herdr's agents (the Swarm deck's data: `herdr api snapshot`, ~8 ms), every
            2 s; every 8 s while the layer is paused. Each: key, status (working,
            needs_you, finished; error counts as needs_you with a danger signal), cwd.
+  sessions Claude Code sessions outside herdr (herdr already lists the ones in its panes):
+           `claude` processes without HERDR_ENV, working while they burn CPU (a /proc scan,
+           every 4 s). Counted in `working` with herdr's working agents.
+  models   the homelab's local models generating: LiteLLM's model requests per minute and
+           output tokens per second from Prometheus (two ~20 ms queries every 10 s; 30 s while
+           paused), as 0..1. Without Prometheus the lab snapshot's rpmNow stands in (World).
   vector   VECTOR's state from $XDG_RUNTIME_DIR/bromigos-vector.json (written by his
            daemon on every change): off (no file / stale daemon), idle, thinking,
            speaking, listening, error. A stat every 0.5 s; read only when it changed.
@@ -11,6 +17,8 @@ import json
 import os
 import threading
 import time
+
+TICK = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
 
 from . import sources
 
@@ -39,10 +47,22 @@ class Feed:
         self.stop = threading.Event()
         self._vsig = None
         self.first_seen = {}        # agent key -> when first seen: a stable order (the first few are the foreground)
+        self.outside = 0            # Claude Code sessions outside herdr that are working
+        self._cpu = {}              # pid -> (cpu ticks, when) for those sessions
+        self._scan_t = 0.0
+        self.models = None          # 0..1, None until Prometheus answered (World falls back to rpmNow)
+        self.models_rpm = 0.0
+        self.models_tps = 0.0
 
     def start(self):
         threading.Thread(target=self._herdr_loop, daemon=True, name="world-herdr").start()
         threading.Thread(target=self._vector_loop, daemon=True, name="world-vector").start()
+        threading.Thread(target=self._models_loop, daemon=True, name="world-models").start()
+
+    @property
+    def working(self):
+        """Agents at work right now: herdr's working agents plus busy Claude Code sessions outside it."""
+        return sum(1 for a in self.agents if a["status"] == "working") + self.outside
 
     def halt(self):
         self.stop.set()
@@ -67,7 +87,53 @@ class Feed:
                 self.agents_ok = True
             except Exception:
                 self.agents_ok = False
+            if time.time() - self._scan_t >= 4.0:
+                try:
+                    self._scan_sessions()
+                except Exception:
+                    self.outside = 0
             self.stop.wait(8.0 if getattr(self.data, "paused", False) else 2.0)
+
+    def _scan_sessions(self):
+        """Claude Code sessions not in a herdr pane, working when they used over 3% of a core
+        since the last scan (an idle session sits near 0)."""
+        now = time.time()
+        self._scan_t = now
+        seen, busy = {}, 0
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                with open(f"/proc/{pid}/comm") as f:
+                    if f.read().strip() != "claude":
+                        continue
+                with open(f"/proc/{pid}/environ", "rb") as f:
+                    if b"HERDR_ENV=1\0" in f.read():
+                        continue                    # herdr lists it already
+                with open(f"/proc/{pid}/stat") as f:
+                    st = f.read().rsplit(")", 1)[1].split()
+                ticks = int(st[11]) + int(st[12])  # utime + stime
+            except (OSError, ValueError, IndexError):
+                continue
+            seen[pid] = (ticks, now)
+            prev = self._cpu.get(pid)
+            if prev and now > prev[1] and (ticks - prev[0]) / TICK / (now - prev[1]) > 0.03:
+                busy += 1
+        self._cpu = seen
+        self.outside = busy
+
+    def _models_loop(self):
+        while not self.stop.is_set():
+            try:
+                rpm = sum(float(r["value"][1]) for r in sources.prom(
+                    "sum(rate(litellm_deployment_total_requests_total[1m]))*60", timeout=4))
+                tps = sum(float(r["value"][1]) for r in sources.prom(
+                    "sum(rate(litellm_output_tokens_metric_total[1m]))", timeout=4))
+                self.models_rpm, self.models_tps = rpm, tps
+                self.models = max(0.0, min(1.0, max(rpm / 30.0, tps / 40.0)))
+            except Exception:
+                self.models = None
+            self.stop.wait(30.0 if getattr(self.data, "paused", False) else 10.0)
 
     def _vector_loop(self):
         while not self.stop.is_set():

@@ -16,7 +16,9 @@ docs/ELEMENTS.md ("Worlds"); in short, paths relative to the theme directory:
   [sounds] [rollcall]            ambient cues by the user's activity; the login roll call
 
 Signals (World.signals): cpu, gpu, mem, net, net_rx, net_tx, health (0/1/2), lab_green,
-storm, ingress, user (working/dozing/asleep), activity, vector, agents, hour, daylight,
+storm, ingress, user (working/dozing/asleep), activity, vector, agents, agents_working
+(herdr's working agents + busy Claude Code sessions outside herdr), models (the homelab's
+local models generating, 0..1: LiteLLM requests and output tokens), hour, daylight,
 moon_phase, tide. Events: notify, critical, fill, fill_win, fill_loss, fill_open,
 lab_alert, login (the roll call), flyby[:<craft id>] (a pass now, for testing).
 
@@ -491,7 +493,50 @@ class World:
             s["agents"] = f["agents"]
         else:
             s["agents"] = self.feed.agents
+        if "agents_working" in f:
+            s["agents_working"] = float(f["agents_working"])
+        elif "agents" in f:
+            s["agents_working"] = float(sum(1 for a in f["agents"] if a.get("status") == "working"))
+        else:
+            s["agents_working"] = float(self.feed.working)
+        m = self.feed.models
+        if m is None:                            # no Prometheus: the lab snapshot's requests/min
+            m = min(1.0, (((d.get("cluster") or {}).get("ai") or {}).get("rpmNow") or 0.0) / 30.0)
+        s["models"] = float(f.get("models", m))
         return s
+
+    def _rain(self, sig, dt):
+        """The rain effect's level, 0..1. Either one signal mapped from..full, or a `mix` of
+        terms {signal, from, full, floor, max}: each 0 at or below `from`, else `floor` rising
+        to `max` at `full`; terms combine like layers of cloud (1 - product of 1 - term), so
+        drizzle + models + CPU build toward a downpour. `onset`/`tail` (s) ease it in and out
+        so the weather never flickers."""
+        e = self.fx.by.get("rain")
+        if not e:
+            return 0.0
+        def term(v, lo, hi, floor=0.0, top=1.0):
+            if v <= lo:
+                return 0.0
+            return floor + (top - floor) * max(0.0, min(1.0, (v - lo) / max(hi - lo, 1e-3)))
+        mix = e.get("mix")
+        if mix:
+            dry = 1.0
+            for m in mix:
+                v = float(sig.get(m.get("signal", "cpu"), 0.0) or 0.0)
+                dry *= 1.0 - term(v, float(m.get("from", 0.0)), float(m.get("full", 1.0)),
+                                  float(m.get("floor", 0.0)), float(m.get("max", 1.0)))
+            want = 1.0 - dry
+        else:
+            v = float(sig.get(e.get("signal", "cpu"), 0.0) or 0.0)
+            want = term(v, float(e.get("from", 0.3)), float(e.get("full", 0.85)))
+        onset, tail = float(e.get("onset", 0.0)), float(e.get("tail", 0.0))
+        if onset <= 0.0 and tail <= 0.0:
+            return want
+        cur = self.smooth.get("rain", want)
+        tau = onset if want > cur else tail
+        cur = cur + (want - cur) * (1.0 - math.exp(-dt / tau)) if tau > 0 and dt > 0 else want
+        self.smooth["rain"] = cur
+        return cur
 
     def moon_xy(self, sig):
         """The moon's place in its window (0..1 across, 0..1 up), from the clock or held."""
@@ -543,6 +588,7 @@ class World:
         d = self.data.snapshot()
         sig = self.signals(d, dt if dt > 0 else 1.0)
         self.sig = sig
+        self.rain_level = self._rain(sig, dt)
         self.frame_dt = dt
         self._advanced = {}
         if self.videos and int(t) % 10 == 0:
@@ -578,7 +624,8 @@ class World:
             e = self.fx.by["fireflies"]
             night = 1.0 - skyclock.daylight(sig["hour"])
             lvl = float(sig.get(e.get("signal", "net"), 0.0) or 0.0)
-            for dep, arr in self.fireflies.update(t, dt, lvl, night).items():
+            shelter = float(e.get("rain_hides", 0.0)) * getattr(self, "rain_level", 0.0)   # they go to ground in rain
+            for dep, arr in self.fireflies.update(t, dt, lvl, night, shelter).items():
                 glows.append((dep, arr))
         self._sounds(t, sig)
         if not getattr(self, "offscreen", False) and self.cfg.get("world", {}).get("ambient_sounds", True):
@@ -918,11 +965,7 @@ class World:
         dt = max(0.0, min(t - getattr(self, "_fx_t", t), 0.1))
         self._fx_t = t
         # rain and mist (the den's CPU rain, as weather)
-        rain = 0.0
-        e = fx.by.get("rain")
-        if e:
-            v = float(sig.get(e.get("signal", "cpu"), 0.0) or 0.0)
-            rain = max(0.0, min(1.0, (v - float(e.get("from", 0.3))) / max(float(e.get("full", 0.85)) - float(e.get("from", 0.3)), 1e-3)))
+        rain = getattr(self, "rain_level", 0.0)
         p.f("u_rain", rain, 0.0, 0.0, 0.0)
         base_ripple = float(wt.get("ripple", 0.6)) * (0.35 + 0.65 * min(1.0, cpu * 2.5))
         p.f("u_line", self.surface_y * sy, 0.0, float(wt.get("reflect", 0.7)), base_ripple)
