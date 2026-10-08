@@ -18,8 +18,7 @@ __pycache__/
 # fontconfig cache markers
 .uuid
 
-# bromigOS user-owned files under ~/.config/bromigos (that path is a stow link into this
-# public repo): Sir's own switches and profile stay on the machine, never in git.
-linux/.config/bromigos/live/overrides.toml
+# bromigOS user files under ~/.config/bromigos (a stow link into this public repo) are
+# tracked here, except the profile: its personal details live encrypted in private.sops.yaml
+# (operator:), and bromigos-private writes this plaintext copy at login.
 linux/.config/bromigos/profile.toml
-linux/.config/bromigos/themes/
