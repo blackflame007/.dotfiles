@@ -7,6 +7,7 @@ out vec4 o;
 uniform sampler2D u_tex;
 uniform vec2 u_res;
 uniform vec4 u_view;      // uv offset x, y, zoom, -
+uniform vec4 u_sway;      // amplitude (uv), phase, top y px (free end), bottom y px (rooted)
 uniform vec4 u_grade;     // r, g, b multiplier, twilight 0..1
 uniform float u_flash;    // lightning: added light
 uniform vec3 u_lift;      // daylight: ambient light added to the night-painted art
@@ -81,6 +82,10 @@ void main() {
     vec2 tuv = vec2(v_uv.x, 1.0 - v_uv.y);
     vec2 px = tuv * u_res;
     vec2 uv = (tuv - 0.5) / u_view.z + 0.5 + u_view.xy;
+    if (u_sway.x > 0.0) {                         // rooted at the bottom, swaying more toward the top
+        float free = smoothstep(u_sway.w, u_sway.z, px.y);
+        uv.x += u_sway.x * free * (sin(u_sway.y + px.x * 0.004 + px.y * 0.003) * 0.7 + sin(u_sway.y * 1.7 + px.x * 0.011) * 0.3);
+    }
     vec4 s = texture(u_tex, uv);
     vec3 c = (s.rgb * u_grade.rgb + u_lift * s.a) * (1.0 + u_flash);
     float a = s.a;

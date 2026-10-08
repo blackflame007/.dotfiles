@@ -160,6 +160,12 @@ class Actors:
                         inst = Inst(d, f"ev{self.n_event}", t + k * float(v.get("stagger", 0.35)))
                         inst.v = v
                         self.insts[(d.id, inst.key)] = inst
+        for d in self.defs:                          # a keeper's pose for an event: Hollis lands the catch
+            ev = (d.t.get("events") or {}).get(name) if d.kind == "keeper" else None
+            inst = self.insts.get((d.id, "keeper")) if ev else None
+            if inst is not None and inst.state == "working":
+                t0 = t + float(ev.get("after", 0.0))
+                inst.override = (ev, t0, t0 + float(ev.get("seconds", 3.0)))
         if name == "rollcall":
             i = 0
             for inst in sorted(self.insts.values(), key=lambda s: (s.d.depth, s.x)):
@@ -306,6 +312,14 @@ class Actors:
                 inst.state = "crossing"
                 self.insts[(d.id, k)] = inst
 
+    @staticmethod
+    def _play_clip(inst, rel, hold):
+        sp = inst.d.sprites.get(rel) if rel else None
+        if sp is not None and sp.video is not None:
+            inst.clip = sp
+            inst.clip_hold = hold
+            sp.video.restart()
+
     # ---- state machine
     def _set_state(self, inst, state, t):
         if state == inst.state:
@@ -332,13 +346,17 @@ class Actors:
                 inst.sink = max(inst.sink, 1.0) if prev is None else inst.sink
                 inst.rise_t = t
                 inst.extra.pop("booted", None)
-                self.bubbles.append((inst.x, inst.y, t, 1.0))
-                self.bubbles.append((inst.x + 20, inst.y + 4, t + 0.7, 0.8))
+                self._play_clip(inst, (inst.slot_cfg or {}).get("rise_clip"), hold=False)
+                if not (inst.slot_cfg or {}).get("rise_clip"):          # a clip paints its own
+                    self.bubbles.append((inst.x, inst.y, t, 1.0))
+                    self.bubbles.append((inst.x + 20, inst.y + 4, t + 0.7, 0.8))
             elif state in ("finished", "gone") and prev in ("working", "needs_you"):
                 # it submerges: rings spread, the last bubbles rise, the fireflies scatter
                 inst.rise_t = None
                 inst.sub_t = t
-                self.rings.append((inst.x, inst.y, t, 1.0))
+                self._play_clip(inst, (inst.slot_cfg or {}).get("submerge_clip"), hold=True)
+                if not (inst.slot_cfg or {}).get("submerge_clip"):
+                    self.rings.append((inst.x, inst.y, t, 1.0))
                 self.disturb.append((inst.x, inst.y - inst.d.height * 0.4, t))
         if state == "gone":
             inst.gone_t = t
@@ -380,7 +398,8 @@ class Actors:
             elif a < hold + dur:
                 if not inst.extra.get("swell"):
                     inst.extra["swell"] = True
-                    self.rings.append((inst.x, inst.y, t, 0.9))       # the swell, as it breaks the surface
+                    if not (inst.slot_cfg or {}).get("rise_clip"):
+                        self.rings.append((inst.x, inst.y, t, 0.9))   # the swell, as it breaks the surface
                     self.disturb.append((inst.x, inst.y - d.height * 0.3, t))
                 f = _smooth((a - hold) / dur)
                 inst.sink = 1.0 + (float(cfg.get("sink", 0.0)) - 1.0) * f
@@ -605,6 +624,30 @@ class Actors:
 
     # ---- output
     @staticmethod
+    def _rect(d, r):
+        """[x, y, w, h] on the plate, or a clip's name (its rect from live/clips/manifest.toml)."""
+        if isinstance(r, str):
+            m = (d.world.manifest.get(r) or d.world.manifest.get("clips", {}).get(r) or {}) if d.world else {}
+            r = m.get("rect") if isinstance(m, dict) else m
+        return tuple(float(v_) for v_ in r) if r else None
+
+    @staticmethod
+    def _override(inst, t):
+        o = getattr(inst, "override", None)
+        if o and o[1] <= t < o[2]:
+            return o[0]
+        return None
+
+    @staticmethod
+    def _pose(inst, d):
+        poses = d.t.get("poses")
+        if not poses:
+            return None
+        hop = inst.extra.get("hop")
+        key = "hop" if hop else ("croak" if inst.extra.get("throat", 0.0) > 0.35 else "sit")
+        return d.sprites.get(poses.get(key) or poses.get("sit"))
+
+    @staticmethod
     def _blink(inst, t, cfg):
         """The lights' level for the state: a double flash then a calm 0.55 Hz blink for "needs
         you" (`signal`), a pulse, a flicker; for a rising agent, dark until its eyes clear the
@@ -647,15 +690,27 @@ class Actors:
         sprite = sprite or clip or (d.sprites.get(st_sprite) if st_sprite else None) \
             or (d.sprites.get(cfg.get("sprite")) if cfg.get("sprite") else None) \
             or (d.sprites.get(sc.get("sprite")) if sc.get("sprite") else None) or d.sprite
-        h = float(cfg.get("height", d.height)) * inst.scale * inst.extra.get("shrink", 1.0)
+        ov = self._override(inst, t)                 # a keeper's pose for an event (Hollis's catch)
+        if ov:
+            sprite = d.sprites.get(ov.get("sprite")) or sprite
+        pose = self._pose(inst, d)                   # a crowd's pose still (a frog sitting, croaking, hopping)
+        if pose is not None:
+            sprite = pose
+        h = float(sc.get("height") or cfg.get("height", d.height)) * inst.scale * inst.extra.get("shrink", 1.0)
         depth = float(v.get("depth", cfg.get("depth", d.depth)))
         # frame: the turn gesture, the state's strip, or the walk cycle
         front = d.frames.get("front")
+        fsprite = d.sprites.get(d.t.get("front_sprite")) if d.t.get("front_sprite") else None
+        if fsprite is not None:
+            front = front or [0]
         if inst.turn > 0.5 and front:
             fi = front[0]
             sx = (inst.turn - 0.5) * 2.0
+            if fsprite is not None:
+                sprite = fsprite
         else:
-            sx = inst.face * (1.0 - 2.0 * min(inst.turn, 0.5)) if inst.turn > 0.02 else inst.face
+            # turning without a front view: squash to the edge and open out the other way
+            sx = inst.face * abs(1.0 - 2.0 * inst.turn) if inst.turn > 0.02 else inst.face
             if inst.frame is not None:
                 fl = d.frame_list(v.get("frames_key", "fly") if inst.v is not None else inst.state, d.frame_list("walk"))
                 fi = fl[inst.frame % len(fl)] if inst.v is not None or d.kind == "traffic" else inst.frame
@@ -675,23 +730,23 @@ class Actors:
                 fi, sx = front[0], 1.0
         if inst.v is not None and "frame" in v:
             fi = int(v["frame"])
+        if d.t.get("faces") == "left":               # art drawn facing left: flip it so `face` reads the same
+            sx = -sx
         u0, v0, u1, v1, asp = sprite.frame(fi)
         w = h * asp
-        patch = sc.get("patch") or d.t.get("patch")
-        if isinstance(patch, str):                  # a clip's name: its rect from live/clips/manifest.toml
-            m = (d.world.manifest.get(patch) or d.world.manifest.get("clips", {}).get(patch) or {}) if d.world else {}
-            patch = m.get("rect") if isinstance(m, dict) else m
-        if patch:                                   # a patch of the scene, placed by its rect (one-shot clips)
-            px0, py0, pw, ph = (float(v_) for v_ in patch)
-            inst.x, inst.y, w, h, sx = px0 + pw / 2, py0 + ph, pw, ph, 1.0
-            inst.dx = inst.dy = inst.sink = 0.0
-        sy = 1.0 + inst.extra.get("flap", 0.0) + 0.12 * inst.extra.get("throat", 0.0)
+        patch = (ov or {}).get("rect") or cfg.get("rect") or sc.get("patch") or d.t.get("patch") or d.t.get("rect")
+        patch = self._rect(d, patch)
+        sy = 1.0 + inst.extra.get("flap", 0.0) + (0.0 if d.t.get("poses") else 0.12 * inst.extra.get("throat", 0.0))
         wade = float(cfg.get("wade", d.wade)) if (d.wade or "wade" in cfg) and not patch else 0.0
         x = inst.x + inst.dx
         cut = inst.y + inst.dy * 0.0 if wade > 0 else -1.0
         base = inst.y + inst.dy + (wade + inst.sink) * h
         if wade <= 0:
             base = inst.y + inst.dy + inst.sink * h
+        if patch:                                   # placed by its rect on the plate (a patch of the scene, a still)
+            px0, py0, pw, ph = patch
+            x, base, w, h, sy = px0 + pw / 2 + inst.dx, py0 + ph + inst.dy, pw, ph, 1.0
+            sx = 1.0
         tint = cfg.get("tint") or v.get("tint")
         bright = float(cfg.get("bright", v.get("bright", 1.0)))
         par = d.parallax
@@ -706,11 +761,15 @@ class Actors:
         if em and d.sprites.get(em):
             es = d.sprites[em]
             col = (d.error_color if inst.error else d.signal_color) if cfg.get("signal") else \
-                tuple(cfg.get("color") or d.t.get("light_color", (0.35, 0.95, 1.0)))
+                tuple(cfg.get("color") or sc.get("light_color") or d.t.get("light_color", (0.35, 0.95, 1.0)))
             lit_e = inst.light * inst.alpha * self._blink(inst, t, cfg) * (1.0 + 1.8 * inst.flare)
             if lit_e > 0.01:
                 e_uv = es.frame(fi)
-                sprites.append((depth + 0.005, dict(spr, uv=e_uv[:4], video=es.video, tint=(col[0], col[1], col[2], 1.0),
+                er = self._rect(d, sc.get("emissive_rect"))
+                place = {}
+                if er:                              # the mask has its own rect (a piece inside a bigger patch)
+                    place = {"x": er[0] + er[2] / 2 + inst.dx, "y": er[1] + er[3] + inst.dy, "w": er[2], "h": er[3]}
+                sprites.append((depth + 0.005, dict(spr, **place, uv=e_uv[:4], video=es.video, tint=(col[0], col[1], col[2], 1.0),
                                                      bright=lit_e * float(d.t.get("emissive_gain", 1.4)), add=True, emissive=True,
                                                      reflect=0.0)))
         # a diver leaves a fading trail of light above it

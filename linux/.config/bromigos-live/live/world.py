@@ -252,8 +252,11 @@ class World:
             rels.append(a["sprite"])
             if a.get("emissive"):
                 rels.append(a["emissive"])
+            rels += [a[k] for k in ("front_sprite",) if a.get(k)]
+            rels += list((a.get("poses") or {}).values())
+            rels += [ev["sprite"] for ev in (a.get("events") or {}).values() if ev.get("sprite")]
             for sl in a.get("slots", []):
-                rels += [sl[k] for k in ("sprite", "emissive") if sl.get(k)]
+                rels += [sl[k] for k in ("sprite", "emissive", "rise_clip", "submerge_clip") if sl.get(k)]
                 for st in (sl.get("states") or {}).values():
                     rels += [st[k] for k in ("sprite", "clip") if st.get(k)]
             for st in (a.get("states") or {}).values():
@@ -456,6 +459,7 @@ class World:
             "health": health,
             "lab_green": bool(f.get("lab_green", gadgets.all_green(d))) if "lab_green" not in f else bool(float(f["lab_green"])),
             "storm": 1.0 if health >= 2 else 0.0,
+            "arbiter": bool(float(f["arbiter"])) if "arbiter" in f else d.get("arbiter_total") is not None,
             "lab": bool(float(f["lab"])) if "lab" in f else bool(d.get("cluster_ok") or d.get("cluster")),
             "ingress": float(f.get("ingress", ((d.get("cluster") or {}).get("traefik") or {}).get("rpsNow") or 0.0)),
             "user": str(f.get("user", act.state())),
@@ -665,6 +669,15 @@ class World:
         self._common(p)
         vx, vy, z = self._layer_view(L)
         p.f("u_view", vx, vy, z, 0.0)
+        sw = L.t.get("sway")
+        if sw:                                    # kelp and moss swaying with a signal (the swell: CPU)
+            lv = float(sig.get(sw.get("signal", "cpu"), 0.0) or 0.0)
+            amp = float(sw.get("min", 2)) + (float(sw.get("max", 10)) - float(sw.get("min", 2))) * lv
+            amp = self._ease("sway_" + L.id, amp, self.frame_dt or 1.0, 2.0)
+            L.sway_ph = getattr(L, "sway_ph", 0.0) + (self.frame_dt or 0.0) * (0.5 + 1.2 * lv)
+            p.f("u_sway", amp * self.sx / self.w, L.sway_ph, float(sw.get("top", 300)) * self.sy, float(sw.get("bottom", 1440)) * self.sy)
+        else:
+            p.f("u_sway", 0.0, 0.0, 0.0, 1.0)
         if L.sky:
             p.f("u_sky", 1.0, self.surface_y * self.sy, 0.55, 0.0)
             tw = self.spec.get("clock", {}).get("twilight", (1.0, 0.55, 0.35))
@@ -879,12 +892,14 @@ class World:
             end = self.line_hook or self.line_end()
             taut = t < fx.line_taut_until or self.line_hook is not None
             sag = 0.0 if taut else float(e.get("sag", 26.0))
+            kp = self.actors.insts.get((self.keeper.id, "keeper")) if self.keeper else None
+            show = (taut or e.get("slack", True)) and not (kp and self.actors._override(kp, t))
             if taut and self.line_hook is None:
                 a = t - fx.line_jerk
                 end = (end[0] + math.sin(a * 21.0) * 2.0 * math.exp(-a), end[1] + 7.0 * math.exp(-a * 0.8))
             ox, oy = self._par(float(e.get("depth", 31)))
             p.f("u_fline", tip[0] * sx + ox, tip[1] * sy + oy, end[0] * sx + ox, end[1] * sy + oy)
-            p.f("u_fline2", sag * sy, 1.0, 0.0, 0.0)
+            p.f("u_fline2", sag * sy, 1.0 if show else 0.0, 0.0, 0.0)
             p.f("u_flinecol", *[float(x) for x in e.get("color", (0.8, 0.82, 0.78))])
         e = fx.by.get("beam")
         if e and not self._ok(e):

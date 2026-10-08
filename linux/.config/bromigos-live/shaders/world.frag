@@ -104,7 +104,8 @@ vec3 water(vec2 px, vec3 c) {
     if (depth > 0.0) {
         vec2 wob = vec2(sin(px.y * 0.05 + u_time * 1.1 + u_swell.z), 0.0) * (2.0 + u_swell.x * 0.15) * u_scale;
         vec3 under = texture(u_back, (px + wob) / u_res * vec2(1.0, -1.0) + vec2(0.0, 1.0)).rgb;
-        vec2 wuv = (vec2(px.x, px.y - (surf - u_line.x)) / u_res - 0.5) / u_wview.z + 0.5 + u_wview.xy;
+        // the painted water moves with the surface only near it; the deep stays put
+        vec2 wuv = (vec2(px.x, px.y - (surf - u_line.x) * exp(-depth / (50.0 * u_scale))) / u_res - 0.5) / u_wview.z + 0.5 + u_wview.xy;
         vec4 wt = texture(u_water, wuv);
         vec3 deep = wt.rgb * u_grade.rgb;
         c = mix(under, deep / max(wt.a, 1e-3), wt.a);

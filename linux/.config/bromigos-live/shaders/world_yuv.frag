@@ -10,7 +10,7 @@ uniform float u_bt709;       // 1: BT.709, 0: BT.601 (limited range)
 uniform sampler2D u_mask;    // a patch's feathered edge (one-shot clips), when u_has_mask
 uniform float u_has_mask;
 void main() {
-    vec2 uv = vec2(v_uv.x, 1.0 - v_uv.y);            // row 0 is the frame's top
+    vec2 uv = v_uv;          // the target's row 0 takes the frame's top, like every texture uploaded from an image
     vec2 cuv = u_stacked > 0.5 ? vec2(uv.x, uv.y * 0.5) : uv;
     float y = (texture(u_y, cuv).r - 16.0 / 255.0) * (255.0 / 219.0);
     vec2 c = (texture(u_uv, cuv).rg - 0.5) * (255.0 / 224.0);
