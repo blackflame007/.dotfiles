@@ -746,10 +746,14 @@ class App:
         return "unknown command"
 
     def _mtime(self):
-        try:
-            return os.path.getmtime(config.PATH)
-        except OSError:
-            return 0
+        """config.toml and the overrides file: a change to either reloads."""
+        m = []
+        for p in (config.PATH, config.OVERRIDES):
+            try:
+                m.append(os.path.getmtime(p))
+            except OSError:
+                m.append(0)
+        return tuple(m)
 
     def _watch_config(self):
         m = self._mtime()

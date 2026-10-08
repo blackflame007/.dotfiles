@@ -39,10 +39,12 @@ if [[ $COLORTERM == (truecolor|24bit) || $TERM == (xterm-kitty|alacritty) ]]; th
   precmd_functions+=(_bromigos_prompt_colors)
 fi
 
-# ---------------------------------------------------------------- banner
+# ---------------------------------------------------------------- banner (and the `bromigos …` command)
 # The emblem (pre-rendered braille, ~/.config/bromigos/shell/emblem.braille)
 # beside real readings from /proc. Pure zsh except one `df`; well under 50 ms.
 bromigos() {
+  # with arguments it's the desktop's command (bromigos anim/live/vector/lock/status/help)
+  if (( $# )); then command ~/.config/bromigos/bin/bromigos "$@"; return; fi
   setopt localoptions extendedglob
   [[ -r /proc/uptime ]] || { print -u2 "bromigos: needs /proc (Linux)"; return 1; }
   local -a art info

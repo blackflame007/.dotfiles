@@ -15,6 +15,8 @@ import bromigos_private as PRIV  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PATH = os.environ.get("BROMIGOS_LIVE_CONFIG") or os.path.join(os.path.expanduser("~/.config/bromigos-live"), "config.toml")
+# Sir's own switches (`bromigos anim on|off …`), merged over config.toml; local state, not in git
+OVERRIDES = os.path.join(os.path.expanduser("~/.local/state/bromigos-live"), "overrides.toml")
 if not os.path.exists(PATH):
     PATH = os.path.join(HERE, "config.toml")
 
@@ -78,7 +80,15 @@ def _private(cfg):
 def load():
     try:
         with open(PATH, "rb") as f:
-            return _private(_merge(DEFAULTS, tomllib.load(f)))
+            cfg = _merge(DEFAULTS, tomllib.load(f))
     except (OSError, tomllib.TOMLDecodeError) as e:
         print("bromigos-live: config error, using defaults:", e, flush=True)
-        return _private(copy.deepcopy(DEFAULTS))
+        cfg = copy.deepcopy(DEFAULTS)
+    try:
+        with open(OVERRIDES, "rb") as f:
+            cfg = _merge(cfg, tomllib.load(f))
+    except FileNotFoundError:
+        pass
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        print("bromigos-live: overrides ignored:", e, flush=True)
+    return _private(cfg)

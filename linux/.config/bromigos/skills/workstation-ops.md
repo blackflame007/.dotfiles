@@ -38,6 +38,7 @@ were one setting, found in seconds by reading state, not by guessing.
 | Input / keys | `hyprctl binds -j`, `hyprctl devices -j`, `bromigos-hyprconfig status`, `journalctl --user -u openrazer-daemon` | edit `~/.config/hypr/bromigos/binds.lua` (see the hyprland-config skill), `hyprctl reload` |
 | Hyprland | `hyprctl configerrors`, `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua` | fix the Lua, reload; never `reload full-reset` casually |
 | User services | `systemctl --user list-units --failed`, `status`, `journalctl --user -u` | `systemctl --user restart <unit>` |
+| Wallpaper effects | `bromigos anim` (list), `bromigos status` | `bromigos anim off|on <name…|all>`, `bromigos anim reset`; whole layer `bromigos live on|off` (Sir's switches live in ~/.local/state/bromigos-live/overrides.toml) |
 | Desktop pieces | `bromigos-live status` (surface mapped? measured fps), `bromigos-holo status`, `bromigos-widgets` | `bromigos-live restart`, `bromigos-holo restart`, `bromigos-widgets reload` |
 | GPU | `nvidia-smi` (who holds VRAM), `nvidia-smi --query-compute-apps=pid,used_memory --format=csv` | stop the duplicate or idle holder |
 | Disk | `df -h /`, `docker system df`, `du -xh --max-depth=2 / \| sort -rh \| head` | `docker builder prune -af`, `docker image prune -af --filter until=720h`; ask before deleting named volumes |
