@@ -8,6 +8,7 @@
 set -u
 DIR="$HOME/Pictures/screenshots"
 SOUND="$HOME/.config/bromigos-live/sounds/blip.wav"
+[ -f "$SOUND" ] || SOUND=/usr/lib/bromigos/live/sounds/blip.wav   # packaged (bromigos-live)
 MUTED="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos-live/muted"
 HYPRCTL=/usr/bin/hyprctl
 mkdir -p "$DIR"

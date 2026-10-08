@@ -5,7 +5,8 @@ import os
 import sys
 import time
 
-sys.path.insert(0, os.path.expanduser("~/.config/bromigos/widgets"))
+_WIDGETS = "/usr/lib/bromigos/widgets" if os.path.isdir("/usr/lib/bromigos/widgets") else os.path.expanduser("~/.config/bromigos/widgets")   # packaged: bromigos-widgets
+sys.path.insert(0, _WIDGETS)
 sys.path.insert(0, os.path.expanduser("~/.config/bromigos/lib"))
 import bromigos_theme as T  # noqa: E402  (spans are written in the Wick's colours; T.retint -> the theme's)
 from sources import GPU, human  # noqa: E402

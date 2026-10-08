@@ -24,7 +24,8 @@ START, END = "<!-- keybinds:start -->", "<!-- keybinds:end -->"
 
 
 def table():
-    sys.path.insert(0, os.path.join(HERE, "..", "widgets"))
+    pkg = "/usr/lib/bromigos/widgets"                              # packaged: bromigos-widgets
+    sys.path.insert(0, pkg if os.path.isdir(pkg) else os.path.join(HERE, "..", "widgets"))
     import keybinds as K
     K._hypr_binds = lambda: None                                   # the repo's files, not the live session
     K._lua_binds.__defaults__ = (CONF,)                           # start from the repo's config

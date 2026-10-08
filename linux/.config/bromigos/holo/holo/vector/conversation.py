@@ -20,7 +20,9 @@ from gi.repository import GLib
 VAD_MODEL = os.path.expanduser("~/.local/share/bromigos/voice/silero_vad.onnx")
 SR = 16000
 FRAME = 512                      # 32 ms, Silero's frame at 16 kHz
-CUE = os.path.expanduser("~/.config/bromigos-live/sounds/blip.wav")
+CUE = next((p for p in (os.path.expanduser("~/.config/bromigos-live/sounds/blip.wav"),
+                         "/usr/lib/bromigos/live/sounds/blip.wav") if os.path.exists(p)),   # packaged: bromigos-live
+           os.path.expanduser("~/.config/bromigos-live/sounds/blip.wav"))
 
 
 class Vad:

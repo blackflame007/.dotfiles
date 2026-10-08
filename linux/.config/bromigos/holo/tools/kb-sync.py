@@ -145,7 +145,9 @@ def sources():
             if doc:
                 spaces["kb-desktop"].append(("dotfiles", dot, rel, doc))
     try:      # the live keybind table, as the desktop sees it
-        kb = subprocess.run([sys.executable, os.path.join(dot, "linux/.config/bromigos/widgets/keybinds.py")],
+        kbpy = next((p for p in ("/usr/lib/bromigos/widgets/keybinds.py",            # packaged: bromigos-widgets
+                                 os.path.join(dot, "linux/.config/bromigos/widgets/keybinds.py")) if os.path.isfile(p)), "")
+        kb = subprocess.run([sys.executable, kbpy],
                             capture_output=True, text=True, timeout=20).stdout
         if kb.strip():
             spaces["kb-desktop"].append(("dotfiles", dot, "keybinds (live, from the Hyprland config)", "# Keybinds\n\n" + kb))

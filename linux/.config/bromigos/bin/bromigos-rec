@@ -9,6 +9,7 @@ set -u
 DIR="$HOME/Videos/recordings"
 STATE="${XDG_RUNTIME_DIR:-/tmp}/bromigos-rec"
 SOUND_DIR="$HOME/.config/bromigos-live/sounds"
+[ -d "$SOUND_DIR" ] || SOUND_DIR=/usr/lib/bromigos/live/sounds   # packaged (bromigos-live)
 MUTED="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos-live/muted"
 HYPRCTL=/usr/bin/hyprctl
 
