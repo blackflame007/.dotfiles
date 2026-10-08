@@ -85,6 +85,10 @@ _COMPUTED = {
 
 def theme_consts(src):
     import re
+    # read the palette now, not up to a second late: a theme switch rebuilds the background
+    # at once, and a shader compiled from the last theme's cache keeps its colours (the den's
+    # rain came up Tidewell-blue after tidewell -> wick)
+    T.version(0.0)
     if T.is_wick():
         return src
 
