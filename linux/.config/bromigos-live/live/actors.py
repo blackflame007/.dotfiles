@@ -50,8 +50,9 @@ def _smooth(x):
 class Sprite:
     """A sprite's frames in the atlas: list of (u0, v0, u1, v1, aspect w/h)."""
 
-    def __init__(self, frames):
+    def __init__(self, frames, video=None):
         self.frames = frames
+        self.video = video          # a VideoLoop: the frame is its texture (uv 0..1)
 
     def frame(self, i):
         return self.frames[int(i) % len(self.frames)]
@@ -127,6 +128,8 @@ class Inst:
         self.spot = d.at
         self.zone = None
         self.placed = None
+        self.slot = None
+        self.slot_cfg = {}
         r = _rng(d.id, key)
         self.r = r
         self.seed = r.random()
@@ -141,6 +144,7 @@ class Actors:
         self.spray = []            # (x, y, t0, strength) new this frame
         self.n_event = 0
         self.lanes = {}
+        self.sounds = []           # cues the actors asked for this frame (relative paths)
 
     # ---- events
     def event(self, name, t, **info):
@@ -167,6 +171,7 @@ class Actors:
         (sprites, glows, wakes): sprites = [(depth, dict)], glows = [(depth, (x, y, rx, ry, r, g, b, i, fog))],
         wakes = [(x, y, strength)]."""
         self.spray = []
+        self.sounds = []
         sprites, glows, wakes = [], [], []
         for d in self.defs:
             getattr(self, "_sync_" + d.kind, lambda *a: None)(d, t, sig)
@@ -196,11 +201,26 @@ class Actors:
     # ---- populations
     def _sync_agents(self, d, t, sig):
         agents = sig.get("agents") or []
+        take = d.t.get("take", (0, d.max))
         live = {}
-        for a in agents[:d.max]:
+        for a in agents[int(take[0]):int(take[1])][:d.max]:
             live[a["key"]] = a
+        slots = d.t.get("slots")
+        used = {getattr(o, "slot", None) for (did, _), o in self.insts.items() if did == d.id and o.state != "gone"}
         for k, a in live.items():
             inst = self.insts.get((d.id, k))
+            if inst is None and slots:                 # a fixed place (a foreground head), the first free one
+                free = [i for i in range(len(slots)) if i not in used]
+                if not free:
+                    continue
+                inst = Inst(d, k, t)
+                inst.slot = free[0]
+                used.add(free[0])
+                sl = slots[free[0]]
+                inst.x, inst.y = sl["at"]
+                inst.face = float(sl.get("face", 1.0))
+                inst.slot_cfg = sl
+                self.insts[(d.id, k)] = inst
             if inst is None:
                 inst = Inst(d, k, t)
                 zones = d.zones or [(d.at[0] - 200, d.at[1], d.at[0] + 200, d.at[1] + 30)]
@@ -314,7 +334,8 @@ class Actors:
             inst.frame = int((t * float(d.t.get("fps", 0))) % max(len(d.sprite.frames), 1))
             return
         cfg = d.state_cfg(inst.state)
-        hidden = bool(cfg.get("hidden"))
+        req = d.t.get("requires")
+        hidden = bool(cfg.get("hidden")) or bool(req and not sig.get(req))
         inst.alpha = _ease(inst.alpha, 0.0 if hidden else 1.0, dt, 0.8)
         inst.turn = _ease(inst.turn, getattr(inst, "turn_target", 0.0), dt, 0.35)
         target_light = float(cfg.get("light", 1.0))
@@ -390,7 +411,19 @@ class Actors:
             inst.x = path[0] + (path[1] - path[0]) * f
             inst.dist = inst.x
         elif m == "croak":
-            inst.extra["throat"] = max(0.0, math.sin(t * TAU * rate + ph)) ** 8
+            puff = max(0.0, math.sin(t * TAU * rate + ph)) ** 8
+            if puff > 0.5 and not inst.extra.get("puffing"):
+                self.sounds.append(cfg.get("sound") or d.t.get("sound"))     # one croak, one cue
+            inst.extra["puffing"] = puff > 0.5
+            inst.extra["throat"] = puff
+            every = float(cfg.get("hop_every", 0))
+            if every and d.spots:                      # hop to another pad now and then
+                k = int((t + inst.seed * every) // every)
+                if k != inst.extra.get("hop_k"):
+                    if inst.extra.get("hop_k") is not None:
+                        free = [sp for sp in d.spots if sp != inst.spot]
+                        inst.extra["hop"] = (inst.spot, free[inst.r.randrange(len(free))] if free else inst.spot, t)
+                    inst.extra["hop_k"] = k
         elif m == "breach":
             self._breach(inst, t, cfg)
         elif m == "dive":
@@ -407,7 +440,18 @@ class Actors:
             inst.dx = inst.dy = 0.0
             inst.face = -1.0 if math.sin(a) > 0 else 1.0
         elif d.kind == "crowd":
-            inst.x, inst.y = inst.spot
+            hop = inst.extra.get("hop")
+            if hop and t - hop[2] < 0.7:
+                f = (t - hop[2]) / 0.7
+                (x0, y0), (x1, y1) = hop[0], hop[1]
+                inst.x, inst.y = x0 + (x1 - x0) * f, y0 + (y1 - y0) * f
+                inst.dy = -math.sin(f * math.pi) * float(cfg.get("hop_height", 60))
+                inst.face = 1.0 if x1 >= x0 else -1.0
+            else:
+                if hop:
+                    inst.spot = hop[1]
+                    inst.extra["hop"] = None
+                inst.x, inst.y = inst.spot
 
     def _breach(self, inst, t, cfg):
         """Needs you, for swimmers: rise to the surface, then leap clear every `every` s."""
@@ -502,14 +546,32 @@ class Actors:
             inst.frame = 0
 
     # ---- output
+    @staticmethod
+    def _blink(inst, t, cfg):
+        """The lights' level for the state: one bright flash then a calm 0.55 Hz blink for "needs
+        you" (`signal`), a pulse, a flicker."""
+        blink = 1.0
+        if cfg.get("signal"):
+            a = t - inst.state_t
+            blink = 0.55 + 0.45 * math.sin(TAU * 0.55 * a - math.pi / 2) if a > 1.2 else 1.6 * math.exp(-((a - 0.5) ** 2) / 0.08) + 0.4
+        if cfg.get("pulse"):
+            blink *= 0.7 + 0.3 * math.sin(t * TAU * float(cfg["pulse"]))
+        if cfg.get("flicker"):
+            blink *= 0.5 + 0.5 * (math.sin(t * 23.0) * math.sin(t * 7.1) > -0.2)
+        return blink
+
     def _emit(self, inst, t, sig, sprites, glows, wakes):
         d = inst.d
         v = inst.v or {}
         if inst.alpha <= 0.003:
             return
         cfg = d.state_cfg(inst.state) if inst.v is None else v
+        sc = inst.slot_cfg
+        st_sprite = (sc.get("states") or {}).get(inst.state, {}).get("sprite") if sc else None
         sprite = d.sprites.get(v.get("sprite")) if v.get("sprite") else None
-        sprite = sprite or (d.sprites.get(cfg.get("sprite")) if cfg.get("sprite") else None) or d.sprite
+        sprite = sprite or (d.sprites.get(st_sprite) if st_sprite else None) \
+            or (d.sprites.get(cfg.get("sprite")) if cfg.get("sprite") else None) \
+            or (d.sprites.get(sc.get("sprite")) if sc.get("sprite") else None) or d.sprite
         h = float(cfg.get("height", d.height)) * inst.scale * inst.extra.get("shrink", 1.0)
         depth = float(v.get("depth", cfg.get("depth", d.depth)))
         # frame: the turn gesture, the state's strip, or the walk cycle
@@ -550,11 +612,23 @@ class Actors:
         tint = cfg.get("tint") or v.get("tint")
         bright = float(cfg.get("bright", v.get("bright", 1.0)))
         par = d.parallax
-        spr = {"x": x, "y": base, "w": w * sx, "h": h * sy, "uv": (u0, v0, u1, v1), "rot": inst.rot,
+        spr = {"x": x, "y": base, "w": w * sx, "h": h * sy, "uv": (u0, v0, u1, v1), "rot": inst.rot, "video": sprite.video,
                "alpha": inst.alpha, "cut": cut, "tint": tint, "bright": bright, "fog": d.fog,
                "reflect": d.reflect if wade > 0 else 0.0, "par": par}
         sprites.append((depth, spr))
         inst.placed = (x, base, w * sx, h * sy, inst.rot, fi)
+        # an emissive mask (eye-lamps painted as light): drawn additively in the light's colour
+        em = sc.get("emissive") or d.t.get("emissive")
+        if em and d.sprites.get(em):
+            es = d.sprites[em]
+            col = (d.error_color if inst.error else d.signal_color) if cfg.get("signal") else \
+                tuple(cfg.get("color") or d.t.get("light_color", (0.35, 0.95, 1.0)))
+            lit_e = inst.light * inst.alpha * self._blink(inst, t, cfg) * (1.0 + 1.8 * inst.flare)
+            if lit_e > 0.01:
+                e_uv = es.frame(fi)
+                sprites.append((depth + 0.005, dict(spr, uv=e_uv[:4], video=es.video, tint=(col[0], col[1], col[2], 1.0),
+                                                     bright=lit_e * float(d.t.get("emissive_gain", 1.4)), add=True,
+                                                     reflect=0.0)))
         # a diver leaves a fading trail of light above it
         if cfg.get("motion") == "dive" and inst.v is None:
             a = t - inst.state_t
@@ -574,16 +648,10 @@ class Actors:
         col_sig = None
         if cfg.get("signal"):
             col_sig = d.error_color if inst.error else d.signal_color
-        blink = 1.0
-        if cfg.get("signal"):
-            a = t - inst.state_t
-            blink = 0.55 + 0.45 * math.sin(TAU * 0.55 * a - math.pi / 2) if a > 1.2 else 1.6 * math.exp(-((a - 0.5) ** 2) / 0.08) + 0.4
-        if cfg.get("pulse"):
-            blink *= 0.7 + 0.3 * math.sin(t * TAU * float(cfg["pulse"]))
-        if cfg.get("flicker"):
-            blink *= 0.5 + 0.5 * (math.sin(t * 23.0) * math.sin(t * 7.1) > -0.2)
+        blink = self._blink(inst, t, cfg)
         lit = inst.light * inst.alpha * blink * (1.0 + 1.8 * inst.flare) + inst.extra.get("glint", 0.0)
-        lights = cfg.get("lights") or v.get("lights") or ([v["light"]] if v.get("light") else None) or d.lights
+        lights = cfg.get("lights") or v.get("lights") or ([v["light"]] if v.get("light") else None) \
+            or sc.get("lights") or d.lights
         if lit > 0.01 and lights:
             ca, sa = math.cos(inst.rot), math.sin(inst.rot)
             for L in lights:
@@ -609,6 +677,9 @@ class Actors:
                     rad *= float(d.t.get("signal_radius", 1.8))
                 glows.append((depth + 0.01, (gx, gy, rad, rad, c[0], c[1], c[2], lit * float(L.get("gain", 1.0)),
                                              1.0 if d.fog else 0.0)))
+                spill = float(L.get("spill", d.t.get("spill", 0.0)))
+                if spill > 0:                       # light spilling on the water and the pads around it
+                    glows.append((depth + 0.01, (gx, gy + rad * 3, rad * 9, rad * 4, c[0], c[1], c[2], lit * spill, 0.0)))
                 if wade > 0 and d.reflect > 0:      # the lamp's streak in the water
                     glows.append((depth + 0.01, (gx, 2 * cut - gy, rad * 1.3, rad * 3.2, c[0], c[1], c[2],
                                                  lit * d.reflect * 0.45, 0.0)))

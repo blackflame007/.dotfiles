@@ -116,11 +116,22 @@ def sprite_frames(root, rel):
     return []
 
 
-def build_atlas(root, rels, width=4096, pad=3):
+def build_atlas(root, rels, width=4096, pad=3, loops=None, sync=False):
     """Pack every sprite's frames into one premultiplied atlas. Returns (pixels, w, h,
-    {rel: actors.Sprite}). A missing sprite becomes a grey block and is logged."""
+    {rel: actors.Sprite}). A missing sprite becomes a grey block and is logged. A sprite
+    that names a video file is a loop (live/videoloop.py), drawn from its own texture."""
+    from .videoloop import VideoLoop, is_video
     imgs = {}
+    videos = {}
     for rel in rels:
+        if is_video(rel):
+            path = os.path.join(root, rel)
+            if os.path.isfile(path):
+                o = (loops or {}).get(rel, {})
+                v = VideoLoop(path, o.get("alpha"), o.get("fps"), float(o.get("scale", 1.0)), sync=sync)
+                videos[rel] = A.Sprite([(0.0, 0.0, 1.0, 1.0, v.aspect)], video=v)
+                continue
+            log(f"loop {rel} not found; a placeholder block stands in")
         files = sprite_frames(root, rel)
         if not files:
             log(f"sprite {rel} not found; a placeholder block stands in")
@@ -149,22 +160,32 @@ def build_atlas(root, rels, width=4096, pad=3):
             atlas[py:py + h, px:px + w] = im
             fl.append(((px + 0.5) / width, (py + 0.5) / H, (px + w - 0.5) / width, (py + h - 0.5) / H, w / h))
         out[rel] = A.Sprite(fl)
+    out.update(videos)
     return atlas, width, H, out
 
 
 # ------------------------------------------------------------------ the world
 class Layer:
-    def __init__(self, t, root):
+    def __init__(self, t, root, loops=None, sync=False):
         self.t = t
-        self.id = t.get("id") or os.path.splitext(os.path.basename(t["file"]))[0]
+        self.id = t.get("id") or os.path.splitext(os.path.basename(t.get("file") or t.get("video", "layer")))[0]
         self.depth = float(t.get("depth", 0))
         self.parallax = float(t.get("parallax", 0.0))
         self.sky = bool(t.get("sky", False))
         self.water = bool(t.get("water", False))
         fog = t.get("fog", False)                 # true, or how much of the fog reaches it (0..1)
         self.fog = float(fog) if not isinstance(fog, bool) else (1.0 if fog else 0.0)
-        px, w, h = load_rgba(os.path.join(root, t["file"]))
+        self.video = None
+        if t.get("file"):                         # the art (or a video's poster, until it plays)
+            px, w, h = load_rgba(os.path.join(root, t["file"]))
+        else:
+            px, w, h = np.zeros((2, 2, 4), np.uint8), 2, 2
         self.tex = glkit.texture_rgba(np.ascontiguousarray(px), w, h, GL.GL_RGBA)
+        if t.get("video"):                        # a living backdrop: a seamless video loop
+            from .videoloop import VideoLoop
+            o = (loops or {}).get(t["video"], {})
+            self.video = VideoLoop(os.path.join(root, t["video"]), o.get("alpha", t.get("alpha")),
+                                   o.get("fps"), float(o.get("scale", t.get("scale", 1.0))), sync=sync)
 
 
 class Effects:
@@ -209,7 +230,9 @@ class World:
         self.name = sp.get("name", os.path.basename(self.root))
         self.sx, self.sy = w / PLATE_W, h / PLATE_H
         t0 = time.monotonic()
-        self.layers = sorted((Layer(L, self.root) for L in sp.get("layers", [])), key=lambda L: L.depth)
+        self.sync = bool(os.environ.get("BROMIGOS_WORLD_SYNC"))     # offscreen: wait for each video frame
+        loops = sp.get("loops", {})
+        self.layers = sorted((Layer(L, self.root, loops, self.sync) for L in sp.get("layers", [])), key=lambda L: L.depth)
         self.water_layer = next((L for L in self.layers if L.water), None)
         self.water = sp.get("water", {})
         self.water_depth = self.water_layer.depth if self.water_layer else 1e9
@@ -220,6 +243,11 @@ class World:
         rels = []
         for a in sp.get("actors", []):
             rels.append(a["sprite"])
+            if a.get("emissive"):
+                rels.append(a["emissive"])
+            for sl in a.get("slots", []):
+                rels += [sl[k] for k in ("sprite", "emissive") if sl.get(k)]
+                rels += [st["sprite"] for st in (sl.get("states") or {}).values() if st.get("sprite")]
             for v in a.get("on", []):
                 if v.get("sprite"):
                     rels.append(v["sprite"])
@@ -227,7 +255,8 @@ class World:
                 if isinstance(st, dict) and st.get("sprite"):
                     rels.append(st["sprite"])
         rels = list(dict.fromkeys(rels))
-        atlas, aw, ah, sprites = build_atlas(self.root, rels)
+        atlas, aw, ah, sprites = build_atlas(self.root, rels, loops=loops, sync=self.sync)
+        self.videos = [s.video for s in sprites.values() if s.video] + [L.video for L in self.layers if L.video]
         self.atlas = glkit.texture_rgba(np.ascontiguousarray(atlas), aw, ah, GL.GL_RGBA)
         self.defs = [A.Def(a, sprites, self) for a in sp.get("actors", [])]
         self.actors = A.Actors(self.defs)
@@ -286,6 +315,8 @@ class World:
         pass
 
     def close(self):
+        for v in self.videos:
+            v.close()
         self.feed.halt()
         activity().halt()
 
@@ -388,6 +419,7 @@ class World:
             "health": health,
             "lab_green": bool(f.get("lab_green", gadgets.all_green(d))) if "lab_green" not in f else bool(float(f["lab_green"])),
             "storm": 1.0 if health >= 2 else 0.0,
+            "lab": bool(float(f["lab"])) if "lab" in f else bool(d.get("cluster_ok") or d.get("cluster")),
             "ingress": float(f.get("ingress", ((d.get("cluster") or {}).get("traefik") or {}).get("rpsNow") or 0.0)),
             "user": str(f.get("user", act.state())),
             "vector": str(f.get("vector", self.feed.vector)),
@@ -401,6 +433,12 @@ class World:
         else:
             s["agents"] = self.feed.agents
         return s
+
+    def moon_xy(self, sig):
+        """The moon's place in its window (0..1 across, 0..1 up), from the clock or held."""
+        if "moon_x" in self.forced:
+            return float(self.forced["moon_x"]), float(self.forced.get("moon_y", 0.8))
+        return skyclock.moon_place(sig["hour"], sig["moon_phase"])
 
     # ---- geometry helpers (plate px)
     def line_tip(self):
@@ -431,6 +469,12 @@ class World:
         d = self.data.snapshot()
         sig = self.signals(d, dt if dt > 0 else 1.0)
         self.sig = sig
+        self.frame_dt = dt
+        self._advanced = {}
+        if self.videos and int(t) % 10 == 0:
+            mono = time.monotonic()
+            for v in self.videos:
+                v.idle_check(mono)
         while self.queue and self.queue[0][0] <= t:
             _, name = self.queue.pop(0)
             self._fire(name, t)
@@ -441,9 +485,21 @@ class World:
         self.surface_y = wl
         self.line_hook = None
         sprites, glows, wakes = self.actors.update(t, dt, sig)
+        for L in self.layers:                     # video loops: new frames before any pass begins
+            if L.video and L.video not in self._advanced:
+                self._advanced[L.video] = L.video.advance(dt)
+        for _, s in sprites:
+            v = s.get("video")
+            if v is not None and v not in self._advanced:
+                self._advanced[v] = v.advance(dt)
         for (x, y, t0, s) in self.actors.spray:
             self._spray(x, y, t0, s)
         self._sounds(t, sig)
+        if not getattr(self, "offscreen", False) and self.cfg.get("world", {}).get("ambient_sounds", True):
+            for rel in self.actors.sounds[:1]:
+                if rel and t - getattr(self, "_cue_t", -9) > 1.5:
+                    self._cue_t = t
+                    self._play(rel, 0.45)
         # camera: the pointer, eased; settles home when the user is idle
         cam = self.spec.get("camera", {})
         cx, cy = activity().cursor() if cam.get("parallax", "cursor") == "cursor" and not self.forced.get("still") else (0.0, 0.0)
@@ -554,7 +610,8 @@ class World:
         p = self.p_layer
         p.use()
         GL.glActiveTexture(GL.GL_TEXTURE0)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, L.tex)
+        tex = (self._advanced.get(L.video) if L.video else None) or L.tex
+        GL.glBindTexture(GL.GL_TEXTURE_2D, tex)
         p.i("u_tex", 0)
         self._common(p)
         vx, vy, z = self._layer_view(L)
@@ -566,9 +623,7 @@ class World:
             m = self.fx.by.get("moon")
             if m:
                 ph = sig["moon_phase"]
-                mx, my = skyclock.moon_place(sig["hour"], ph)
-                if "moon_x" in self.forced:
-                    mx, my = float(self.forced["moon_x"]), float(self.forced.get("moon_y", 0.8))
+                mx, my = self.moon_xy(sig)
                 win = m.get("window", (200, 60, 2300, 600))
                 x = win[0] + (win[2] - win[0]) * mx
                 y = win[3] - (win[3] - win[1]) * max(my, -0.3)
@@ -580,6 +635,19 @@ class World:
                 p.f("u_moon2", bright, 0.0, 0.0, 0.0)
             else:
                 p.f("u_moon", 0.0, 0.0, 0.0, 0.0)
+            e = self.fx.by.get("stars")
+            if e:
+                day = skyclock.daylight(sig["hour"])
+                tw = skyclock.twilight(sig["hour"])
+                b = float(e.get("brightness", 0.5)) * (1.0 - day) * (1.0 - 0.6 * tw)
+                if sig.get("storm"):
+                    b *= 0.1
+                p.f("u_stars", b, float(e.get("density", 0.35)), float(e.get("horizon", self.surface_y)) * self.sy,
+                    float(e.get("fade", 260)) * self.sy)
+                p.f("u_starcell", float(e.get("cell", 26)) * self.sy)
+                p.f("u_time", t)
+            else:
+                p.f("u_stars", 0.0, 0.0, 0.0, 1.0)
             st = self.fx.strike
             if st and t - st[0] < 0.28:
                 p.f("u_bolt", st[1] * self.sx, st[3] * self.sy, 1.0 - (t - st[0]) / 0.28, st[2])
@@ -589,6 +657,7 @@ class World:
             p.f("u_sky", 0.0, 0.0, 0.0, 0.0)
             p.f("u_moon", 0.0, 0.0, 0.0, 0.0)
             p.f("u_bolt", 0.0, 0.0, 0.0, 0.0)
+            p.f("u_stars", 0.0, 0.0, 0.0, 1.0)
         if L.fog:
             self._fog(p, L.fog)
         else:
@@ -602,6 +671,23 @@ class World:
         return pool[i]
 
     def _draw_sprites(self, i, sprs, depth, t):
+        groups = {}
+        for s in sprs:
+            groups.setdefault((1 if s.get("add") else 0, id(s.get("video")) if s.get("video") else 0), []).append(s)
+        for k, (key, grp) in enumerate(sorted(groups.items(), key=lambda kv: kv[0])):
+            tex = self.atlas
+            v = grp[0].get("video")
+            if v is not None:
+                tex = self._advanced.get(v)
+                if tex is None:
+                    continue                      # no frame decoded yet
+            if key[0]:
+                GL.glBlendFunc(GL.GL_ONE, GL.GL_ONE)             # emissive masks: light, added
+            self._draw_sprite_group(i * 8 + k, grp, depth, t, tex)
+            if key[0]:
+                GL.glBlendFunc(GL.GL_ONE, GL.GL_ONE_MINUS_SRC_ALPHA)
+
+    def _draw_sprite_group(self, i, sprs, depth, t, tex):
         rows = []
         sx, sy = self.sx, self.sy
         for s in sprs:
@@ -612,7 +698,7 @@ class World:
             tint = s.get("tint")
             tr = (tint[0], tint[1], tint[2], tint[3] if len(tint) > 3 else 0.5) if tint else (0.0, 0.0, 0.0, 0.0)
             base = [x, y, w, h, *s["uv"], s["rot"], s["alpha"], cut, 0.0, *tr, s["reflect"],
-                    1.0 if s["fog"] else 0.0, s["bright"], 0.0]
+                    1.0 if s["fog"] else 0.0, s["bright"], 1.0 if s.get("add") else 0.0]
             if s["reflect"] > 0 and cut > 0:
                 r = list(base)
                 r[11] = 1.0
@@ -623,7 +709,7 @@ class World:
         p = buf.prog
         p.use()
         GL.glActiveTexture(GL.GL_TEXTURE0)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.atlas)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, tex)
         p.i("u_atlas", 0)
         self._common(p)
         p.f("u_time", t)
@@ -672,8 +758,14 @@ class World:
             return 0.0
         return float(e.get("flash", 0.9)) * (math.exp(-a / 0.06) + 0.6 * math.exp(-((a - 0.18) ** 2) / 0.002))
 
+    def _ok(self, e):
+        """An effect or actor with `requires = "<signal>"` isn't drawn while that source is
+        unavailable (the shared rule: no data, no inhabitant)."""
+        req = e.get("requires")
+        return not req or bool(self.sig.get(req))
+
     def _beacon(self, e):
-        on = bool(self.sig.get(e.get("signal", "lab_green")))
+        on = bool(self.sig.get(e.get("signal", "lab_green"))) and self._ok(e)
         if not on:
             return None
         t = self.now()
@@ -747,7 +839,9 @@ class World:
             p.f("u_fline2", sag * sy, 1.0, 0.0, 0.0)
             p.f("u_flinecol", *[float(x) for x in e.get("color", (0.8, 0.82, 0.78))])
         e = fx.by.get("beam")
-        if e:
+        if e and not self._ok(e):
+            p.f("u_beam", 0.0, 0.0, 0.0, 0.0)
+        elif e:
             rate = float(e.get("rate", 0.35)) + float(e.get("rate_gain", 0.12)) * min(float(sig.get(e.get("rate_signal", "ingress"), 0.0) or 0.0), 6.0)
             fx.beam_phase = (fx.beam_phase + dt * rate) % (2 * math.pi)
             cols = e.get("colors", [(1.0, 0.95, 0.8), (1.0, 0.72, 0.25), (1.0, 0.3, 0.25)])
@@ -772,11 +866,16 @@ class World:
         e = fx.by.get("rays")
         if e:
             day = skyclock.daylight(sig["hour"])
-            mx, my = skyclock.moon_place(sig["hour"], sig["moon_phase"])
+            mx, my = self.moon_xy(sig)
             moon = skyclock.illumination(sig["moon_phase"]) * max(0.0, min(1.0, (my + 0.1) / 0.3))
             light = max(day, moon * 0.8) * (0.4 if sig.get("storm") else 1.0)
+            follow = -1.0                          # the x the shafts gather under (-1: everywhere)
+            m = fx.by.get("moon")
+            if e.get("follow_moon") and m and day < 0.5 and moon > 0.05:
+                win = m.get("window", (200, 60, 2300, 600))
+                follow = (win[0] + (win[2] - win[0]) * mx) * sx
             p.f("u_rays", float(e.get("gain", 0.25)) * (float(e.get("base", 0.15)) + (1.0 - float(e.get("base", 0.15))) * light),
-                float(e.get("slant", 0.18)), float(e.get("reach", 520)) * sy, 0.0)
+                float(e.get("slant", 0.18)), float(e.get("reach", 520)) * sy, follow)
             p.f("u_rayscol", *[float(x) for x in e.get("color", (0.45, 0.75, 0.85))])
         wk = np.zeros((12, 4), np.float32)
         ox, oy = self._par(self.water_depth)

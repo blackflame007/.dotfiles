@@ -38,6 +38,7 @@ class Feed:
         self.vector = "off"
         self.stop = threading.Event()
         self._vsig = None
+        self.first_seen = {}        # agent key -> when first seen: a stable order (the first few are the foreground)
 
     def start(self):
         threading.Thread(target=self._herdr_loop, daemon=True, name="world-herdr").start()
@@ -56,6 +57,12 @@ class Feed:
                     key = a.get("terminal_id") or a.get("pane_id") or json.dumps(a.get("agent_session"))
                     out.append({"key": str(key), "status": st, "error": err, "cwd": a.get("cwd") or "",
                                 "name": a.get("agent") or a.get("name") or ""})
+                now = time.time()
+                for a in out:
+                    self.first_seen.setdefault(a["key"], now)
+                live = {a["key"] for a in out}
+                self.first_seen = {k: v for k, v in self.first_seen.items() if k in live}
+                out.sort(key=lambda a: (self.first_seen[a["key"]], a["key"]))
                 self.agents = out
                 self.agents_ok = True
             except Exception:

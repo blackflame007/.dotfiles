@@ -41,7 +41,7 @@ uniform vec4 u_beam;            // lamp x, y px, angle, on
 uniform vec4 u_beam2;           // reach px, -, -, -
 uniform vec3 u_beamcol;
 uniform vec4 u_caus;            // caustics gain, -, -, -
-uniform vec4 u_rays;            // gain, slant (px across per px down), reach px, -
+uniform vec4 u_rays;            // gain, slant (px across per px down), reach px, x they gather under (-1 everywhere)
 uniform vec3 u_rayscol;
 #include world_common
 
@@ -108,7 +108,8 @@ vec3 water(vec2 px, vec3 c) {
         float lx = (px.x + depth * u_rays.y) / u_scale;
         float sh = w_noise(vec2(lx * 0.006, u_swell.z * 0.04)) * 0.65 + w_noise(vec2(lx * 0.017, u_swell.z * 0.07 + 3.0)) * 0.35;
         sh = pow(clamp(sh * 1.35 - 0.3, 0.0, 1.0), 2.5);
-        c += u_rayscol * sh * exp(-depth / max(u_rays.z, 1.0)) * u_rays.x * (1.0 + u_flash * 7.0);
+        float gather = u_rays.w < 0.0 ? 1.0 : exp(-pow((px.x - depth * u_rays.y - u_rays.w) / (700.0 * u_scale), 2.0)) * 1.8;
+        c += u_rayscol * sh * exp(-depth / max(u_rays.z, 1.0)) * u_rays.x * gather * (1.0 + u_flash * 7.0);
 #endif
     } else {
         // the sea surface just above the line catches the swell's crests

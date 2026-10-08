@@ -4,7 +4,7 @@ layout(location = 0) in vec4 a0;   // x, y px (bottom centre), w (signed: facing
 layout(location = 1) in vec4 a1;   // atlas u0, v0, u1, v1
 layout(location = 2) in vec4 a2;   // rotation, alpha, cut y px (-1 none), mode (1 = reflection)
 layout(location = 3) in vec4 a3;   // tint rgb, tint amount
-layout(location = 4) in vec4 a4;   // reflection strength, fog, brightness, -
+layout(location = 4) in vec4 a4;   // reflection strength, fog, brightness, emissive (1)
 uniform vec2 u_res;
 out vec2 v_uv;
 out float v_y0;                    // the un-mirrored y px

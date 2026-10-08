@@ -429,6 +429,17 @@ bromigOS `docs/theming.md` ("Worlds"); this section is how the live layer runs i
   `live/skyclock.py`: the hour's light, the moon's phase and place, the tide, all local.
 - **Camera:** the layers sway with the pointer while the user works (parallax), and
   settle home when idle.
+- **Video loops** (`live/videoloop.py`, `shaders/world_yuv.frag`): a layer's `video` or
+  any actor sprite naming a video file plays it as a GPU texture: one ffmpeg per loop
+  (`-hwaccel auto`, `-stream_loop -1`) writing NV12 to a pipe, a reader thread, the
+  planes uploaded and converted to premultiplied RGBA on the GPU. Videos advance at the
+  start of a frame, only while drawn; a paused layer stops consuming frames so ffmpeg
+  blocks (measured: 0.01 s CPU in 3 s paused); a loop unused for 20 s is stopped.
+  Offscreen renders wait for every frame (`BROMIGOS_WORLD_SYNC`). Alpha: `stacked`
+  (colour over grey alpha, hardware decoded), `native` (VP9 alpha, libvpx), `none`.
+- **No data, no inhabitant:** an effect or actor with `requires = "lab"` (or any signal)
+  isn't drawn while that source is unavailable: Mire's mast light and Tidewell's beam
+  without the Lab API.
 - **Sound:** the world's `[sounds] ambient` cues (Mire's frogs and crickets) through
   `live/sound.py`: often while the user works, a third as often when idle, none when
   locked; mute and `sounds.volume` apply; `[world] ambient_sounds = false` stops them.
@@ -453,17 +464,21 @@ bromigOS `docs/theming.md` ("Worlds"); this section is how the live layer runs i
 
 | Thing | Shows | Signal |
 |---|---|---|
-| Sleepers (moss-covered exo-frames) | herdr agents: wading, eye-lamps lit (working); stop, turn to you, the eye flashes amber (needs you; red on an error); settle into the water (finished); sink away (closed) | `agents` |
+| Sleeper heads (three, in the foreground water) | the first three herdr agents (oldest first): a steady eye glow spilling on the water and pads (working); the head turns to you, the eyes flash amber (needs you; red on an error); sinks a little, eyes dim (finished) | `agents` |
+| Sleepers wading (moss-covered exo-frames) | further agents: wading among the wrecks, eye-lamps lit (working); stop, turn to you, the eye flashes amber (needs you); settle into the water (finished); sink away (closed) | `agents` |
 | Hollis (the keeper) | fishing while you work, nodding in his rocking chair when idle, slumped with the lantern dimmed when locked | `user` |
 | His line | taut on every ARBITER paper fill; a fish comes up for a win, a boot for a loss, a twitch for an opening fill | fills |
 | Herons | a heron rises off the shore for a notification; a critical one flies at the screen, red-eyed | `notify`, `critical` |
 | Fireflies | this machine's network throughput | `net` |
 | Mist, rain, thunder | CPU: mist thickens, then drizzle, a downpour on the water, lightning near 100% | `cpu` |
-| Two eyes, a long shape | lab trouble: eyes by the shack at health 1, a long shape too at 2 | `health` |
+| Two eyes, a long shape | lab trouble: eyes by the shack's stilts at health 1, a long shape too at 2 | `health` |
+| The crashed gunship, the wreckage, the boat | the scene (art only) | — |
 | The mast's light | the lab all green | `lab_green` |
 | The drone by the lantern | VECTOR: hovering (idle), circling amber (thinking), pulsing (speaking), facing you (listening), flickering red (error), gone (off) | `vector` |
-| Frogs, crickets | your activity: croaking while you work, still when idle, gone under when locked | `user` |
+| Frogs (on pads and on the heads) | your activity: croaking (puffed throat, a croak cue) and hopping pad to pad while you work, still when idle or locked | `user` |
+| Crickets (sound) | your activity: often while you work, rarer when idle, none when locked | `user` |
 | Moon, light | the real moon; dusk, night and dawn by the clock | clock |
+| Stars | faint, twinkling through the canopy gaps, fading into the mist at the horizon; brightest in deep night, gone by day | clock |
 
 ### Tidewell
 

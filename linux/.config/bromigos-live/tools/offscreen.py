@@ -223,6 +223,7 @@ def make_world(cfg, data):
     from live import world
     if os.environ.get("OFF_WORLD"):
         os.environ["BROMIGOS_WORLD"] = os.environ["OFF_WORLD"]
+    os.environ["BROMIGOS_WORLD_SYNC"] = "1"          # video loops: every frame, as rendered
     p = world.world_file(cfg)
     if not p:
         sys.exit("no world: set OFF_WORLD to a theme directory with live/world.toml")

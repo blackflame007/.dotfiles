@@ -15,6 +15,9 @@ uniform vec3 u_twi;       // twilight colour
 uniform vec4 u_moon;      // x, y px, radius px (0 = none), phase 0..1
 uniform vec4 u_moon2;     // brightness, -, -, -
 uniform vec4 u_bolt;      // x px, bottom y px, amount, seed
+uniform vec4 u_stars;     // brightness (0 = none), density 0..1, horizon y px, fade px
+uniform float u_starcell; // px per star cell
+uniform float u_time;
 uniform vec4 u_fog;       // surface y px, fog distance px, on, how much of it reaches this layer
 uniform vec3 u_fogcol;
 #include world_common
@@ -36,6 +39,28 @@ vec3 moon(vec2 px) {
     float illum = 0.5 * (1.0 - k);
     c += vec3(0.6, 0.7, 0.8) * exp(-max(r - 1.0, 0.0) * 1.6) * 0.18 * illum;
     return c * u_moon2.x;
+}
+
+// A faint twinkling starfield in the sky layer, so every layer in front (canopy, trees)
+// masks it; it fades into the haze above the horizon.
+vec3 stars(vec2 px) {
+    if (u_stars.x <= 0.0) return vec3(0.0);
+    float fade = smoothstep(u_stars.z, u_stars.z - u_stars.w, px.y);
+    if (fade <= 0.0) return vec3(0.0);
+    vec2 q = px / u_starcell;
+    vec2 id = floor(q);
+    vec3 acc = vec3(0.0);
+    for (int j = 0; j <= 1; j++) for (int i = 0; i <= 1; i++) {
+        vec2 c = id + vec2(i, j) - 0.5;
+        float h = w_hash2(c + 3.1);
+        if (h > u_stars.y) continue;
+        vec2 p = (c + 0.5 + (w_hash22(c) - 0.5) * 0.8) * u_starcell;
+        float d2 = dot(px - p, px - p);
+        float tw = 0.55 + 0.45 * sin(u_time * (1.1 + 2.3 * w_hash1(h * 71.0)) + h * 40.0);
+        float mag = 0.25 + 0.75 * pow(w_hash1(h * 13.0), 3.0);
+        acc += vec3(0.85, 0.9, 1.0) * exp(-d2 / 1.1) * tw * mag;
+    }
+    return acc * u_stars.x * fade;
 }
 
 vec3 bolt(vec2 px) {
@@ -62,7 +87,7 @@ void main() {
     if (u_sky.x > 0.5) {
         float hz = exp(-abs(px.y - u_sky.y) / (u_res.y * 0.18));
         c += u_twi * u_grade.a * hz * u_sky.z * a;
-        vec3 m = moon(px) + bolt(px);
+        vec3 m = moon(px) + bolt(px) + stars(px);
         c += m * a;
     }
     if (u_fog.z > 0.5 && px.y > u_fog.x) {

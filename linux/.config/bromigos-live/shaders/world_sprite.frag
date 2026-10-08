@@ -18,7 +18,9 @@ void main() {
     if (refl) uv.x += sin(v_y0 * 0.09 + u_time * 1.7) * 0.012 * (v_a1.z - v_a1.x);
     uv = clamp(uv, min(v_a1.xy, v_a1.zw), max(v_a1.xy, v_a1.zw));
     vec4 s = texture(u_atlas, uv);
-    vec3 c = (mix(s.rgb, v_a3.rgb * s.a, v_a3.a) * u_grade.rgb + u_lift * s.a) * v_a4.z * (1.0 + u_flash);
+    bool emissive = v_a4.w > 0.5;                    // an emissive mask: light, not lit by the hour
+    vec3 c = emissive ? v_a3.rgb * s.a * v_a4.z
+                      : (mix(s.rgb, v_a3.rgb * s.a, v_a3.a) * u_grade.rgb + u_lift * s.a) * v_a4.z * (1.0 + u_flash);
     float m = v_a2.y;                                // the instance's alpha (premultiplied art)
     if (v_a2.z > 0.0) {
         float under = v_y0 - v_a2.z;                 // > 0 below the water line
