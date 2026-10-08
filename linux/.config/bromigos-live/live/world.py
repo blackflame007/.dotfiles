@@ -253,6 +253,8 @@ class World:
             if a.get("emissive"):
                 rels.append(a["emissive"])
             rels += [a[k] for k in ("front_sprite",) if a.get(k)]
+            if isinstance(a.get("tow"), dict) and a["tow"].get("sprite"):
+                rels.append(a["tow"]["sprite"])          # a trawler's net (actors.py, "tow")
             rels += list((a.get("poses") or {}).values())
             rels += [ev["sprite"] for ev in (a.get("events") or {}).values() if ev.get("sprite")]
             for sl in a.get("slots", []):
@@ -274,6 +276,12 @@ class World:
             for sl in a.get("slots", []):
                 if sl.get("emissive") and isinstance(sl.get("patch"), (list, tuple)):
                     crops[sl["emissive"]] = sl["patch"]
+        # an additive actor's loop is glow art on black: its coverage is its brightness, so
+        # fog and the water's tint stay on the creature, not on the frame around it
+        loops = {k: dict(v) for k, v in loops.items()}
+        for a in sp.get("actors", []):
+            if a.get("blend") == "add" and isinstance(a.get("sprite"), str):
+                loops.setdefault(a["sprite"], {}).setdefault("alpha", "luma")
         atlas, aw, ah, sprites = build_atlas(self.root, rels, loops=loops, sync=self.sync, crops=crops)
         self.videos = [s.video for s in sprites.values() if s.video] + [L.video for L in self.layers if L.video]
         self.atlas = glkit.texture_rgba(np.ascontiguousarray(atlas), aw, ah, GL.GL_RGBA)

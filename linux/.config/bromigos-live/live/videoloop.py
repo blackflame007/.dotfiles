@@ -21,6 +21,9 @@ Alpha (world.toml `[loops."<path>"] alpha = ...`):
   "native"   VP9 or AV1 with alpha (default for .webm), software decoded
   "stacked"  the colour on top, its alpha (grey) below, in one frame twice as tall:
              any codec, hardware decoded; ffmpeg merges the halves
+  "luma"     glow art on pure black (an additive creature): opaque video whose coverage is
+             its brightness, so the black around it is truly empty (the default for a loop
+             an actor with blend = "add" plays)
 Also per loop: `fps` (default: the file's), `scale` (decode at this fraction of the
 file's size, to keep big backdrops cheap).
 """
@@ -250,9 +253,10 @@ class VideoLoop:
             self.planes = self._new_planes()
             # one converter per GL context: a world switch or a healed surface brings a new
             # context, and a program id from the old one is invalid there (GL_INVALID_VALUE)
-            from gi.repository import Gdk
-            ctx = Gdk.GLContext.get_current()
-            if getattr(VideoLoop, "_ctx", None) is not ctx:
+            import sys
+            Gdk = sys.modules.get("gi.repository.Gdk")  # the live layer's; headless (tools/offscreen.py) has
+            ctx = Gdk.GLContext.get_current() if Gdk else None   # one EGL context and no Gdk
+            if getattr(VideoLoop, "_prog", None) is None or getattr(VideoLoop, "_ctx", None) is not ctx:
                 VideoLoop._ctx = ctx
                 VideoLoop._prog = glkit.program("fs.vert", "world_yuv.frag")
                 VideoLoop._fs = glkit.Fullscreen()
@@ -288,6 +292,7 @@ class VideoLoop:
         p.i("u_mask", 2)
         p.f("u_has_mask", 1.0 if mt else 0.0)
         p.f("u_stacked", 1.0 if self.alpha == "stacked" else 0.0)
+        p.f("u_luma", 1.0 if self.alpha == "luma" else 0.0)
         p.f("u_bt709", 1.0 if self.h > 576 else 0.0)
         VideoLoop._fs.draw()
         GL.glActiveTexture(GL.GL_TEXTURE0)

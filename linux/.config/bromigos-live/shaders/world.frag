@@ -248,6 +248,30 @@ vec3 bubbles(vec2 px) {
         float age = u_time - u_bubble[k].z;
         if (u_bubble[k].w <= 0.0 || age < 0.0 || age > 2.5) continue;
         vec2 o0 = u_bubble[k].xy;
+#ifdef WATER_SPLIT
+        if (o0.y > u_line.x + 20.0 * u_scale) {
+            // under the surface (Tidewell): a column of small bubbles rising and wobbling from
+            // the creature, round, a bright rim and a highlight, shrinking toward nothing
+            if (abs(px.x - o0.x) > 90.0 * u_scale || px.y > o0.y + 20.0 * u_scale || px.y < o0.y - 420.0 * u_scale) continue;
+            for (int i = 0; i < 14; i++) {
+                float h1 = w_hash1(float(i) * 3.1 + float(k) * 7.0 + floor(u_bubble[k].z * 10.0));
+                float h2 = w_hash1(float(i) * 7.7 + float(k) * 3.0 + floor(u_bubble[k].z * 10.0));
+                float a = age - h1 * 1.2;                               // when this bubble leaves
+                if (a < 0.0 || a > 1.3) continue;
+                float rise = (90.0 + 120.0 * h2) * a + 40.0 * a * a;
+                vec2 p = o0 + vec2((h2 - 0.5) * 50.0 + sin(a * 7.0 + h1 * 6.3) * 5.0, -rise) * u_scale;
+                float r = (1.4 + 2.6 * h2) * u_scale;
+                vec2 q = px - p;
+                float d = length(q);
+                if (d > r + 2.0 * u_scale) continue;
+                float rim = exp(-pow((d - r) / (0.7 * u_scale), 2.0));
+                float hi = exp(-dot(q - vec2(-0.35, -0.35) * r, q - vec2(-0.35, -0.35) * r) / (0.18 * r * r + 0.3));
+                float life = smoothstep(0.0, 0.12, a) * (1.0 - smoothstep(0.9, 1.3, a));
+                acc += vec3(0.62, 0.85, 0.9) * (rim * 0.55 + hi * 0.8 + 0.06) * life * u_bubble[k].w;
+            }
+            continue;
+        }
+#endif
         if (length((px - o0) * vec2(1.0, 3.0)) > 160.0 * u_scale) continue;
         for (int i = 0; i < 14; i++) {
             float h1 = w_hash1(float(i) * 3.1 + float(k) * 7.0 + floor(u_bubble[k].z * 10.0));

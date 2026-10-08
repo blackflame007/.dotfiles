@@ -620,7 +620,7 @@ class Actors:
             inst.x = x0 + (x1 - x0) * e
             inst.y = y0 + (y1 - y0) * e + math.sin(a * 9) * 3
             inst.extra["glint"] = math.exp(-((a - 0.4) ** 2) / 0.05) + 0.5 * math.exp(-((a - 1.3) ** 2) / 0.04)
-            inst.frame = 0
+            inst.frame = int(a * float(v.get("fps", 0.0)))   # a swim cycle when the event gives one
 
     # ---- output
     @staticmethod
@@ -756,6 +756,27 @@ class Actors:
                "add": (v.get("blend") or cfg.get("blend") or d.t.get("blend")) == "add"}   # glow creatures on black
         sprites.append((depth, spr))
         inst.placed = (x, base, w * sx, h * sy, inst.rot, fi)
+        # a tow (a trawler's net): its own sprite hung from a point on the actor, drawn just
+        # behind it, trailing aft whichever way the actor faces, swaying on its cable
+        tow = d.t.get("tow")
+        if tow and d.sprites.get(tow.get("sprite")) and not patch:
+            ts = d.sprites[tow["sprite"]]
+            tu0, tv0, tu1, tv1, tasp = ts.frame(0)
+            th = h * sy * float(tow.get("height", 0.5))
+            tw = th * tasp * (1.0 if sx >= 0 else -1.0)
+            au, av = tow.get("at", (0.1, 0.5))         # on the actor, as drawn facing right
+            ca, sa = math.cos(inst.rot), math.sin(inst.rot)
+            lx, ly = (au - 0.5) * w * sx, (av - 1.0) * h * sy
+            px, py = x + lx * ca - ly * sa, base + lx * sa + ly * ca
+            sway = math.sin(t * TAU * float(tow.get("rate", 0.2)) + inst.seed * TAU)
+            ang = math.radians(float(tow.get("angle", 0.0)) + float(tow.get("sway", 3.0)) * sway)
+            rot = inst.rot + (ang if sx >= 0 else -ang)  # + swings the bottom aft (left) of a boat facing right
+            pu, pv = tow.get("pivot", (1.0, 0.0))       # on the tow sprite, as drawn for an actor facing right
+            qx, qy = (pu - 0.5) * tw, (pv - 1.0) * th
+            cr, sr = math.cos(rot), math.sin(rot)
+            sprites.append((depth - float(tow.get("behind", 0.01)),
+                            dict(spr, x=px - (qx * cr - qy * sr), y=py - (qx * sr + qy * cr), w=tw, h=th,
+                                 uv=(tu0, tv0, tu1, tv1), rot=rot, video=ts.video, add=False)))
         # an emissive mask (eye-lamps painted as light): drawn additively in the light's colour
         em = sc.get("emissive") or d.t.get("emissive")
         if em and d.sprites.get(em):
