@@ -57,7 +57,7 @@ def _ctx():
     return ssl.create_default_context(cafile=CA) if os.path.exists(CA) else ssl.create_default_context()
 
 
-KBSYNC_PY = os.path.expanduser("~/.config/bromigos/holo/tools/kb-sync.py")
+KBSYNC_PY = os.path.expanduser("~/.config/bromigos/vector/kb-sync.py")
 
 
 def chart_from_kbsync(progress=None):

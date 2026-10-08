@@ -4,5 +4,5 @@ After=network-online.target bromigos-private.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 %h/.config/bromigos/holo/tools/kb-sync.py
+ExecStart=/usr/bin/python3 %h/.config/bromigos/vector/kb-sync.py
 Nice=10

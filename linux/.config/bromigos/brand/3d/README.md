@@ -29,7 +29,7 @@ The build venv is `~/.local/share/bromigos/venv` (trimesh, fast-simplification, 
 
 ## Parts
 
-Generated meshes come out as one fused shell, so parts are regions. In `manifest.json` each part lists boxes `[x0, x1, y0, y1, z0, z1]` in fractions of the normalised bounding box (y up, front +z). A face goes to the first part whose box holds its centroid, else to the part marked `"rest": true`. `explode` is the direction a part leaves in and `distance` how far; `bind` names its live reading (`~/.config/bromigos/holo/holo/bind.py`); `hint` is the hover text. Edit the boxes, rebake, and check `previews/<name>-parts.png`.
+Generated meshes come out as one fused shell, so parts are regions. In `manifest.json` each part lists boxes `[x0, x1, y0, y1, z0, z1]` in fractions of the normalised bounding box (y up, front +z). A face goes to the first part whose box holds its centroid, else to the part marked `"rest": true`. `explode` is the direction a part leaves in and `distance` how far; `bind` names its live reading (VECTOR's `holo/bind.py` (bromigos-vector)); `hint` is the hover text. Edit the boxes, rebake, and check `previews/<name>-parts.png`.
 
 ## The `.holo` format (`bromigos-holo/1`)
 
@@ -55,4 +55,4 @@ offset = np.array([p["explode"] for p in meta["parts"]], np.float32)[part] * amo
 lines = (pos + offset)[edge]                                                          # [E, 2, 3] segments
 ```
 
-The renderer that draws these (`~/.config/bromigos/holo/holo/render.py`, `stage.py`) is documented there; the model gallery is SUPER+O.
+The renderer that draws these (VECTOR's `holo/render.py`, `stage.py`: bromigos-vector, `/usr/lib/bromigos/vector`) is documented there; the model gallery is SUPER+O.

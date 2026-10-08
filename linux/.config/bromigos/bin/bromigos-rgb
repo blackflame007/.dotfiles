@@ -6,7 +6,7 @@ voice is speaking, and his mood on top of it (alarmed = red breathing, concerned
 amber). When VECTOR isn't running, they rest in Bromigos phosphor green.
 
 Source: VECTOR's published state file ($XDG_RUNTIME_DIR/bromigos-vector.json: voice
-role, mood, state), and the per-voice colours in holo/voice.json, so a voice's
+role, mood, state), and the per-voice colours in VECTOR's voice.json (~/.config/bromigos/vector/), so a voice's
 colour on the desk always matches the hologram. Lighting goes through openrazer's
 daemon (DBus); a write happens only when the target colour changes.
 Run by bromigos-rgb.service.
@@ -20,7 +20,9 @@ from openrazer.client import DeviceManager
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 STATE = os.path.join(RUNTIME, "bromigos-vector.json")
 SOCK = os.path.join(RUNTIME, "bromigos-holo.sock")
-VOICE_JSON = os.path.expanduser("~/.config/bromigos/holo/voice.json")
+VOICE_JSON = next((p for p in map(os.path.expanduser, ("~/.config/bromigos/vector/voice.json",   # VECTOR's (bromigos-vector)
+                                                          "~/.config/bromigos/holo/voice.json")) if os.path.exists(p)),
+                  os.path.expanduser("~/.config/bromigos/vector/voice.json"))
 PHOSPHOR, AMBER, DANGER = "#39ff14", "#d4af37", "#ff766f"
 REST_BRIGHTNESS, ACTIVE_BRIGHTNESS = 55, 100
 

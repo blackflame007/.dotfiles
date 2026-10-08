@@ -1,83 +1,9 @@
 #!/usr/bin/env bash
-# bromigos-holo — the Stark-lab hologram system: VECTOR (the SpacePort's caretaker, on a
-# line to the Wick's console) and the model gallery, on one shared renderer. Starts its
-# daemon on first use. The old `pilot` verbs still work (VECTOR was PILOT).
-#
-#   bromigos-holo vector             show / minimize VECTOR (typed)
-#   bromigos-holo ask "question"     ask VECTOR without typing in the window
-#   bromigos-holo gallery [model]    open / close the hologram gallery
-#   bromigos-holo ptt on|off         push-to-talk (bound to SUPER+V press / release)
-#   bromigos-holo mute               VECTOR's voice on/off
-#   bromigos-holo voice [auto|main|robot|scientist|floor|notify|cycle]   pin a voice, or auto
-#   bromigos-holo conversation       hands-free conversation mode on/off (SUPER+SHIFT+E)
-#   bromigos-holo chat               VECTOR's chat box pinned shown/hidden (SUPER+ALT+V; folded away by default until you point at him)
-#   bromigos-holo shell off|on|stop  VECTOR's terminal: kill switch, or stop the running command
-#   bromigos-holo status | stop | restart | log
-#   bromigos-holo evals [--only CAT] [--task ID] [--list]   run VECTOR's eval suite now (headless)
-set -u
-# VECTOR is a bromigOS package now (bromigos-vector, from bromigos-org/vector; installed in
-# /usr/lib/bromigos/vector): when it's installed this copy hands every call to it, so the
-# binds, waybar, the live layer and the units that name this path run the packaged one.
-# BROMIGOS_HOLO_FROM_DOTFILES=1 runs this copy instead.
-if [ -z "${BROMIGOS_HOLO_FROM_DOTFILES:-}" ] && [ -x /usr/bin/bromigos-holo ] \
-        && [ "$(readlink -f /usr/bin/bromigos-holo)" != "$(readlink -f "$0")" ]; then
-    exec /usr/bin/bromigos-holo "$@"
-fi
-HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
-RUN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-SOCK="$RUN/bromigos-holo.sock"
-STATE="${XDG_STATE_HOME:-$HOME/.local/state}/bromigos"
-LOG="$STATE/holo.log"
-PY=/usr/bin/python3
-# the Pydantic AI brain lives in its own venv (system site packages, so GTK still loads)
-[ -x "$HOME/.local/share/bromigos/venv-brain/bin/python" ] && PY="$HOME/.local/share/bromigos/venv-brain/bin/python"
-export PYDANTIC_AI_NO_BANNER=1
-mkdir -p "$STATE"
-
-send() {
-    "$PY" - "$SOCK" "$*" <<'EOF'
-import socket, sys
-s = socket.socket(socket.AF_UNIX)
-s.settimeout(6)
-try:
-    s.connect(sys.argv[1])
-except OSError:
-    sys.exit(3)
-s.sendall(sys.argv[2].encode())
-print(s.recv(65536).decode())
-EOF
-}
-
-start() {
-    send status >/dev/null 2>&1 && return 0
-    if [ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-        HYPRLAND_INSTANCE_SIGNATURE="$(ls -t "$RUN/hypr" 2>/dev/null | head -1)"
-        export HYPRLAND_INSTANCE_SIGNATURE
-    fi
-    [ "$(stat -c %s "$LOG" 2>/dev/null || echo 0)" -gt 2000000 ] && mv -f "$LOG" "$LOG.1"
-    (cd "$HERE" && setsid "$PY" -m holo.app >>"$LOG" 2>&1 < /dev/null &)
-    for _ in $(seq 1 50); do
-        send status >/dev/null 2>&1 && return 0
-        sleep 0.1
-    done
-    echo "bromigos-holo: daemon did not start (see $LOG)" >&2
-    return 1
-}
-
-# PILOT -> VECTOR: old verbs from older binds
-case "${1:-}" in
-    pilot) set -- vector "${@:2}" ;;
-    pilot-show) set -- vector-show "${@:2}" ;;
-    pilot-hide) set -- vector-hide "${@:2}" ;;
-esac
-
-case "${1:-status}" in
-    vector|gallery|ask|ptt|mute|voice|conversation|chat|shell|history|vector-show|vector-hide|gallery-hide|gallery-do|snap)
-        start && send "$@" ;;
-    status) send status || echo "not running" ;;
-    stop) send stop >/dev/null 2>&1; sleep 0.3; echo stopped ;;
-    restart) send stop >/dev/null 2>&1; sleep 0.6; start && echo started ;;
-    log) tail -n 40 "$LOG" ;;
-    evals) shift; cd "$HERE" && exec nice -n 10 "$PY" -m evals.run "$@" ;;
-    *) sed -n '2,13p' "$0"; exit 1 ;;
-esac
+# bromigos-holo: VECTOR is bromigOS's package now (bromigos-vector, from bromigos-org/vector;
+# installed in /usr/lib/bromigos/vector). Everything that calls this path (Hyprland, the
+# keybinds, waybar, the live layer, the knob, the session tools, ~/.local/bin/vector) is
+# handed to it. His settings here: ~/.config/bromigos/vector/ (voice.json, eyes.json,
+# vector.toml); his plugins: ~/.config/bromigos/plugins/vector/ (Gnosis).
+if [ -x /usr/bin/bromigos-holo ]; then exec /usr/bin/bromigos-holo "$@"; fi
+echo "bromigos-holo is not installed: sudo pacman -S bromigos-vector (the [bromigos] repo)" >&2
+exit 127

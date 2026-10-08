@@ -23,7 +23,7 @@ process the five holograms of October 2026 were built with. Follow it in order.
 | Shaders | `shaders/*.vert|frag|glsl` (`#include name` pulls `name.glsl`) |
 | Shared data readers | `live/sources.py` (Prometheus, repos + git, push reflogs, gh, herdr, ping) |
 | VECTOR's event feed reader | `live/vfeed.py` |
-| The shared 3D renderer (models with parts) | `~/.config/bromigos/holo/holo/` (`render.Holo`, `stage.Stage`, `bind.reading`, `fmt` for `.holo.npz`) |
+| The shared 3D renderer (models with parts) | `/usr/lib/bromigos/vector/holo/` (bromigos-vector; source: bromigos-org/vector) (`render.Holo`, `stage.Stage`, `bind.reading`, `fmt` for `.holo.npz`) |
 | Models | `~/.config/bromigos/brand/3d/holo/*.holo.npz`, plus `/usr/lib/bromigos/live/models/starship.holo.npz` |
 | Headless renders | `/usr/lib/bromigos/live/tools/offscreen.py` |
 | The one config | `bromigos-live/config.toml` (reloads on save) |
