@@ -14,13 +14,14 @@ scroll windows sideways. Reading it needs the `openrazer` group (openrazer's ude
 rules own the device nodes). Run by bromigos-knob.service.
 """
 import os
+import shutil
 import subprocess
 import time
 
 import evdev
 
 DEV = "/dev/input/by-id/usb-Razer_Razer_BlackWidow_V4_Pro-if02-event-mouse"
-HOLO = os.path.expanduser("~/.config/bromigos/holo/bin/bromigos-holo")
+HOLO = shutil.which("bromigos-holo") or "/usr/bin/bromigos-holo"   # VECTOR (bromigos-vector)
 STATE = os.path.expanduser("~/.local/state/bromigos/vector-voice-mode")
 MODES = [("auto", "AUTO — VECTOR picks per sentence"), ("main", "Governor Voss"),
          ("robot", "Sigil"), ("scientist", "Professor Arc"), ("floor", "Revolver Lynx"),

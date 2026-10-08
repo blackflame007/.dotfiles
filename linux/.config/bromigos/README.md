@@ -10,6 +10,23 @@ desktop AI) has a body and a stage.
 from `~/.dotfiles` (`stow linux`). The repo is public: secrets live in mode-600 files
 under `~/.local/share/bromigos/` and in Vault, never in git.
 
+**What lives where (2026-10-08).** The desktop itself is bromigOS, installed as pacman
+packages from `bromigos-org/bromigOS` and `bromigos-org/vector`: the `bromigos` command,
+the themes and worlds, the live layer, the widgets, the desktop's default configs, VECTOR,
+and the tools (`bromigos private`, `secrets`, `emblem`, `session`, `lock-run`,
+`bromigos-wallpaper`, `-shot`, `-rec`, `-banner`). These dotfiles hold only what's mine:
+thin configs over the defaults (`hypr/`, `waybar/`, `rofi/`, `dunst/`, `hypridle.conf`),
+my settings (`bromigos-live/config.toml`, `bromigos/widgets/layout.json`,
+`bromigos/vector/`, `bromigos/live/overrides.toml`), the encrypted private overlay
+(`bromigos/private.sops.yaml`), my plugins (`bromigos/plugins/`: ARBITER, replay, Netmap,
+Ops, Mind, GAME SERVERS, Gnosis), my Razer bits (`hypr/bromigos/razer.lua`,
+`bromigos/bin/bromigos-{knob,rgb}`, `vector-converse`), my backup config
+(`bromigos/system/`), my likeness and personal brand (`bromigos/brand/`, my den variants in
+`~/.config/wallpaper/`), VECTOR's 3D models (`bromigos/brand/3d/`, read in place by his
+gallery and build loop) and my copies of his skills (`bromigos/skills/`). Still here until
+their own moves: `bromigos/{gtk,sddm,startpage}/` (bromigOS packages them as
+`bromigos-settings`) and the lock screen's full copies (`gtklock/`, `hypr/hyprlock.conf`).
+
 The network-wide systems map (every Bromigos service and repo) lives in the private
 `bromigos-org/platform` repo at `docs/SYSTEMS.md`.
 
@@ -17,18 +34,18 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 
 | Piece | Where (in `~/.config`, from `linux/.config`) | What it is | Docs |
 |-------|-------|------------|------|
-| Brand kit | `bromigos/brand/`, `bromigos/identity.json`, `bromigos/lib/bromigos_emblem.py`, `bromigos/bin/bromigos-emblem` | Palette, the burn-in emblem (one SVG source), logos, portraits, icons, wallpapers, 3D models | `brand/README.md`, `brand/3d/README.md` |
+| My brand kit | `bromigos/brand/` (bromigOS's own brand and the emblem are in bromigOS: `brand/`, `themes/*/emblem/`, `bromigos emblem build`) | My portraits, wordmarks, overlays and sting, my lab's and ARBITER's marks, VECTOR's 3D models | `brand/README.md`, `brand/3d/README.md` |
 | Theme | `hypr/`, `waybar/`, `rofi/`, `dunst/`, `bromigos/gtk/`, `~/.local/share/{themes,icons,color-schemes}` | Hyprland look, bar, launcher, notifications, GTK/Qt themes, cursor, lock and idle | this file, "Theme" |
 | Widgets | package `bromigos-widgets` (bromigOS `widgets/`); here `bromigos/widgets/` (layout.json, launcher), `bromigos/plugins/widgets/` | Seven GTK layer-shell panels on the BOTTOM layer: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS, plus plugin panels (GAME SERVERS) | `widgets/README.md`, bromigOS `widgets/README.md`, `docs/plugins.md` |
 | Live layer | package `bromigos-live` (bromigOS `live/`); here `bromigos-live/` (config.toml, launcher), `bromigos/plugins/live/` (the ARBITER deck, replay, Netmap, Ops, Mind) | The animated background behind every window, the summoned decks and holograms, event animations, codec calls, the screensaver, sounds | `../bromigos-live/README.md`; bromigOS `live/README.md`, `live/docs/ELEMENTS.md`, `docs/plugins.md` |
-| VECTOR and the holo daemon | package `bromigos-vector` (bromigos-org/vector); here `bromigos/vector/` (his settings, kb-sync, make-refs), `bromigos/plugins/vector/` (Gnosis), `bromigos/holo/bin/` (hand-over) | VECTOR (chat, voice, memory, tools, his terminal), the shared 3D hologram renderer and the model gallery | vector repo `README.md` |
+| VECTOR and the holo daemon | package `bromigos-vector` (bromigos-org/vector); here `bromigos/vector/` (his settings, kb-sync, make-refs), `bromigos/plugins/vector/` (Gnosis) | VECTOR (chat, voice, memory, tools, his terminal), the shared 3D hologram renderer and the model gallery | vector repo `README.md` |
 | Skills | `bromigos/skills/` | Markdown know-how VECTOR loads on demand (how the desktop is built, its data sources, homelab ops) | each file's frontmatter |
 | Start page | `bromigos/startpage/` | The browsers' home and new-tab page | this file, "Start page" |
 | Login screen | `bromigos/sddm/` | The SDDM theme at boot: the lock screen's den, burn-in and clock plus account, session and power; no live data; installed by `sddm/install.sh` with sudo | `sddm/bromigos/README.md` |
 | Razer integration | `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-knob`, `bromigos/bin/bromigos-rgb` | Macro keys and the dial bound to the desktop; lighting follows VECTOR | this file, "Razer" |
-| Shell | `bromigos/shell/`, `zsh/.config/zsh/zsh-bromigos` | Prompt colours and the `bromigos` banner | `zsh/.config/zsh/AGENTS.md` |
+| Shell | `zsh/.config/zsh/zsh-bromigos` (the banner is bromigOS's `bromigos-banner`; its emblem the theme's kit) | Prompt colours and the `bromigos` banner | `zsh/.config/zsh/AGENTS.md` |
 | Capture | `bromigos-shot`, `bromigos-rec` (bromigOS, package bromigos-desktop) | Screenshots and recordings with a themed notification and a quiet cue | the scripts' headers |
-| Wallpaper switcher | `bromigos/bin/bromigos-wallpaper` | Chooses the den variant (den, empty, masked, v1) for the desktop and the lock screen | the script's header |
+| Wallpaper switcher | `bromigos-wallpaper` (bromigOS, package bromigos-desktop); my den variants in `~/.config/wallpaper/` | Chooses the den variant (den, empty, masked, v1) for the desktop and the lock screen; a world theme brings its own | the script's header |
 | Services | `systemd/user/bromigos-*.{service,timer}` | Start page snapshot (every minute), knowledge-base sync (nightly), the dial, the lighting | this file, "Services" |
 
 ## How the pieces talk
@@ -106,10 +123,10 @@ flowchart LR
 | Runtime | `$XDG_RUNTIME_DIR/bromigos-*` (sockets, pid, the event feed, VECTOR's state) | the daemons | recreated on start |
 | KDE colour config | `~/.config/kdeglobals` (untracked) | `plasma-apply-colorscheme Bromigos` | rerun it |
 
-Generated assets that are in git are rebuilt with: `bromigos-emblem build` (emblem
-PNGs), `gtk/build-gtk-theme.py` and `gtk/build-icons-cursor.py` (themes, cursor),
-`brand/icons/build-icons.py`, `brand/3d/tools/bake.py` (models),
-bromigOS `live/tools/make-starship.py` (the swarm's ship), `shell/build-emblem-braille.py`.
+Generated assets in git are rebuilt with `brand/3d/tools/bake.py` (models, here); the
+rest are bromigOS's: `bromigos emblem build --theme DIR` (emblem kits and the banner's
+braille), its `settings/gtk/` builders (GTK themes, icons, cursor) and
+`live/tools/make-starship.py` (the swarm's ship).
 
 ## Theme
 
@@ -122,7 +139,6 @@ bromigOS `live/tools/make-starship.py` (the swarm's ship), `shell/build-emblem-b
   decks' binds (personal plugins) and the LAB panel's. The Razer (keymap, macro keys, the
   mic-mute fix) is `hypr/bromigos/razer.lua`. How to add a bind or rule, and the Lua form of
   `hyprctl dispatch`: [`skills/hyprland-config.md`](skills/hyprland-config.md).
-  `hypr/hyprland.conf` is kept only as the rollback (see Operations).
 - **Bar, launcher, notifications, idle:** bromigOS's defaults too (`/usr/share/bromigos/default/`):
   `waybar/config` includes them and sets my outputs and the CPU sensor, `waybar/style.css`
   imports the theme then the default style, `rofi/config.rasi` imports the default,
@@ -200,7 +216,9 @@ in bromigOS's default `hyprland.lua` and `bromigos/live.lua`: `waybar`, `dunst`,
 
 - **Deploy:** edit in `~/.dotfiles`, `stow linux` for new directories, then restart the
   piece: `bromigos-live restart`, `bromigos-holo restart`,
-  `pkill -f bromigos-widgets$ && hyprctl dispatch 'hl.dsp.exec_cmd("~/.config/bromigos/widgets/bromigos-widgets")'`;
+  `pkill -x -f 'python3 /usr/bin/bromigos-widgets' ; hyprctl dispatch 'hl.dsp.exec_cmd("bromigos-widgets")'`
+  (or `bromigos restart widgets`), and after a package update `bromigos update` restarts
+  whatever changed;
   Hyprland reloads by itself when a `hypr/*.lua` file is saved (`hyprctl configerrors` shows
   mistakes; `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua` checks first). There
   is no CI for the desktop; test headless first (`/usr/lib/bromigos/live/tools/offscreen.py`,
@@ -216,13 +234,11 @@ in bromigOS's default `hyprland.lua` and `bromigos/live.lua`: `waybar`, `dunst`,
     or run `hyprctl dispatch 'hl.dsp.exec_cmd("dunst")'`.
   - *LAB panel says no token:* `~/.local/share/bromigos/lab-token` is missing.
 - **Roll back:** `git revert` the commit in `~/.dotfiles` and restart the piece.
-- **Hyprland config format:** `bin/bromigos-hyprconfig status` says which format runs and
-  which file loads at login. `bromigos-hyprconfig conf` rolls back to `hypr/hyprland.conf`
-  (unlinks `hyprland.lua`; log out and back in, since a running 0.56 Hyprland crashes if
-  switched back live; until then an error bar says it can't open `hyprland.lua`);
-  `bromigos-hyprconfig lua` links the Lua config back, checks it and switches the running
-  Hyprland. Scripts that dispatch use `bin/bromigos-dispatch '<Lua>' <old form>` so they
-  work on either.
+- **Changing several Hyprland files at once** (a merge, a branch switch): `hyprctl keyword
+  misc:disable_autoreload true` first, then `Hyprland --verify-config -c
+  ~/.config/hypr/hyprland.lua`, then one `hyprctl reload`. Auto-reload catching a half-written
+  config drops Hyprland into its emergency mode. Scripts that dispatch use bromigOS's
+  `/usr/lib/bromigos/bin/bromigos-dispatch '<Lua>' <old form>`.
 
 ## Adding a new piece
 
