@@ -221,6 +221,19 @@ class Actors:
         return sprites, glows + lamp_glows, wakes
 
     # ---- populations
+    @staticmethod
+    def _band(inst, depth):
+        """Put an instance in its own depth band for its whole life (a zone's 5th number, a
+        spot's 3rd): behind a layer it stays behind it, so nothing pops through. Deeper than
+        its actor's own depth means farther off: smaller and hazier (`far_scale`, `far_bright`)."""
+        if depth is None:
+            return
+        d = inst.d
+        inst.extra["depth"] = float(depth)
+        if float(depth) < d.depth:
+            inst.extra["zscale"] = float(d.t.get("far_scale", 0.72))
+            inst.extra["zbright"] = float(d.t.get("far_bright", 0.6))
+
     def _sync_agents(self, d, t, sig):
         agents = sig.get("agents") or []
         take = d.t.get("take", (0, d.max))
@@ -256,6 +269,7 @@ class Actors:
                         best = (gap, z, p)
                 _, z, (inst.x, inst.y) = best
                 inst.zone = z
+                self._band(inst, z[4] if len(z) > 4 else None)
                 inst.face = 1.0 if inst.r.random() < 0.5 else -1.0
                 self.insts[(d.id, k)] = inst
             inst.error = bool(a.get("error"))
@@ -292,9 +306,16 @@ class Actors:
             if inst is None:
                 inst = Inst(d, i, t)
                 inst.sink = 0.0
-                inst.x, inst.y = spot
-                inst.spot = spot
+                inst.x, inst.y = spot[0], spot[1]
+                inst.spot = (spot[0], spot[1])
                 inst.face = 1.0 if inst.r.random() < 0.5 else -1.0
+                self._band(inst, spot[2] if len(spot) > 2 else None)
+                sizes = d.t.get("sizes")              # each one its own size: [lo, hi] x height
+                if sizes:
+                    inst.extra["zscale"] = inst.extra.get("zscale", 1.0) * (sizes[0] + (sizes[1] - sizes[0]) * inst.r.random())
+                tints = d.t.get("tints")              # and its own colour, from these
+                if tints:
+                    inst.extra["tint"] = tuple(tints[inst.r.randrange(len(tints))])
                 self.insts[(d.id, i)] = inst
             self._set_state(inst, sig.get("user", "working"), t)
 
@@ -655,10 +676,17 @@ class Actors:
         ph = inst.seed * TAU
         if m == "wander" and inst.turn < 0.05:
             z = getattr(inst, "zone", None) or (inst.x - 100, inst.y, inst.x + 100, inst.y)
+            hid = d.t.get("hidden_x") if "depth" in inst.extra else None
             if inst.target is None or (abs(inst.target - inst.x) < 2 and t > inst.pause_until):
                 inst.target = z[0] + (z[2] - z[0]) * inst.r.random()
+                for _ in range(6):                  # never stop where it can't be seen (behind the kelp)
+                    if not hid or not any(a <= inst.target <= b for a, b in hid):
+                        break
+                    inst.target = z[0] + (z[2] - z[0]) * inst.r.random()
             if abs(inst.target - inst.x) >= 2:
                 sp = float(cfg.get("speed", 8.0)) * dt
+                if hid and any(a <= inst.x <= b for a, b in hid):
+                    sp *= 2.5                       # out from behind the kelp quickly
                 step = max(-sp, min(sp, inst.target - inst.x))
                 inst.x += step
                 inst.dist += abs(step)
@@ -674,6 +702,42 @@ class Actors:
             k = float(cfg.get("pace", 1.0))
             inst.dx = math.sin(t * 0.7 * k + ph) * amp
             inst.dy = math.sin(t * 1.1 * k + ph) * amp * 0.8
+        elif m == "roam":
+            # a resident drifter (a jellyfish): wanders slowly round its spot in both axes, by
+            # pulses (`rate` Hz: a push as the bell contracts, then coasting), bobbing, tilting a
+            # little toward where it's going, never mirrored. `range` [rx, ry] round the spot;
+            # `top` the highest its top may come (under the surface band); `hidden_x` spans it
+            # never stops in
+            ex = inst.extra
+            rx, ry = cfg.get("range", (200, 120))
+            hx, hy = inst.spot
+            top = float(cfg.get("top", 0.0))
+            hh = d.height * inst.scale * ex.get("zscale", 1.0)
+            pos = ex.get("roam_at")
+            if pos is None:
+                pos = ex["roam_at"] = [inst.x, inst.y]
+            tgt = ex.get("roam_to")
+            if tgt is None or math.hypot(tgt[0] - pos[0], tgt[1] - pos[1]) < 6:
+                hid = cfg.get("hidden_x") or d.t.get("hidden_x") or []
+                for _ in range(8):
+                    tgt = [hx + (inst.r.random() * 2 - 1) * rx, max(hy + (inst.r.random() * 2 - 1) * ry, top + hh)]
+                    if not any(a <= tgt[0] <= b for a, b in hid):
+                        break
+                ex["roam_to"] = tgt
+            rate = float(cfg.get("rate", 0.35))
+            ph = t * TAU * rate + inst.seed * TAU
+            push = max(0.0, math.sin(ph)) ** 2           # the bell contracting
+            sp = float(cfg.get("speed", 9.0)) * (0.2 + 0.8 * push) * dt
+            vx, vy = tgt[0] - pos[0], tgt[1] - pos[1]
+            dist = math.hypot(vx, vy) or 1.0
+            pos[0] += vx / dist * min(sp, dist)
+            pos[1] += vy / dist * min(sp, dist)
+            inst.x, inst.y = pos
+            ex["flap"] = -0.07 * push                   # the bell squeezes as it pushes
+            want = max(-0.22, min(0.22, vx / dist * 0.22))
+            ex["tilt"] = _ease(ex.get("tilt", 0.0), want, dt, 4.0)
+            inst.rot = ex["tilt"]
+            inst.dy = math.sin(ph * 0.5) * float(cfg.get("bob", 4.0))
         elif m == "circle":
             inst.dx = math.cos(t * TAU * rate + ph) * amp
             inst.dy = math.sin(t * TAU * rate + ph) * amp * 0.35
@@ -793,6 +857,7 @@ class Actors:
         if inst.path is None:
             zones = v.get("from") or d.t.get("from") or [[d.at[0], d.at[1], d.at[0], d.at[1]]]
             z = zones[r.randrange(len(zones))]
+            self._band(inst, z[4] if len(z) > 4 else None)
             p0 = (z[0] + (z[2] - z[0]) * r.random(), z[1] + (z[3] - z[1]) * r.random())
             to = v.get("to") or d.t.get("to") or [[p0[0] + 400, p0[1] - 600]]
             if to and not isinstance(to[0], (list, tuple)):
@@ -948,8 +1013,9 @@ class Actors:
         pose = self._pose(inst, d)                   # a crowd's pose still (a frog sitting, croaking, hopping)
         if pose is not None:
             sprite = pose
-        h = float(sc.get("height") or cfg.get("height", d.height)) * inst.scale * inst.extra.get("shrink", 1.0)
-        depth = float(v.get("depth", cfg.get("depth", d.depth)))
+        h = float(sc.get("height") or cfg.get("height", d.height)) * inst.scale * inst.extra.get("shrink", 1.0) \
+            * inst.extra.get("zscale", 1.0)
+        depth = float(v.get("depth", cfg.get("depth", inst.extra.get("depth", d.depth))))
         # frame: the turn gesture, the state's strip, or the walk cycle
         front = d.frames.get("front")
         fsprite = d.sprites.get(d.t.get("front_sprite")) if d.t.get("front_sprite") else None
@@ -999,8 +1065,11 @@ class Actors:
             px0, py0, pw, ph = patch
             x, base, w, h, sy = px0 + pw / 2 + inst.dx, py0 + ph + inst.dy, pw, ph, 1.0
             sx = 1.0
-        tint = cfg.get("tint") or v.get("tint")
-        bright = float(cfg.get("bright", v.get("bright", 1.0)))
+        tint = cfg.get("tint") or v.get("tint") or inst.extra.get("tint")
+        bright = float(cfg.get("bright", v.get("bright", 1.0))) * inst.extra.get("zbright", 1.0)
+        br = cfg.get("breathe")                      # a slow swell of its own light: [amount, Hz]
+        if br:
+            bright *= 1.0 + float(br[0]) * math.sin(t * TAU * float(br[1]) + inst.seed * TAU)
         par = d.parallax
         spr = {"x": x, "y": base, "w": w * sx, "h": h * sy, "uv": (u0, v0, u1, v1), "rot": inst.rot, "video": sprite.video,
                "alpha": inst.alpha, "cut": cut, "tint": tint, "bright": bright, "fog": d.fog,
@@ -1065,7 +1134,8 @@ class Actors:
         if cfg.get("signal"):
             col_sig = d.error_color if inst.error else d.signal_color
         blink = self._blink(inst, t, cfg)
-        lit = inst.light * inst.alpha * blink * (1.0 + 1.8 * inst.flare) + inst.extra.get("glint", 0.0)
+        lit = (inst.light * inst.alpha * blink * (1.0 + 1.8 * inst.flare) + inst.extra.get("glint", 0.0)) \
+            * inst.extra.get("zbright", 1.0)
         lights = cfg.get("lights") or v.get("lights") or ([v["light"]] if v.get("light") else None) \
             or sc.get("lights") or d.lights
         if lit > 0.01 and lights:
