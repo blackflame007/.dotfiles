@@ -248,8 +248,14 @@ class VideoLoop:
             self.target = glkit.Target(self.w, self.h)
             self.tex = self.target.tex
             self.planes = self._new_planes()
-            VideoLoop._prog = getattr(VideoLoop, "_prog", None) or glkit.program("fs.vert", "world_yuv.frag")
-            VideoLoop._fs = getattr(VideoLoop, "_fs", None) or glkit.Fullscreen()
+            # one converter per GL context: a world switch or a healed surface brings a new
+            # context, and a program id from the old one is invalid there (GL_INVALID_VALUE)
+            from gi.repository import Gdk
+            ctx = Gdk.GLContext.get_current()
+            if getattr(VideoLoop, "_ctx", None) is not ctx:
+                VideoLoop._ctx = ctx
+                VideoLoop._prog = glkit.program("fs.vert", "world_yuv.frag")
+                VideoLoop._fs = glkit.Fullscreen()
         planes = self._new_planes() if self.cache_on else self.planes
         a = np.frombuffer(buf, np.uint8)
         ysz = self.w * fh
