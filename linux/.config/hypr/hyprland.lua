@@ -110,6 +110,9 @@ hl.config({
         disable_hyprland_logo    = true,
         disable_splash_rendering = true,
         mouse_move_enables_dpms  = true,
+        -- a crashed lock screen can be replaced by a fresh hyprlock (you still type your
+        -- password) instead of only being cleared from a tty
+        allow_session_lock_restore = true,
     },
 })
 

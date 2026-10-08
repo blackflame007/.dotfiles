@@ -102,7 +102,7 @@ poll_seconds = 30
 [events]
 intercept_on_login = true
 intercept_on_unlock = true
-lock_emblem = true          # the burn-in turns on the lock screen (frames flipped into hyprlock; tools/lock-emblem.py)
+lock_emblem = false         # NEVER true: its SIGUSR2 frame flips crash hyprlock (live/lockemblem.py)
 critical_flash = true
 workspace_wipe = true
 

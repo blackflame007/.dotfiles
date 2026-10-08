@@ -1,4 +1,10 @@
-"""The turning burn-in on the lock screen.
+"""The turning burn-in on the lock screen. DISABLED, DO NOT RE-ENABLE (config [events] lock_emblem).
+
+2026-10-07: this crashed hyprlock 0.9.6 and locked the operator out. hyprlock's SIGUSR2
+handler allocates memory; a signal that lands while hyprlock is inside malloc corrupts the
+heap and it aborts (coredump: operator new inside the handler, interrupting
+pthread_mutex_lock). Any rate of SIGUSR2 is unsafe, so signal-driven animation of hyprlock
+is retired. The notes below describe the old mechanism.
 
 hyprlock can't animate an image, so the frames are pre-rendered (tools/lock-emblem.py,
 one slow turn) and flipped from here while the session is locked: each tick writes the
