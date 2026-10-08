@@ -124,6 +124,7 @@ class Base:
         f.f("u_grid", *u.get("grid", (0.0, 0.0, 0.0, 0.0)))
         f.f("u_edge", *u.get("edge", (0.0, 0.0, 0.0, 0.0)))
         f.f("u_vignette", *u.get("vignette", (0.0, 0.0, 1.0, 0.0)))
+        f.f("u_tear_style", u.get("tear_style", 0.0))
         f.f("u_space", *u.get("space", (0.0, -1.0, 0.0, 0.0)))
         ships = u.get("ships") or (_NO_SHIPS, _NO_SHIPS)
         f.fv("u_ship", ships[0], 4)
@@ -167,6 +168,22 @@ class Base:
 
 
 # ======================================================================== intercept
+TEAR_STYLES = {"scanlines": 0.0, "ripple": 1.0, "swell": 2.0}
+
+
+def tear_style():
+    """The theme's intercept static (theme.toml [intercept] static = "ripple" | "swell"; the
+    Wick's scanline tears when it says nothing)."""
+    import tomllib
+    path = os.path.join(os.path.dirname(glkit.T.PATH), "theme.toml")
+    try:
+        with open(path, "rb") as f:
+            name = tomllib.load(f).get("intercept", {}).get("static", "scanlines")
+    except (OSError, ValueError):
+        name = "scanlines"
+    return TEAR_STYLES.get(name, 0.0)
+
+
 class Intercept(Base):
     """Hold - tear - ring - flame - turn - sign-off - ghost (the burn-in spec)."""
     name = "intercept"
@@ -192,6 +209,7 @@ class Intercept(Base):
         self.cued = set()
         self.skip_to = None
         self.lines = self._syslines()
+        self.style = tear_style()
 
     def _syslines(self):
         st, d = self.st, self.data.snapshot()
@@ -274,7 +292,7 @@ class Intercept(Base):
         if t < self.t_ring:
             tear = 0.0 if (t < self.t_tear or self.reduced) else min((t - self.t_tear) / self.TEAR * 1.6, 1.0)
             fz = 1.0 if t < self.t_ring - 0.12 else (self.t_ring - t) / 0.12
-            u.update(backdrop=1.0, frozen=fz, tear=tear)
+            u.update(backdrop=1.0, frozen=fz, tear=tear, tear_style=self.style)
             if self.reduced:
                 u["frozen"] = 1.0 - max(0.0, (t - self.t_tear) / self.TEAR)
             u["gadget_fade"] = 1.0
@@ -900,7 +918,8 @@ def offscreen(kind, cfg, data, w, h):
     kw = {}
     if kind == "intercept":
         import cairo
-        path = os.path.expanduser(cfg["background"].get("underlay", ""))
+        # the captured screen: OFF_FROZEN (an image) for testing a theme's look, else the den
+        path = os.environ.get("OFF_FROZEN") or os.path.expanduser(cfg["background"].get("underlay", ""))
         if os.path.exists(path):
             from .scene import load_image
             raw, _ = load_image(path, w, h)

@@ -15,6 +15,7 @@ uniform float u_ring_gain;
 uniform float u_mode;        // 0 = over (final), 1 = emissive (rgb only, for bloom)
 out vec4 o;
 const float TAU = 6.28318530718;
+const vec3 NEEDLE = vec3(0.6, 1.0, 0.55);   // the needle crossing the dial (another theme: its [intercept] needle, else soft)
 
 float stage(float t, float a, float b) { return clamp((t - a) / (b - a), 0.0, 1.0); }
 
@@ -38,7 +39,7 @@ void main() {
         ring *= vis;
         // the needle itself
         float front = abs(ang - sweep) * r;
-        if (k > 0.0 && k < 1.0 && r > 0.78 && r < 1.0) ring += vec4(0.6, 1.0, 0.55, 1.0) * clamp(0.02 - front, 0.0, 0.02) * 40.0;
+        if (k > 0.0 && k < 1.0 && r > 0.78 && r < 1.0) ring += vec4(NEEDLE, 1.0) * clamp(0.02 - front, 0.0, 0.02) * 40.0;
     }
     ring.rgb *= u_ring_gain;
     vec4 fl = vec4(0.0);

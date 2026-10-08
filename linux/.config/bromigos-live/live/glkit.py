@@ -60,6 +60,29 @@ _CONSTS = {"VOID": "void", "PHOS": "primary", "SOFT": "soft", "DIM": "dim", "AMB
            "DANGER": "danger", "amber": "warn", "danger": "danger"}
 
 
+def _intercept(key, fallback):
+    """A colour from the theme's [intercept] table (colors.toml), else the role."""
+    try:
+        return T.rgb("intercept." + key)
+    except Exception:
+        return T.rgb(fallback)
+
+
+def _scaled(rgb, luma):
+    """rgb scaled to a given luma (Rec. 601 weights): the same brightness, the theme's hue."""
+    l = 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]
+    return tuple(c * luma / max(l, 1e-3) for c in rgb)
+
+
+# Named colours computed from the theme, not one role: the intercept's static grade (the
+# Wick's vec3(0.25, 1.25, 0.2), luma 0.835), its needle, the planet's night tint.
+_COMPUTED = {
+    "TEAR": lambda: _scaled(_intercept("static", "primary"), 0.835),
+    "NEEDLE": lambda: _intercept("needle", "soft"),
+    "NIGHT": lambda: tuple(c * 0.02 for c in T.rgb("primary")),
+}
+
+
 def theme_consts(src):
     import re
     if T.is_wick():
@@ -67,8 +90,15 @@ def theme_consts(src):
 
     def vec(name):
         return "vec3(%.4f, %.4f, %.4f)" % T.rgb(name)
-    src = re.sub(r"\b((?:const\s+)?vec3\s+(\w+)\s*=\s*)vec3\([^)]*\)",
-                 lambda m: m.group(1) + vec(_CONSTS[m.group(2)]) if m.group(2) in _CONSTS else m.group(0), src)
+
+    def sub(m):
+        name = m.group(2)
+        if name in _CONSTS:
+            return m.group(1) + vec(_CONSTS[name])
+        if name in _COMPUTED:
+            return m.group(1) + "vec3(%.4f, %.4f, %.4f)" % _COMPUTED[name]()
+        return m.group(0)
+    src = re.sub(r"\b((?:const\s+)?vec3\s+(\w+)\s*=\s*)vec3\([^)]*\)", sub, src)
     # ov.frag's plates under the gadgets: the panel colour
     return src.replace("mix(c, vec3(0.0, 0.03, 0.0), plate)", "mix(c, %s, plate)" % vec("panel"))
 

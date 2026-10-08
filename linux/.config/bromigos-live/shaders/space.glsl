@@ -3,6 +3,8 @@
 // time of day, and the relay beam that runs only while the lab is all green.
 // Needs rain.glsl (palette, hashes, seg_dist) included first.
 
+const vec3 NIGHT = vec3(0.0, 0.02, 0.0);   // the planet's faint night-side tint (another theme: its primary)
+
 uniform vec4 u_space;        // stars on, smoothed traffic level 0..1 (<0 = traffic off), beam on, health (0 ok, 1 amber, 2 red)
 uniform vec4 u_space_rect;   // sky region x y w h (px)
 uniform vec4 u_planet;       // cx, cy, R, on
@@ -145,7 +147,7 @@ vec3 planet(vec2 px, out float cover) {
         col = PHOS * (grid * (0.12 + 0.75 * day) + band * day) * 0.85;
         col += AMBER * term * (0.35 + grid * 0.8);
         col += DIM * pow(1.0 - z, 3.0) * (0.25 + 0.75 * day) * 0.9;         // limb
-        col += vec3(0.0, 0.02, 0.0) * day;
+        col += NIGHT * day;
         cover = smoothstep(1.0, 0.985, sqrt(r2));
     }
     // atmosphere: a thin rim halo, brighter on the day side

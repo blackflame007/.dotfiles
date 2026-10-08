@@ -22,6 +22,11 @@ uniform vec4 u_burst[6];
 uniform vec4 u_grid;            // on, horizon y, vanish x, rx level
 uniform vec4 u_edge;            // edge pulse: strength, colour kind, -, -
 uniform vec4 u_vignette;        // centre x, y, radius, strength (radial dim for menus)
+uniform float u_tear_style;     // the intercept's static: 0 scanline tears (the Wick), 1 ripple, 2 swell
+
+// The tear's grade of the captured screen, written as the Wick's green: another theme's
+// (its [intercept] static colour, else its primary) at the same brightness (glkit.theme_consts).
+const vec3 TEAR = vec3(0.25, 1.25, 0.2);
 
 #include rain
 #include space
@@ -67,7 +72,28 @@ void main() {
     }
     if (u_frozen_amt > 0.0) {
         vec2 tuv = vec2(v_uv.x, 1.0 - v_uv.y);
-        if (u_tear > 0.0) {
+        float crest = 0.0;
+        if (u_tear > 0.0 && u_tear_style > 1.5) {
+            // swell: the picture heaves on a rolling wave while broad, soft fronts of light
+            // (the swell passing overhead) sweep down through it
+            float ph = px.x * 0.006 - u_time * 3.2;
+            tuv.y += sin(ph) * u_tear * 0.035 + sin(px.x * 0.017 + u_time * 1.7) * u_tear * 0.008;
+            tuv.x += sin(px.y * 0.011 - u_time * 2.3) * u_tear * 0.012;
+            for (int k = 0; k < 3; k++) {
+                float fk = float(k);
+                float wy = fract(u_time * 0.55 + fk / 3.0) * u_res.y * 1.3 - u_res.y * 0.15
+                         + sin(px.x * 0.0035 + fk * 2.1 - u_time * 1.6) * u_res.y * 0.05;
+                crest += exp(-pow((px.y - wy) / (u_res.y * 0.045), 2.0)) * 0.45;
+            }
+            crest *= u_tear;
+        } else if (u_tear > 0.0 && u_tear_style > 0.5) {
+            // ripple: rings spreading from the middle, as if something broke the surface
+            vec2 cpx = px - u_res * 0.5;
+            float d = length(cpx);
+            float w = sin(d * 0.045 - u_time * 9.0);
+            tuv += normalize(cpx + 1e-3) * vec2(1.0, -1.0) * w * u_tear * 0.014 * exp(-d / (u_res.y * 0.9));
+            crest = pow(max(w, 0.0), 12.0) * u_tear * exp(-d / (u_res.y * 0.7));
+        } else if (u_tear > 0.0) {
             float band = floor(px.y / (6.0 + 28.0 * hash1(floor(px.y / 37.0) + floor(u_time * 24.0))));
             float shift = (hash1(band * 1.7 + floor(u_time * 30.0)) - 0.5) * 2.0;
             shift *= step(0.45, hash1(band * 3.1 + floor(u_time * 18.0)));
@@ -76,9 +102,10 @@ void main() {
         vec3 f = texture(u_frozen, tuv).rgb;
         if (u_tear > 0.0) {
             float l = dot(f, vec3(0.3, 0.59, 0.11));
-            vec3 green = vec3(l * 0.25, l * 1.25, l * 0.2);
+            vec3 green = l * TEAR;
             f = mix(f, green, clamp(u_tear * 1.4, 0.0, 1.0));
-            f += PHOS * 0.08 * u_tear * step(0.97, hash1(floor(px.y / 2.0) + floor(u_time * 40.0)));
+            if (u_tear_style > 0.5) f += PHOS * 0.35 * crest;
+            else f += PHOS * 0.08 * u_tear * step(0.97, hash1(floor(px.y / 2.0) + floor(u_time * 40.0)));
         }
         c = mix(c, f, u_frozen_amt);
         a = max(a, u_frozen_amt);
