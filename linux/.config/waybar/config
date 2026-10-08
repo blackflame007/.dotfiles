@@ -9,7 +9,7 @@
   "output": ["DP-1", "DP-2"],
   "height": 34,
   "spacing": 0,
-  "modules-left": ["custom/launcher", "hyprland/workspaces", "hyprland/window"],
+  "modules-left": ["custom/launcher", "ext/workspaces", "hyprland/window"],
   "modules-center": ["mpris"],
   "modules-right": ["custom/vector", "cpu", "memory", "custom/gpu", "temperature", "custom/storage", "network",
                     "pulseaudio", "tray", "clock"],
@@ -22,12 +22,14 @@
     "on-click-middle": "~/.config/rofi/scripts/power-menu"
   },
 
-  "hyprland/workspaces": {
-    "format": "{id}",
+  // ext/workspaces (the Wayland ext-workspace protocol), not hyprland/workspaces: a click
+  // there sends Hyprland "dispatch workspace N", which the Lua config (0.56) reads as Lua
+  // and rejects, so clicking a workspace did nothing. The protocol switches it directly.
+  "ext/workspaces": {
+    "format": "{name}",
     "on-click": "activate",
-    "sort-by-number": true,
-    "tooltip": true,
-    "persistent-workspaces": { "DP-1": [1, 2, 3, 4, 5, 6] }
+    "sort-by-name": true,
+    "tooltip": true
   },
 
   "hyprland/window": {
