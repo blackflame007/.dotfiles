@@ -740,27 +740,38 @@ class Actors:
                 inst.x, inst.y = inst.spot
 
     def _breach(self, inst, t, cfg):
-        """Needs you, for swimmers: rise to the surface, then leap clear every `every` s."""
+        """Needs you, for swimmers: rise until just under the surface and wait there, glowing
+        through it; leap clear once on arrival, then again now and then (`every`: seconds, or
+        [lo, hi] for a random gap) so a long wait stays a signal and never a twitch. `hold`
+        is how deep its feet (the sprite's bottom edge) wait, in body heights below the surface:
+        above 1.0 it's all under; `leap_height` above `hold` clears the water."""
         world = inst.d.world
         surf = world.surface_y if world else 640.0
         a = t - inst.state_t
         rise = _smooth(a / 4.0)
-        y_hold = surf + inst.d.height * 0.35
-        inst.dy = (y_hold - inst.y) * rise
-        every = float(cfg.get("every", 7.0))
+        y_hold = surf + inst.d.height * float(cfg.get("hold", 1.15))
+        inst.dy = (y_hold - inst.y) * rise + math.sin(a * 0.9) * 3.0
+        every = cfg.get("every", 7.0)
+        lo, hi = (float(every[0]), float(every[1])) if isinstance(every, (list, tuple)) else (float(every),) * 2
         hop = float(cfg.get("leap", 1.6))
-        if a > 4.0:
-            u = (a - 4.0) % every
-            if u < hop:
-                f = u / hop
-                inst.dy += -math.sin(f * math.pi) * inst.d.height * float(cfg.get("leap_height", 1.3))
-                inst.rot = (0.5 - f) * 0.7 * inst.face
-                k = int((a - 4.0) // every)
-                for edge, ff in (("up", 0.08), ("down", 0.86)):
-                    tag = (k, edge)
-                    if f > ff and tag not in inst.extra.setdefault("sprayed", set()):
-                        inst.extra["sprayed"].add(tag)
-                        self.spray.append((inst.x, surf, t, 1.0))
+        ex = inst.extra
+        if ex.get("breach_state_t") != inst.state_t:       # a new wait: the first leap once it's up
+            ex["breach_state_t"] = inst.state_t
+            ex["leap_at"] = inst.state_t + 4.0
+            ex["leaps"] = 0
+        u = t - ex["leap_at"]
+        if u >= hop:                                        # that leap is over: schedule the next
+            ex["leap_at"] = t + lo + (hi - lo) * inst.r.random()
+            ex["leaps"] += 1
+        elif u >= 0.0:
+            f = u / hop
+            inst.dy += -math.sin(f * math.pi) * inst.d.height * float(cfg.get("leap_height", 1.3))
+            inst.rot = (0.5 - f) * 0.7 * inst.face
+            for edge, ff in (("up", 0.08), ("down", 0.86)):
+                tag = (inst.state_t, ex["leaps"], edge)
+                if f > ff and tag not in ex.setdefault("sprayed", set()):
+                    ex["sprayed"].add(tag)
+                    self.spray.append((inst.x, surf, t, 1.0))
 
     def _step_event(self, inst, t, dt, sig):
         v, d = inst.v, inst.d
