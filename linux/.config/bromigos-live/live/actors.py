@@ -26,7 +26,7 @@ shared by every kind: `turn = true` stops the actor, turns it to face the viewer
 lights in the signal colour at 0.55 Hz, after one bright flash.
 
 Motions: still, hold, bob, rock, wander, settle, hover, circle, drift, pace, croak,
-breach, dive, rise, approach, reel, drift_up, dart, cross. Positions are plate pixels
+breach, dive, rise, approach, reel, drift_up, dart, glide, cross. Positions are plate pixels
 (2560x1440); `update()` returns sprite and glow instances in plate pixels, the renderer
 scales them.
 """
@@ -159,10 +159,12 @@ class Actors:
                 continue
             for v in d.on:
                 if v.get("event") == name:
+                    base = random.randrange(1 << 16)      # one event's creatures share it: distinct targets
                     for k in range(int(v.get("count", 1))):
                         self.n_event += 1
                         inst = Inst(d, f"ev{self.n_event}", t + k * float(v.get("stagger", 0.35)))
                         inst.v = v
+                        inst.extra["ev"] = (base, k)
                         self.insts[(d.id, inst.key)] = inst
         for d in self.defs:                          # a keeper's pose for an event: Hollis lands the catch
             ev = (d.t.get("events") or {}).get(name) if d.kind == "keeper" else None
@@ -668,9 +670,10 @@ class Actors:
             inst.dy = math.sin(t * TAU * rate + ph) * (amp if m == "bob" else amp * 0.4)
         elif m == "rock":
             inst.rot = math.sin(t * TAU * rate + ph) * math.radians(amp)
-        elif m == "hover":
-            inst.dx = math.sin(t * 0.7 + ph) * amp
-            inst.dy = math.sin(t * 1.1 + ph) * amp * 0.8
+        elif m == "hover":                             # `pace` < 1 slows it (a whole swarm drifting)
+            k = float(cfg.get("pace", 1.0))
+            inst.dx = math.sin(t * 0.7 * k + ph) * amp
+            inst.dy = math.sin(t * 1.1 * k + ph) * amp * 0.8
         elif m == "circle":
             inst.dx = math.cos(t * TAU * rate + ph) * amp
             inst.dy = math.sin(t * TAU * rate + ph) * amp * 0.35
@@ -781,7 +784,8 @@ class Actors:
         if f >= 1.0:
             inst.dead = True
             return
-        inst.alpha = min(1.0, a / 0.35) * min(1.0, (dur - a) / 0.8)
+        fin, fout = float(v.get("fade_in", 0.35)), float(v.get("fade_out", 0.8))
+        inst.alpha = _smooth(a / max(fin, 1e-3)) * _smooth((dur - a) / max(fout, 1e-3))
         inst.light = 1.0
         inst.dx = inst.dy = inst.rot = 0.0
         r = inst.r
@@ -793,7 +797,13 @@ class Actors:
             to = v.get("to") or d.t.get("to") or [[p0[0] + 400, p0[1] - 600]]
             if to and not isinstance(to[0], (list, tuple)):
                 to = [to]
-            p1 = tuple(to[r.randrange(len(to))])
+            if v.get("distinct") and "ev" in inst.extra:   # each of the event's creatures its own target
+                b, k = inst.extra["ev"]
+                p1 = tuple(to[(b + k) % len(to)])
+            else:
+                p1 = tuple(to[r.randrange(len(to))])
+            if v.get("under") is not None:               # start beneath its target (± under px), not anywhere
+                p0 = (p1[0] + (r.random() * 2 - 1) * float(v["under"]), p0[1])
             if m == "drift_up":                      # a bloom rises from the deep toward the surface
                 p1 = (p0[0] + (r.random() - 0.5) * 160, float(v.get("rise_to", 700)) + r.random() * 60)
             if m == "reel":
@@ -803,6 +813,11 @@ class Actors:
                 self.spray.append((p0[0], p0[1], t, 0.5))
             inst.path = (p0, p1)
             inst.face = 1.0 if p1[0] >= p0[0] else -1.0
+            sc = v.get("scale")
+            if isinstance(sc, (list, tuple)):              # a size range: each one its own distance
+                inst.scale = float(sc[0]) + (float(sc[1]) - float(sc[0])) * r.random()
+            elif sc is not None:
+                inst.scale = float(sc)
         (x0, y0), (x1, y1) = inst.path
         if m == "rise":
             e = f * f * (3 - 2 * f) * 0.4 + f * 0.6
@@ -835,6 +850,23 @@ class Actors:
             inst.y = y0 + (y1 - y0) * e
             inst.frame = int(a * float(v.get("fps", 0.9)))
             inst.scale = 0.8 + 0.4 * inst.seed
+        elif m == "glide":
+            # a calm pass through the water: steady with soft ends, on a shallow arc, a slow
+            # bob, banking with its path (`bank`, 0..1), turning on itself at `spin` rad/s
+            def at(ff):
+                ee = _smooth(ff) * 0.4 + ff * 0.6
+                arc = float(v.get("arc", 60.0)) * (0.6 + 0.8 * inst.seed)
+                return (x0 + (x1 - x0) * ee,
+                        y0 + (y1 - y0) * ee - math.sin(ee * math.pi) * arc)
+            inst.x, inst.y = at(f)
+            nx, ny = at(min(f + 0.01, 1.0))
+            px, py = at(max(f - 0.01, 0.0))
+            bob = float(v.get("bob", 5.0))
+            inst.dy = math.sin(a * float(v.get("bob_rate", 0.8)) + inst.seed * TAU) * bob
+            slope = math.atan2(ny - py, abs(nx - px) or 1e-3)
+            inst.rot = max(-0.4, min(0.4, slope * float(v.get("bank", 0.6)))) * inst.face \
+                + a * float(v.get("spin", 0.0)) * (1.0 if inst.seed > 0.5 else -1.0)
+            inst.frame = None
         elif m == "dart":
             e = 1.0 - (1.0 - f) ** 3
             inst.x = x0 + (x1 - x0) * e
