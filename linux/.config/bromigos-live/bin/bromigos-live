@@ -43,13 +43,25 @@ EOF
 
 running() { [ -f "$PIDF" ] && kill -0 "$(cat "$PIDF")" 2>/dev/null; }
 
+# The Hyprland session the running daemon was started for (its environment at start).
+daemon_sig() {
+    local c
+    c=$(pgrep -P "$(cat "$PIDF" 2>/dev/null)" -f "live.app" 2>/dev/null | head -1)
+    [ -n "$c" ] && tr '\0' '\n' <"/proc/$c/environ" 2>/dev/null | sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p'
+}
+SESSION_ENV="$HOME/.config/bromigos/bin/bromigos-session-env"
+
 supervise() {
     # Restart on crash, but give up after 4 crashes inside 2 minutes: no crash loops.
     local first="--login"; [ "${1:-}" = "--login" ] || first=""
     local fails=() now
     while :; do
-        # the instance that actually answers: a socket file outlives its Hyprland
-        if ! HYPRLAND_INSTANCE_SIGNATURE="${HYPRLAND_INSTANCE_SIGNATURE:-}" /usr/bin/hyprctl version >/dev/null 2>&1; then
+        # every (re)start goes to the session that is actually alive: its instance AND its
+        # Wayland socket (a restart after a re-login used to keep the dead session's
+        # WAYLAND_DISPLAY and draw nowhere). bromigos-session-env reads hypr/*/hyprland.lock.
+        if [ -x "$SESSION_ENV" ] && live_env=$("$SESSION_ENV" 2>/dev/null); then
+            eval "$(printf '%s\n' "$live_env" | sed 's/^/export /')"
+        elif ! HYPRLAND_INSTANCE_SIGNATURE="${HYPRLAND_INSTANCE_SIGNATURE:-}" /usr/bin/hyprctl version >/dev/null 2>&1; then
             for s in $(ls -t "$RUN/hypr" 2>/dev/null); do
                 if HYPRLAND_INSTANCE_SIGNATURE="$s" /usr/bin/hyprctl version >/dev/null 2>&1; then
                     HYPRLAND_INSTANCE_SIGNATURE="$s"; break
@@ -86,7 +98,15 @@ supervise() {
 
 case "${1:-start}" in
     start)
-        if running; then echo "already running"; exit 0; fi
+        if running; then
+            # running, but for another (dead) session, e.g. a re-login: move it to this one
+            if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && [ "$(daemon_sig)" != "$HYPRLAND_INSTANCE_SIGNATURE" ]; then
+                echo "running for another session; moving it to this one"
+                "$0" stop >/dev/null 2>&1
+            else
+                echo "already running"; exit 0
+            fi
+        fi
         rm -f "$STATE/stopping"
         # keep the log small
         [ -f "$LOG" ] && [ "$(stat -c %s "$LOG")" -gt 1000000 ] && mv "$LOG" "$LOG.1"
@@ -99,7 +119,7 @@ case "${1:-start}" in
         ctl quit >/dev/null 2>&1
         sleep 0.5
         if running; then pkill -P "$(cat "$PIDF")" 2>/dev/null; kill "$(cat "$PIDF")" 2>/dev/null; fi
-        pkill -f "python3 -m live.app" 2>/dev/null
+        pkill -f "^/usr/bin/python3 -m live.app" 2>/dev/null   # anchored: only the daemon, never a command line that mentions it
         rm -f "$PIDF"
         ;;
     restart) "$0" stop; sleep 0.5; "$0" start ;;

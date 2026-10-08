@@ -16,6 +16,8 @@ hl.monitor({ output = "DP-2", mode = "3440x1440@59.97", position = "0x0", scale 
 
 -- Autostart: runs once at login (not on reload). bromigos-live starts from bromigos/live.lua.
 hl.on("hyprland.start", function()
+    -- this session's display for systemd/D-Bus, and VECTOR's daemon moved off any old session
+    hl.exec_cmd("~/.config/bromigos/bin/bromigos-session-env adopt")
     hl.exec_cmd("waybar")
     -- ---- BROMIGOS THEME: session start (wallpaper, widgets, idle) -------------------
     -- Static den wallpaper: the base under any live background layer.

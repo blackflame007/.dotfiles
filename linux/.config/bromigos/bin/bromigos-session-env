@@ -6,6 +6,8 @@
 #   bromigos-session-env             print the live values (KEY=value lines)
 #   bromigos-session-env import      also push them to systemd --user and D-Bus
 #   bromigos-session-env exec CMD…   import, then exec CMD with them
+#   bromigos-session-env adopt       at login: import, and stop VECTOR's daemon if it belongs to
+#                                    another session (it starts again on demand, here)
 #
 # Every Hyprland that starts, a nested test copy included, exports its own display to
 # the activation environment. When the copy exits the stale value stays, and anything
@@ -38,11 +40,22 @@ fi
 export HYPRLAND_INSTANCE_SIGNATURE=${pick% *} WAYLAND_DISPLAY=${pick#* }
 
 case "${1:-}" in
-    import|exec)
+    import|exec|adopt)
         dbus-update-activation-environment --systemd WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE ;;
 esac
 case "${1:-}" in
     exec) shift; exec "$@" ;;
+    adopt)
+        # bromigos-live moves itself (its start checks the session); VECTOR's daemon is
+        # checked here so his protected launcher stays untouched.
+        pid=$(pgrep -f "python -m holo.app" | head -1)
+        if [ -n "$pid" ]; then
+            theirs=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p')
+            if [ "$theirs" != "$HYPRLAND_INSTANCE_SIGNATURE" ]; then
+                logger -t bromigos-session "VECTOR's daemon ($pid) belongs to another session; stopping it"
+                "$HOME/.config/bromigos/holo/bin/bromigos-holo" stop now >/dev/null 2>&1 || kill "$pid"
+            fi
+        fi ;;
     import|"") echo "WAYLAND_DISPLAY=$WAYLAND_DISPLAY"; echo "HYPRLAND_INSTANCE_SIGNATURE=$HYPRLAND_INSTANCE_SIGNATURE" ;;
-    *) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+    *) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
