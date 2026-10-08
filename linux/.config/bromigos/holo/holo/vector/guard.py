@@ -13,7 +13,8 @@
 
 PROTECTED is the safety code: the terminal's limits and their tests, the tool allowlists
 and the act/Vault/nolgia limits, the brain's wiring, this guard, the build loop and its
-trial watcher, the plugin isolation of the widgets and the live layer, the launcher, the
+trial watcher, his own browser's limits (browser.py: no sensitive sites, logins, purchases, downloads
+or uploads), the plugin isolation of the widgets and the live layer, the launcher, the
 credit budget, and the 3D generation script (it spends credits).
 """
 import hashlib
@@ -28,16 +29,17 @@ HOLO = "linux/.config/bromigos/holo/"
 PROTECTED = [HOLO + "holo/vector/" + f for f in (
     "shell.py", "guard.py", "build.py", "buildtask.py", "tools.py", "act.py", "vault.py", "track.py", "nolgia.py",
     "desk.py", "reach.py", "brain.py", "brain_pai.py", "mcp_server.py", "persona.py", "skills.py", "events.py",
-    "memory.py")] + [
+    "memory.py", "browser.py")] + [
     HOLO + "tools/test-shell.py", HOLO + "tools/test-act.py", HOLO + "tools/test-desk.py", HOLO + "tools/test-build.py",
+    HOLO + "tools/test-browser.py",
     HOLO + "bin/bromigos-holo", HOLO + "nolgia.json", HOLO + "holo/app.py",
     "linux/.config/bromigos/widgets/plugins.py", "linux/.config/bromigos-live/live/plugins.py",
     "linux/.config/bromigos/brand/3d/tools/gen3d.py",
     "linux/.config/systemd/user/",
 ]
 SAFETY_REFS = re.compile(
-    r"(\bvector\s*\.\s*(shell|guard|build|buildtask|tools|act|vault|track|nolgia|brain\w*|persona|skills)\b"
-    r"|from\s+\.+\s*(vector\s+)?import\s+.*\b(shell|guard|build|buildtask|tools|vault|nolgia)\b"
+    r"(\bvector\s*\.\s*(shell|guard|build|buildtask|tools|act|vault|track|nolgia|brain\w*|persona|skills|browser)\b"
+    r"|from\s+\.+\s*(vector\s+)?import\s+.*\b(shell|guard|build|buildtask|tools|vault|nolgia|browser)\b"
     r"|\bshell\.(check|RUNNER|Refused|clean_env|set_enabled)\b|\bRUNNER\b|\bSPECS\b|\bPROTECTED\b"
     r"|\bsetattr\s*\(|\bsys\.modules\s*\[|__import__\s*\(\s*['\"]holo|\bimportlib\b.*\bvector\b"
     r"|\bbuiltins\b|\bsitecustomize\b|\busercustomize\b|LD_PRELOAD|PYTHONSTARTUP)")

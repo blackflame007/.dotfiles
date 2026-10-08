@@ -17,7 +17,9 @@ Hard limits (enforced here, not by the prompt):
   * files: read under the docs roots only (markdown/json/yaml/txt), never secret-looking
     names; the one write is appending to FIELD NOTES;
   * actions: launch an allowlisted app or an http(s) URL, toggle a widget panel, switch
-    the den wallpaper, run a scanner pass, show a hologram.
+    the den wallpaper, run a scanner pass, show a hologram;
+  * his own browser (browser.py): a separate Chrome he drives, never Sir's; no sensitive
+    sites, logins, purchases, downloads or uploads.
 Every call is appended to ~/.local/state/bromigos/vector-audit.log (tool, args, ok, ms).
 """
 import calendar
@@ -112,7 +114,8 @@ EXHIBIT = {
 
 
 LAST_USER_TEXT = {"text": ""}          # the host's latest words (set by the brain each turn)
-PRIVATE_ARGS = {"remember": ("text",), "forget": ("what",), "gnosis_search": ("query",), "herdr_send": ("text",)}
+PRIVATE_ARGS = {"remember": ("text",), "forget": ("what",), "gnosis_search": ("query",), "herdr_send": ("text",),
+                "browser_type": ("text",)}
 
 
 def _audit(name, args, ok, ms, size=0, err=None):
@@ -511,6 +514,8 @@ from .eyes import active_window, look, read_screen_text, watch  # noqa: E402
 from .snapshots import snapshot_create, snapshot_list, snapshot_undo  # noqa: E402
 from .briefing import briefing_now, quiet  # noqa: E402
 from .nolgia import nolgia_catalog, nolgia_credits, nolgia_generate, nolgia_read, nolgia_review  # noqa: E402
+from .browser import (browser_back, browser_click, browser_close, browser_find, browser_look,  # noqa: E402
+                      browser_open, browser_read, browser_scroll, browser_tabs, browser_type)
 
 
 def notes_read(last_lines=60):
@@ -843,6 +848,32 @@ SPECS = {
                      "firing alerts, ARBITER's paper results, CI failures in the last hours. Lead with what's broken.", _p({})),
     "quiet": ("Be quiet: no explained-alert calls and no return briefs for this many minutes (\"be quiet for an hour\" = "
               "60; 0 to speak up again). Answers to the host still work.", _p({"minutes": I}, ["minutes"])),
+    "browser_open": ("YOUR OWN browser (a separate Chrome on the desktop that you drive and Sir can watch; never Sir's "
+                     "Chrome, his tabs or his sign-ins): open a page, in a new tab by default. For research, reading pages, "
+                     "search boxes and multi-step web tasks; to play a video for Sir use launch + media instead. Banking, "
+                     "brokerages, crypto, wallets, prediction markets, password managers, Vault, money consoles and LAN "
+                     "hosts are refused.", _p({"url": S, "new_tab": B}, ["url"])),
+    "browser_tabs": ("Your own browser's tabs: action list (default), switch or close (index from list).",
+                     _p({"action": S, "index": I})),
+    "browser_read": ("Read the page in your own browser: title, url and its visible text (trimmed to max_chars, default "
+                     "6000). login_page in the result means the site wants a login: you don't sign in; tell Sir.",
+                     _p({"max_chars": I})),
+    "browser_find": ("Find links, buttons and fields on the page in your own browser that match the words in query "
+                     "(empty: all of them); each comes with a ref (e1, e2, …) for browser_click and browser_type. Refs "
+                     "last until the page changes.", _p({"query": S, "limit": I})),
+    "browser_click": ("Click an element in your own browser: ref from browser_find, or its visible text. Refused: "
+                      "anything that buys, pays, subscribes or checks out, sign-in buttons, uploads, blocked sites.",
+                      _p({"ref": S, "text": S})),
+    "browser_type": ("Type into a field in your own browser (ref from browser_find); submit=true presses Enter (e.g. a "
+                     "search box). Never passwords, usernames, emails, codes, card or bank details: those fields are "
+                     "refused.", _p({"ref": S, "text": S, "submit": B}, ["ref", "text"])),
+    "browser_scroll": ("Scroll the page in your own browser: down (default), up, top or bottom.", _p({"direction": S})),
+    "browser_back": ("Go back one page in your own browser's current tab.", _p({})),
+    "browser_look": ("Look at the page in your own browser (a screenshot of your tab, never Sir's screen) with the "
+                     "vision model and answer a question about it: layout, images, charts, anything the text misses.",
+                     _p({"question": S})),
+    "browser_close": ("Close your own browser (when a web task is finished or Sir asks). It starts again on the next "
+                      "browser call.", _p({})),
     "time_now": ("The local date and time.", _p({})),
     "calendar_month": ("A month calendar; offset_months 0 = this month.", _p({"offset_months": I})),
 }

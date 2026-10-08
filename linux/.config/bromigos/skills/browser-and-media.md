@@ -1,8 +1,8 @@
 ---
 name: browser-and-media
-description: How VECTOR opens web pages and videos in Sir's browser and controls what's playing — find the link, open it in a new tab, check it started, then play, pause, skip, seek and set the volume — and what he can't do in the browser.
-when_to_use: Sir asks to play or put on a video, song, stream or YouTube, to open a website or link, to pause, resume, skip, rewind or turn something up or down, or asks what's playing.
-triggers: '\b(youtube|video|music|song|playlist|stream|podcast|spotify|play|pause|resume|unpause|skip|rewind|fast.?forward|volume|turn (it )?(up|down)|what''?s playing|browser|tab|website|web ?page|open (a |the )?(link|site|url))\b'
+description: How VECTOR opens web pages and videos in Sir's browser and controls what's playing (find the link, open it in a new tab, check it started, then play, pause, skip, seek and set the volume), and how he uses his own browser, a separate Chrome he drives himself, for research and multi-step web tasks (open, find, click or type, read), with what it refuses.
+when_to_use: Sir asks to play or put on a video, song, stream or YouTube, to open a website or link, to pause, resume, skip, rewind or turn something up or down, or asks what's playing; or a task needs the web beyond one fetch, such as reading several pages, using a site's search box, following links, filling a search or filter form, or checking how a page looks.
+triggers: '\b(youtube|video|music|song|playlist|stream|podcast|spotify|play|pause|resume|unpause|skip|rewind|fast.?forward|volume|turn (it )?(up|down)|what''?s playing|browser|tab|website|web ?page|open (a |the )?(link|site|url)|your (own )?browser|search box|click (on )?|fill (in|out)|look (it )?up on)\b'
 ---
 
 # Browser and media
@@ -30,9 +30,51 @@ otherwise the most recent one is used.
 - "Pause it" / "turn it down a bit": act straight away, then confirm in a few words.
 - `volume` sets the player's own volume. The system volume is Sir's (his knob).
 
-## What you can't do in the browser
+## Your own browser
 
-You can open pages in new tabs and control media. You can't click inside a page, type
-into it, read it, or switch or close individual tabs. To look at a page, use `web_fetch`
-on its URL; to see the screen, `look` (only when asked). `window` can focus or close the
-whole browser window (say so first). If they need more, say plainly what's missing.
+You have your own browser: a separate Chrome on the desktop (window class
+`vector-browser`), with its own profile, that you drive with the `browser_*` tools and
+Sir can watch. It is never Sir's Chrome: his tabs, sign-ins and history are out of reach,
+and videos for him still go to his browser with `launch` and `media` (above).
+
+**When to use it:** research across several pages, reading a page `web_fetch` can't
+extract (built by JavaScript), using a site's own search box or filters, following links,
+multi-step web tasks, checking how a page looks. One plain article: `web_fetch` is quicker.
+
+**How:**
+
+1. `browser_open` the URL (a new tab by default; `new_tab=false` reuses the current one).
+2. `browser_find` with a few words ("search", "next page", "pricing") gives the matching
+   links, buttons and fields with refs (`e1`, `e2`, …). Refs last until the page changes;
+   find again after a click.
+3. `browser_click` a ref (or the element's visible text), or `browser_type` into a field's
+   ref; `submit=true` presses Enter (a search box).
+4. `browser_read` for the title, url and visible text; `browser_scroll` for more of a long
+   page; `browser_look` with a question when the layout, a chart or an image matters (a
+   screenshot of your own tab to the vision model, never Sir's screen).
+5. `browser_back` and `browser_tabs` (list, switch, close) to move around; `browser_close`
+   when the task is done.
+
+Say in one line what you're doing before a multi-step task ("let me look that up on the
+vendor's site"), then report what you found, with where it came from.
+
+**Refused, in code (and a refusal ends the turn: say what was refused and ask Sir):**
+
+- Sensitive sites: banking and payments, brokerages, crypto exchanges, wallets and
+  prediction markets (Hyperliquid, Kalshi, Coinbase, …), password managers, Vault, the
+  ARBITER console, admin consoles for money, and LAN hosts other than the lab's own domain.
+  Links and redirects there are refused too.
+- Logins: you never type into password, username, email or code fields, or anything in a
+  login form, and never press sign-in. When `browser_read` says `login_page`, or a site
+  needs an account, tell Sir the site wants his login; don't look for a way around it.
+- Purchases and payments: no checkout, place order, buy, pay, subscribe, add to cart,
+  donate, upgrade or trial buttons, and no card or bank fields.
+- Downloads and uploads are off; secret-looking text is never typed.
+
+## What you can't do in Sir's browser
+
+You can open pages in new tabs of Sir's Chrome and control media. You can't click inside
+his pages, type into them, read them, or switch or close his tabs. For a page's text, use
+`web_fetch` or your own browser; to see his screen, `look` (only when asked). `window` can
+focus or close his whole browser window (say so first). If they need more, say plainly
+what's missing.
