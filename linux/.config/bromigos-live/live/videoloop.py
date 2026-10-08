@@ -277,6 +277,9 @@ class VideoLoop:
         pass binds its own target, so nothing needs restoring but the blend state."""
         blend = GL.glIsEnabled(GL.GL_BLEND)
         GL.glDisable(GL.GL_BLEND)
+        # the mask first: making it binds a texture on the active unit, and done after the planes
+        # it took unit 1 from the UV plane (the first frame of a masked clip came out blue-green)
+        mt = self._mask()
         self.target.bind()
         p = VideoLoop._prog
         p.use()
@@ -284,7 +287,6 @@ class VideoLoop:
         GL.glBindTexture(GL.GL_TEXTURE_2D, planes[0])
         GL.glActiveTexture(GL.GL_TEXTURE1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, planes[1])
-        mt = self._mask()
         GL.glActiveTexture(GL.GL_TEXTURE2)
         GL.glBindTexture(GL.GL_TEXTURE_2D, mt or planes[0])
         p.i("u_y", 0)
