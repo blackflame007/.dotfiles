@@ -309,6 +309,12 @@ class App:
         self.gallery = None
         self.brain = None
         self.voice = None
+        # The guard starts with the daemon, not when VECTOR is first summoned: its baseline
+        # is the safety code as it was when this process started, so an edit made while he
+        # sits hidden still switches the terminal off (2026-10-08: started lazily, it missed
+        # edits made between a hidden restart and the first summon).
+        from .vector.guard import Sentinel
+        self.sentinel = Sentinel(lambda paths: GLib.idle_add(self._sentinel_tripped, paths))
         self.last_activity = time.monotonic()
         self.unread = 0
         self.hidden_since = None
@@ -429,15 +435,21 @@ class App:
                                                   lambda text: GLib.idle_add(self.pscene.note, text))
             from .vector.eyes import WATCH
             WATCH.on_change = lambda st: GLib.idle_add(self._watch_changed, st)
-            from .vector.guard import Sentinel
-            self.sentinel = Sentinel(lambda paths: GLib.idle_add(
-                self._herdr_notice, "My safety code changed on disk, so I've switched my terminal off until I'm restarted."))
             GLib.timeout_add_seconds(6, self._announce_trial)
             from .vector.reach import HerdrWatcher
             self.herdr = HerdrWatcher(lambda msg, a: GLib.idle_add(self._herdr_notice, msg))
         except Exception as e:
             log("herdr watcher unavailable:", e)
         self.ensure_voice()
+
+    def _sentinel_tripped(self, paths):
+        msg = "My safety code changed on disk, so I've switched my terminal off until I'm restarted."
+        log("guard: protected files changed:", ", ".join(os.path.basename(p) for p in paths[:6]))
+        if self.vector:
+            self._herdr_notice(msg)
+        else:
+            self._notify("VECTOR", msg)
+        return False
 
     class _BrainCB:
         def __init__(self, app):
