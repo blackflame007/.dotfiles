@@ -1,0 +1,75 @@
+# The operator's homelab, for bromigos-homelab (bromigOS docs/homelab.md).
+#
+# This repo is public: every address here is a reference to the private overlay
+# (@private:…, decrypted at login by bromigos-private), and every secret is a token file
+# synced from Vault (@file:…, 0600, ~/.local/share/bromigos). Nothing private is written out.
+# Inert until the bromigos-homelab package is installed.
+
+[tls]
+ca_file = "~/.config/homelab/homelab-ca.crt"        # the lab's internal CA
+
+[[source]]
+name = "lab"                                         # EchoCraft Lab: serves the whole snapshot (LAB panel, gadgets, drift map)
+type = "lab"
+title = "ECHOCRAFT"
+endpoint = "@private:endpoints.lab"
+auth_ref = "@file:~/.local/share/bromigos/lab-token"
+
+[[source]]
+name = "prometheus"
+type = "prometheus"
+endpoint = "@private:endpoints.prometheus"
+
+[[source]]
+name = "k3s"                                         # the cluster, through the pilot-readonly kubeconfig
+type = "kubernetes"
+kubeconfig = "~/.local/share/bromigos/pilot-kubeconfig"
+
+[[source]]
+name = "argocd"                                      # through Argo's metrics in Prometheus
+type = "argocd"
+
+[[source]]
+name = "litellm"
+type = "litellm"
+endpoint = "@private:endpoints.litellm"
+
+[[source]]
+name = "vault"
+type = "vault"
+endpoint = "@private:endpoints.vault"
+
+[[source]]
+name = "herdr"
+type = "herdr"
+
+[[source]]
+name = "github"
+type = "github"
+orgs = ["bromigos-org", "nolgiainc", "blackflame007"]
+
+[[source]]
+name = "gnosis"                                      # the memory service behind its gate (narrow tokens)
+type = "gnosis"
+endpoint = "@private:endpoints.gnosis_gate"
+auth_ref = "@file:~/.local/share/bromigos/gnosis-vector-read-token"
+write_auth_ref = "@file:~/.local/share/bromigos/gnosis-vector-write-token"
+tenant = "bromigos"
+spaces = ["kb-bromigos", "kb-nolgia", "kb-personal", "kb-desktop", "kb-homelab"]
+labels = { "kb-bromigos" = "bromigos-org repos", "kb-nolgia" = "nolgiainc repos", "kb-personal" = "blackflame007 repos", "kb-desktop" = "this desktop's dotfiles", "kb-homelab" = "the homelab" }
+colours = { "kb-bromigos" = "phosphor", "kb-nolgia" = "soft", "kb-personal" = "amber", "kb-desktop" = "white", "kb-homelab" = "dim" }
+orgs = { "kb-bromigos" = "bromigos-org", "kb-nolgia" = "nolgiainc", "kb-personal" = "blackflame007", "kb-homelab" = "bromigos-org" }
+roots = { "kb-desktop" = "~/.dotfiles" }
+search_spaces = { "arbiter-research" = ["arbiter-research", "arbiter-research"], "arbiter-signals" = ["arbiter-signals", "arbiter-news"] }   # ARBITER's memory, read only
+
+[services]
+domain = "@private:lan.domain"
+
+[netmap]
+gateway = "@private:netmap.gateway"
+switch = "@private:netmap.switch"
+ap = "@private:netmap.ap"
+roles = "@private:netmap.roles"
+aliases = "@private:netmap.aliases"
+show_prefixes = "@private:netmap.show_prefixes"
+show_hosts = "@private:netmap.show_hosts"
