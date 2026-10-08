@@ -68,7 +68,7 @@ Each top-level directory mirrors `$HOME`. Running `stow common` creates symlinks
 - **Submodules** for independently-versioned configs (nvim, zsh plugins, private)
 - **No framework** for zsh — custom `zsh_add_plugin()` / `zsh_add_file()` loader functions
 - **Font**: MesloLGM Nerd Font, 16pt in the terminals (kitty + alacritty); Geist Mono for the desktop HUD
-- **Color theme**: the Bromigos palette (`linux/.config/bromigos/brand/palette.*`; kitty includes `bromigos.conf`), tokyonight-night (neovim)
+- **Color theme**: the Bromigos palette (`linux/.config/bromigos/brand/palette.*`); on Linux the apps read bromigOS's active theme (`bromigos theme`, `~/.local/state/bromigos/theme/current/`), kitty on macOS `bromigos-macos.conf`; tokyonight-night (neovim)
 - **Commit style**: `Added:`, `Updated:`, `Removed:`, `Fixed:` prefix
 - **Public repo**: no private infrastructure details and no secrets in plaintext; see "Private values" below
 

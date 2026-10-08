@@ -1,4 +1,4 @@
-# Bromigos palette (colours only; matches kitty/bromigos.conf)
+# Bromigos palette (colours only; matches kitty/bromigos-macos.conf)
 [colors.bright]
 black = "#4e6b4e"
 blue = "#8ccaf5"

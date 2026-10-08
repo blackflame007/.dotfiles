@@ -47,6 +47,18 @@ hl.env("QT_QPA_PLATFORMTHEME", "kde")
 -- gsettings set org.gnome.desktop.wm.preferences theme "Arc-dark"
 -- gsettings set org.gnome.desktop.interface icon-theme "Arc-X-D"
 
+-- Colours: the active bromigOS theme (borders, shadows), rendered by `bromigos theme set`
+-- into ~/.local/state/bromigos/theme/current/hyprland.lua, which returns a table. Read
+-- with dofile, so `hyprctl reload` (which `theme set` runs) always picks up a new theme.
+-- Missing (no theme set yet): Hyprland's default colours.
+local theme = {}
+do
+    local state = os.getenv("XDG_STATE_HOME")
+    if state == nil or state == "" then state = os.getenv("HOME") .. "/.local/state" end
+    local ok, t = pcall(dofile, state .. "/bromigos/theme/current/hyprland.lua")
+    if ok and type(t) == "table" then theme = t end
+end
+
 hl.config({
     input = {
         kb_options   = "caps:escape",
@@ -71,8 +83,8 @@ hl.config({
         gaps_out    = 12,
         border_size = 2,
         col = {
-            active_border   = { colors = { "rgb(39ff14)", "rgb(159b09)" }, angle = 45 },
-            inactive_border = "rgba(003b00ee)",
+            active_border   = theme.active_border,
+            inactive_border = theme.inactive_border,
         },
         -- ---- END BROMIGOS THEME
     },
@@ -84,8 +96,8 @@ hl.config({
             enabled        = true,
             range          = 16,
             render_power   = 3,
-            color          = "rgba(39ff1430)",
-            color_inactive = "rgba(000500cc)",
+            color          = theme.shadow,
+            color_inactive = theme.shadow_inactive,
         },
         -- ---- END BROMIGOS THEME
         blur = {

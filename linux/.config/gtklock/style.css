@@ -1,7 +1,9 @@
-/* gtklock: the Bromigos lock screen. Palette as hyprlock had it: void #000500,
-   phosphor #39ff14, soft #9cff8a, dim #159b09, amber #d4af37, danger #ff766f. */
+/* gtklock: the Bromigos lock screen. The colours are the active bromigOS theme's roles
+   (background, panel, primary, soft, dim, warn, danger), rendered by `bromigos theme set`;
+   the import is relative to this file (~/.config/gtklock/style.css). */
+@import url("../../.local/state/bromigos/theme/current/gtklock.css");
 
-window { background-color: #000500; }
+window { background-color: @background; }
 * { font-family: "Geist Mono", monospace; }
 
 /* the burn-in: the ring turns once every 36 s (same direction as the desktop's);
@@ -13,19 +15,19 @@ window { background-color: #000500; }
 }
 #emblem { margin-bottom: 4px; }
 
-#caption { color: #39ff14; font-size: 15pt; font-weight: bold; letter-spacing: 6px; margin-bottom: 30px; }
-#clock-label { color: #39ff14; font-size: 104pt; font-weight: bold; text-shadow: 0 0 6px rgba(57, 255, 20, 0.33); }
-#date-label { color: #9cff8a; font-size: 13pt; font-weight: 600; letter-spacing: 4px; margin-bottom: 36px; }
+#caption { color: @primary; font-size: 15pt; font-weight: bold; letter-spacing: 6px; margin-bottom: 30px; }
+#clock-label { color: @primary; font-size: 104pt; font-weight: bold; text-shadow: 0 0 6px alpha(@primary, 0.33); }
+#date-label { color: @soft; font-size: 13pt; font-weight: 600; letter-spacing: 4px; margin-bottom: 36px; }
 
-#input-label { color: #39ff14; font-size: 15pt; padding: 0 10px; background: rgba(0, 19, 0, 0.93);
-               border: 2px solid #39ff14; border-right: none; min-height: 50px; }
-#input-field { color: #9cff8a; background: rgba(0, 19, 0, 0.93); border: 2px solid #39ff14; border-left: none;
+#input-label { color: @primary; font-size: 15pt; padding: 0 10px; background: alpha(@panel, 0.93);
+               border: 2px solid @primary; border-right: none; min-height: 50px; }
+#input-field { color: @soft; background: alpha(@panel, 0.93); border: 2px solid @primary; border-left: none;
                border-radius: 0; box-shadow: none; min-height: 50px; font-size: 14pt; letter-spacing: 3px;
-               caret-color: #39ff14; }
-#input-field:focus { box-shadow: 0 0 10px rgba(57, 255, 20, 0.35); }
-#input-field image { color: #159b09; }
-#error-label { color: #ff766f; letter-spacing: 3px; font-weight: 600; }
-#warning-label { color: #d4af37; letter-spacing: 3px; font-weight: 600; }
-#unlock-button { color: #39ff14; background: none; border: 1px solid #159b09; border-radius: 0; }
+               caret-color: @primary; }
+#input-field:focus { box-shadow: 0 0 10px alpha(@primary, 0.35); }
+#input-field image { color: @dim; }
+#error-label { color: @danger; letter-spacing: 3px; font-weight: 600; }
+#warning-label { color: @warn; letter-spacing: 3px; font-weight: 600; }
+#unlock-button { color: @primary; background: none; border: 1px solid @dim; border-radius: 0; }
 
-#signoff { color: rgba(21, 155, 9, 0.6); font-size: 11pt; font-weight: 600; letter-spacing: 5px; margin-top: 60px; }
+#signoff { color: alpha(@dim, 0.6); font-size: 11pt; font-weight: 600; letter-spacing: 5px; margin-top: 60px; }

@@ -1,14 +1,8 @@
-/* Bromigos HUD: void/panel/phosphor tokens, 1px rules, square corners, wide-tracked
-   uppercase labels, glow only on live values. No scanlines: text stays crisp. */
-@define-color void #000500;
-@define-color panel #001300;
-@define-color guard #003b00;
-@define-color phosphor #39ff14;
-@define-color soft #9cff8a;
-@define-color dim #159b09;
-@define-color amber #d4af37;
-@define-color danger #ff766f;
-@define-color static #7e927e;
+/* Bromigos HUD: 1px rules, square corners, wide-tracked uppercase labels, glow only on
+   live values. No scanlines: text stays crisp. The colours are the active bromigOS
+   theme's roles (void, panel, primary, soft, dim, warn, danger, muted, cyan, gold, …),
+   rendered by `bromigos theme set`. */
+@import url("../../.local/state/bromigos/theme/current/waybar.css");
 
 * {
   font-family: "Geist Mono", "MesloLGM Nerd Font Propo", monospace;
@@ -57,7 +51,7 @@ tooltip label {
   border-right: 1px solid alpha(@dim, 0.55);
 }
 #custom-launcher:hover {
-  background-color: alpha(@phosphor, 0.12);
+  background-color: alpha(@primary, 0.12);
 }
 
 #workspaces {
@@ -65,33 +59,33 @@ tooltip label {
 }
 #workspaces button {
   padding: 0 9px;
-  color: @static;
+  color: @muted;
   background: transparent;
   border-bottom: 2px solid transparent;
   font-weight: 600;
 }
 #workspaces button.empty {
-  color: alpha(@static, 0.55);
+  color: alpha(@muted, 0.55);
 }
 #workspaces button.active {
-  color: @phosphor;
-  border-bottom: 2px solid @phosphor;
-  text-shadow: 0 0 8px alpha(@phosphor, 0.6);
-  background-color: alpha(@phosphor, 0.08);
+  color: @primary;
+  border-bottom: 2px solid @primary;
+  text-shadow: 0 0 8px alpha(@primary, 0.6);
+  background-color: alpha(@primary, 0.08);
 }
 #workspaces button.urgent {
   color: @void;
-  background-color: @amber;
+  background-color: @warn;
 }
 #workspaces button:hover {
-  background: alpha(@phosphor, 0.12);
+  background: alpha(@primary, 0.12);
   color: @soft;
   box-shadow: none;
   text-shadow: none;
 }
 
 #window {
-  color: @static;
+  color: @muted;
   border-left: 1px solid alpha(@dim, 0.35);
 }
 window#waybar.empty #window {
@@ -100,15 +94,15 @@ window#waybar.empty #window {
 }
 
 #mpris {
-  color: @phosphor;
+  color: @primary;
   border-right: 1px solid alpha(@dim, 0.35);
 }
 #mpris.paused {
-  color: @static;
+  color: @muted;
 }
 
 #cpu.warning, #memory.warning, #custom-gpu.warning, #custom-storage.warning {
-  color: @amber;
+  color: @warn;
 }
 #cpu.critical, #memory.critical, #custom-gpu.critical, #custom-storage.critical,
 #temperature.critical {
@@ -116,17 +110,17 @@ window#waybar.empty #window {
 }
 
 #network.disconnected, #network.linked {
-  color: @amber;
+  color: @warn;
 }
 #pulseaudio.muted {
-  color: @amber;
+  color: @warn;
 }
 
 #clock {
-  color: @phosphor;
+  color: @primary;
   font-weight: 700;
   letter-spacing: 0.12em;
-  text-shadow: 0 0 8px alpha(@phosphor, 0.45);
+  text-shadow: 0 0 8px alpha(@primary, 0.45);
   padding-right: 14px;
 }
 
@@ -135,7 +129,7 @@ window#waybar.empty #window {
 }
 #tray > .needs-attention {
   -gtk-icon-effect: highlight;
-  background-color: alpha(@amber, 0.25);
+  background-color: alpha(@warn, 0.25);
 }
 
 /* ---- icons: 16px, 1px-stroke set from ~/.config/bromigos/brand/icons ----------
@@ -158,7 +152,7 @@ window#waybar.empty #window {
 #custom-gpu.warning   { background-image: url("../bromigos/brand/icons/gpu-amber.svg"); }
 #custom-gpu.critical  { background-image: url("../bromigos/brand/icons/gpu-danger.svg"); }
 #temperature          { background-image: url("../bromigos/brand/icons/temp.svg"); }
-#temperature.warning  { background-image: url("../bromigos/brand/icons/temp-amber.svg"); color: @amber; }
+#temperature.warning  { background-image: url("../bromigos/brand/icons/temp-amber.svg"); color: @warn; }
 #temperature.critical { background-image: url("../bromigos/brand/icons/temp-danger.svg"); }
 #custom-storage          { background-image: url("../bromigos/brand/icons/disk.svg"); }
 #custom-storage.warning  { background-image: url("../bromigos/brand/icons/disk-amber.svg"); }
@@ -173,22 +167,22 @@ window#waybar.empty #window {
 #clock                { background-image: url("../bromigos/brand/icons/clock.svg"); }
 
 /* VECTOR pip (bromigos-holo): the iris in the state's colour; hidden while the daemon is off */
-#custom-vector             { background-image: url("../bromigos/brand/icons/vector.svg"); color: @phosphor;
+#custom-vector             { background-image: url("../bromigos/brand/icons/vector.svg"); color: @primary;
                             font-weight: 700; letter-spacing: 0.08em; }
-#custom-vector.minimized   { color: @static; background-image: url("../bromigos/brand/icons/vector-dim.svg"); }
+#custom-vector.minimized   { color: @muted; background-image: url("../bromigos/brand/icons/vector-dim.svg"); }
 #custom-vector.thinking,
-#custom-vector.listening   { color: @amber; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
-#custom-vector.speaking    { color: @phosphor; background-image: url("../bromigos/brand/icons/vector.svg");
-                            text-shadow: 0 0 8px alpha(@phosphor, 0.6); }
+#custom-vector.listening   { color: @warn; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
+#custom-vector.speaking    { color: @primary; background-image: url("../bromigos/brand/icons/vector.svg");
+                            text-shadow: 0 0 8px alpha(@primary, 0.6); }
 #custom-vector.error       { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg"); }
-#custom-vector.unread      { text-shadow: 0 0 8px alpha(@amber, 0.6); }
+#custom-vector.unread      { text-shadow: 0 0 8px alpha(@warn, 0.6); }
 /* the speaking voice tints the pip; a mood overrides it */
-#custom-vector.voice-robot     { color: #3fe0c5; }
-#custom-vector.voice-scientist { color: @amber; }
-#custom-vector.voice-floor     { color: #f0d36a; }
+#custom-vector.voice-robot     { color: @cyan; }
+#custom-vector.voice-scientist { color: @warn; }
+#custom-vector.voice-floor     { color: @gold; }
 #custom-vector.voice-notify    { color: @soft; }
 #custom-vector.conversation   { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg"); }
-#custom-vector.mood-excited    { text-shadow: 0 0 10px alpha(@phosphor, 0.8); }
-#custom-vector.mood-concerned  { color: @amber; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
+#custom-vector.mood-excited    { text-shadow: 0 0 10px alpha(@primary, 0.8); }
+#custom-vector.mood-concerned  { color: @warn; background-image: url("../bromigos/brand/icons/vector-amber.svg"); }
 #custom-vector.mood-alarmed    { color: @danger; background-image: url("../bromigos/brand/icons/vector-danger.svg");
                                  text-shadow: 0 0 8px alpha(@danger, 0.7); }

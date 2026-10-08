@@ -134,6 +134,12 @@ PNGs), `gtk/build-gtk-theme.py` and `gtk/build-icons-cursor.py` (themes, cursor)
 - **Qt/KDE apps** (OBS, file dialogs): `~/.local/share/color-schemes/Bromigos.colors`,
   applied with `plasma-apply-colorscheme Bromigos`; Qt reads it through
   `QT_QPA_PLATFORMTHEME=kde`.
+- **Colours** come from bromigOS's active theme (`wick` by default; `bromigos theme
+  list|current|set`), rendered into `~/.local/state/bromigos/theme/current/`: waybar's and
+  gtklock's `style.css` and rofi's `bromigos.rasi` import it, kitty includes it
+  (`kitty/bromigos-linux.conf`), `hyprland.lua` loads it with `dofile`, and
+  `dunst/dunstrc.d/90-bromigos-theme.conf` and `Bromigos.colors` are symlinks to it.
+  bromigOS's docs/theming.md has the format.
 - **File manager:** PCManFM (ALT+E), by operator choice. The WORKBENCH panel's rows
   still open Dolphin (see "Known issues").
 

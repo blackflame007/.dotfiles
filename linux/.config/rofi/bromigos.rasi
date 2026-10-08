@@ -1,17 +1,10 @@
 /* Bromigos launcher: panel background, 1px phosphor rules, square corners,
    the burn-in in the header, a "> " prompt with a blinking block cursor.
    Labels name real things only: the mode tabs and the live match count. */
-* {
-    void:      #000500;
-    panel:     #001300;
-    guard:     #003b00;
-    phosphor:  #39ff14;
-    soft:      #9cff8a;
-    dim:       #159b09;
-    amber:     #d4af37;
-    danger:    #ff766f;
-    static:    #7e927e;
+/* Colours: the active bromigOS theme, rendered by `bromigos theme set`. */
+@import "~/.local/state/bromigos/theme/current/rofi.rasi"
 
+* {
     font: "Geist Mono Medium 13";
     background-color: transparent;
     text-color: @soft;
@@ -66,30 +59,30 @@ mode-switcher {
 }
 button {
     padding: 4px 14px;
-    text-color: @static;
+    text-color: @muted;
     font: "Geist Mono SemiBold 11";
     border: 0 0 2px 0;
     border-color: transparent;
     horizontal-align: 0.5;
 }
 button selected {
-    text-color: @phosphor;
-    border-color: @phosphor;
-    background-color: #39ff1414;
+    text-color: @primary;
+    border-color: @primary;
+    background-color: @selected-tab-background;
 }
 
 inputbar {
     children: [ textbox-prompt, entry, num-filtered-rows, textbox-num-sep, num-rows ];
     spacing: 0;
     padding: 8px 10px;
-    background-color: #000500cc;
+    background-color: @input-background;
     border: 1px;
-    border-color: #159b0999;
+    border-color: @input-border;
 }
 textbox-prompt {
     str: "> ";
     expand: false;
-    text-color: @phosphor;
+    text-color: @primary;
     font: "Geist Mono Bold 16";
 }
 entry {
@@ -98,11 +91,11 @@ entry {
     placeholder: "";
     cursor: text;
     cursor-width: 10px;
-    cursor-color: @phosphor;
+    cursor-color: @primary;
     blink: true;
 }
 num-filtered-rows, textbox-num-sep, num-rows {
-    text-color: @static;
+    text-color: @muted;
     font: "Geist Mono 11";
     vertical-align: 0.5;
     expand: false;
@@ -128,25 +121,25 @@ element {
 }
 element normal.normal, element alternate.normal {
     background-color: transparent;
-    text-color: @static;
+    text-color: @muted;
 }
 /* Selection is a HUD bar, not a solid fill: dark guard green with a phosphor edge, so
    the matched letters (bright phosphor, below) stay readable on every row. */
 element selected.normal {
-    background-color: #003b00cc;
-    border-color: @phosphor;
+    background-color: @selected-background;
+    border-color: @primary;
     text-color: @soft;
 }
 element normal.urgent, element alternate.urgent {
-    text-color: @amber;
+    text-color: @warn;
 }
 element selected.urgent {
-    background-color: #4a3a0acc;
-    border-color: @amber;
-    text-color: @amber;
+    background-color: @selected-urgent-background;
+    border-color: @warn;
+    text-color: @warn;
 }
 element normal.active, element alternate.active {
-    text-color: @phosphor;
+    text-color: @primary;
 }
 element-icon {
     size: 24px;
@@ -155,7 +148,7 @@ element-icon {
 element-text {
     vertical-align: 0.5;
     text-color: inherit;
-    highlight: bold #39ff14;          /* matched letters: bold bright phosphor on every row */
+    highlight: @match-highlight;     /* matched letters: bold primary on every row */
 }
 
 box-footer {
@@ -169,7 +162,7 @@ message {
     border-color: @dim;
 }
 textbox {
-    text-color: @static;
+    text-color: @muted;
     font: "Geist Mono 11";
 }
 error-message {

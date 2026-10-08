@@ -2,6 +2,9 @@
 # Title line = the sending app in uppercase, wide-tracked; then summary, then body.
 # Critical = danger red. Notices that arrive without their own icon (system and
 # script notices) carry the burn-in dial as a small "transmission" mark.
+# Colours (and the formats, which carry colours) are the active bromigOS theme's:
+# dunstrc.d/90-bromigos-theme.conf links to the file `bromigos theme set` renders,
+# and drop-ins override this file key by key.
 [global]
     monitor = 0
     follow = mouse
@@ -15,7 +18,6 @@
     horizontal_padding = 14
     text_icon_padding = 14
     frame_width = 1
-    frame_color = "#39ff14"
     separator_color = frame
     separator_height = 1
     corner_radius = 0
@@ -33,12 +35,10 @@
     progress_bar_min_width = 150
     progress_bar_max_width = 412
     progress_bar_corner_radius = 0
-    highlight = "#39ff14"
 
     font = Geist Mono 11
     line_height = 2
     markup = full
-    format = "<span text_transform='uppercase' letter_spacing='1800' size='small' weight='600' foreground='#159b09'>%a</span>\n<b>%s</b>\n%b"
     alignment = left
     vertical_alignment = top
     show_age_threshold = 60
@@ -73,24 +73,12 @@
     per_monitor_dpi = false
 
 [urgency_low]
-    background = "#001300"
-    foreground = "#7e927e"
-    frame_color = "#159b09"
-    highlight = "#159b09"
     timeout = 5
 
 [urgency_normal]
-    background = "#001300"
-    foreground = "#9cff8a"
-    frame_color = "#39ff14"
     timeout = 8
 
 [urgency_critical]
-    background = "#1a0503"
-    foreground = "#ffd9d6"
-    frame_color = "#ff766f"
-    highlight = "#ff766f"
-    format = "<span text_transform='uppercase' letter_spacing='1800' size='small' weight='700' foreground='#ff766f'>%a · critical</span>\n<b>%s</b>\n%b"
     timeout = 0
 
 # ---- BROMIGOS: capture notifications (~/.config/bromigos/bin/bromigos-shot, bromigos-rec)
@@ -100,12 +88,8 @@
     category = "capture.done"
     min_icon_size = 96
     max_icon_size = 128
-    frame_color = "#39ff14"
     timeout = 7
 [bromigos_capture_live]
     category = "capture.live"
-    frame_color = "#d4af37"
-    highlight = "#d4af37"
-    format = "<span text_transform='uppercase' letter_spacing='1800' size='small' weight='600' foreground='#d4af37'>%a · live</span>\n<b>%s</b>\n%b"
     timeout = 0
 # ---- END BROMIGOS: capture notifications
