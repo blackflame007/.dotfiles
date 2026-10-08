@@ -8,7 +8,9 @@ factions are amber markers, the characters the entries point at are the
 small crew lights, and every relationship is a faint lane.
 
 The Wick appears as an unplaceable shimmer: no fixed coordinate, drifting,
-marked with the burn-in — never with a callsign or a frequency.
+marked with the burn-in — never with a callsign or a frequency. It is the
+catalog's own `the_wick` entry, kept out of the layout (so it isn't also drawn
+as a star); hovering it lights the entries it links to.
 
 Scroll zooms toward the cursor (zoomcam.py): the minor entries' names appear as
 there is room for them, drag pans while zoomed in (Shift+drag turns), + and - zoom,
@@ -32,8 +34,8 @@ from .overlays import Base
 from .zoomcam import ZoomCam, lod
 
 TAU = 2 * math.pi
-WICK = "__wick__"
-WICK_ENTRY = {"id": WICK, "name": "The Wick", "kind": "place", "status": "unplaceable",
+WICK = "the_wick"
+WICK_ENTRY = {"id": WICK, "name": "The Wick", "kind": "place", "status": "unplaceable",   # if the catalog lacks it
               "summary": ("A decommissioned relay station whose position appears in no sector's survey. "
                           "Those who claim to have been there describe the same three things and nothing else: "
                           "a mast with a black flame burned into its housing; a room of racks that hum like a "
@@ -98,6 +100,21 @@ def load_catalog(path):
     return cat, nodes, sorted(edges)
 
 
+def split_wick(nodes, edges):
+    """Take the Wick out of the chart: it has no position, so it gets no star and
+    no lanes. Returns (wick entry, the ids it links to, the remaining edges)."""
+    wick = nodes.pop(WICK, None) or dict(WICK_ENTRY)
+    near = {a if b == WICK else b for a, b in edges if WICK in (a, b)}
+    near = {k for k in near if k in nodes}
+    rest = [(a, b) for a, b in edges if WICK not in (a, b)]
+    # an entry only the Wick pointed at would float free: drop it with the Wick
+    linked = {k for ab in rest for k in ab}
+    for k in [k for k in near if nodes[k]["status"] == "referenced" and k not in linked]:
+        nodes.pop(k)
+        near.discard(k)
+    return wick, near, rest
+
+
 def layout(nodes, edges, iters=500):
     """Fruchterman-Reingold, seeded from the ids (deterministic), radius ~1."""
     ids = sorted(nodes)
@@ -128,13 +145,18 @@ def layout(nodes, edges, iters=500):
     r = np.sqrt((pos ** 2).sum(-1)) + 1e-9
     order = np.argsort(np.argsort(r))
     r_new = 0.12 + 0.88 * np.sqrt((order + 0.5) / n)
-    pos = pos / r[:, None] * r_new[:, None]
+    # and the angles halfway to an even spread (keeping their order round the
+    # chart), so a tightly linked group opens into a sector instead of a knot
+    a = np.arctan2(pos[:, 1], pos[:, 0])
+    a_even = (np.argsort(np.argsort(a)) + 0.5) / n * TAU - math.pi
+    a_new = a + 0.5 * (a_even - a)
+    pos = np.stack([np.cos(a_new), np.sin(a_new)], -1) * r_new[:, None]
     return {k: (float(pos[i, 0]), float(pos[i, 1])) for k, i in ix.items()}
 
 
 def cached_layout(path, nodes, edges):
     key = hashlib.sha1((open(path, "rb").read())).hexdigest()[:16]
-    fn = os.path.join(CACHE, f"driftmap-{key}-v2.json")
+    fn = os.path.join(CACHE, f"driftmap-{key}-v4.json")
     try:
         with open(fn) as f:
             return {k: tuple(v) for k, v in json.load(f).items()}
@@ -162,10 +184,14 @@ class DriftMap(Base):
             "catalog", "~/github.com/bromigos-org/platform/agents/lore/catalog.json"))
         self.ok = os.path.exists(path)
         self.nodes, self.edges, self.timeline = {}, [], []
+        self.wick, self.wick_near, self.degree = dict(WICK_ENTRY), set(), {}
         if self.ok:
             cat, self.nodes, self.edges = load_catalog(path)
             self.timeline = sorted(cat.get("timeline") or [], key=lambda t: t.get("order", 0))
-            self.wick = dict(WICK_ENTRY)
+            self.wick, self.wick_near, self.edges = split_wick(self.nodes, self.edges)
+            for a_, b_ in self.edges:
+                self.degree[a_] = self.degree.get(a_, 0) + 1
+                self.degree[b_] = self.degree.get(b_, 0) + 1
             lay = cached_layout(path, self.nodes, self.edges)
             for k, (x, z) in lay.items():
                 nd = self.nodes[k]
@@ -182,6 +208,7 @@ class DriftMap(Base):
         self.selected = None
         self.sel_t = 0.0
         self.wick_px = None
+        self.settled = False
         self.mods = 0
         self.t_prev = None
         cx, cy, R = self.L["center"]
@@ -228,10 +255,10 @@ class DriftMap(Base):
             b.line((math.cos(a) * 0.12, 0, math.sin(a) * 0.12), (math.cos(a) * 1.05, 0, math.sin(a) * 1.05),
                    col("guard", 0.6), space=2, dash=6, reveal=T + 0.2)
         focus = self.selected or self.hover
-        if focus == WICK:
-            focus = None
         rel = set()
-        if focus:
+        if focus == WICK:                     # no lanes to draw; light what it links to
+            rel = set(self.wick_near)
+        elif focus:
             for a_, b_ in self.edges:
                 if focus in (a_, b_):
                     rel.update((a_, b_))
@@ -260,11 +287,12 @@ class DriftMap(Base):
             name = _ascii(nd["name"], 30).upper()
             font = "s" if nd["kind"] in STAR else "xs"
             rv = T + 0.7 + (i % 40) * 0.01
-            if k == focus or k == self.hover or k in rel or (label and on and z <= 1.05):
+            if k == focus or k == self.hover or k in rel:
                 labels.add(9, nd["p"], name, font, 1.4, colour=cc if k != focus else col("white"), reveal=rv,
                            force=True)
-            elif label and on:                        # stars and markers: always worth a place
-                labels.add(5 + size, nd["p"], name, font, 1.4, colour=cc, reveal=rv)
+            elif label and on:                        # stars and markers first, the most linked first;
+                labels.add(5 + size + 0.01 * self.degree.get(k, 0), nd["p"], name, font, 1.4, colour=cc,
+                           reveal=rv)                  # where they crowd, zooming in makes room
             elif on and minor > 0.0:                   # the minor entries, as zooming makes room
                 labels.add(1 + size, nd["p"], name, font, 1.4, colour=(cc[0], cc[1], cc[2], cc[3] * minor),
                            reveal=rv)
@@ -392,7 +420,7 @@ class DriftMap(Base):
             b.text("LANES", x + 18 * s, yy, col("dim"), font="xs", track=3, reveal=rv + 0.2)
             yy += 24 * s
             for r in rels[:14]:
-                tgt = self.nodes.get(r.get("target"), {})
+                tgt = self.wick if r.get("target") == WICK else self.nodes.get(r.get("target"), {})
                 ln = f"{_ascii(r.get('relation') or '', 22)} → {_ascii(tgt.get('name') or r.get('target'), 28)}".upper()
                 b.text(ln, x + 18 * s, yy, col("amber" if tgt.get("kind") in MARK else "soft", 0.95), font="xs",
                        track=0.6, reveal=rv + 0.25, type_rate=0.002)
@@ -434,6 +462,9 @@ class DriftMap(Base):
 
     def rebuild_due(self, t):
         every = 0.06 if self.hover == WICK else self.rebuild_every       # the label follows the drift
+        if not self.settled and self.built_at is not None:   # once more right away: the first build
+            self.settled = True                              # can run before the view is set, and
+            return True                                      # labels are placed by where they land
         return self.built_at is None or t - self.built_at >= every
 
     def render(self, fbo, fps):
