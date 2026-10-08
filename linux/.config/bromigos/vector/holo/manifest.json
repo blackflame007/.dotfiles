@@ -1,0 +1,16 @@
+{
+  "_comment": "Hologram models. Boxes are [x0,x1, y0,y1, z0,z1] in fractions of the normalised bounding box (y up, front +z); a face goes to the first part whose box holds its centroid, else to the part with rest=true. bind names the live reading a part shows (VECTOR's holo/bind.py); requires names a capability the model needs to mean anything (it is hidden without it). Sources are in src/; the baked NAME.holo.npz sit next to this file. Rebake: ~/.local/share/bromigos/venv/bin/python /usr/lib/bromigos/vector/tools/holo/bake.py --root THIS_DIR --preview",
+  "models": {
+    "monolith": {
+      "title": "ARBITER", "subtitle": "the Floor", "source": "src/arbiter-monolith.glb", "faces": 30000, "max_edges": 9000,
+      "parts": [
+        {"id": "crown", "label": "REFEREE", "bind": "arb.referee", "hint": "The referee: cohort state, day count, real money (read only)", "boxes": [[0.0, 1.0, 0.8, 1.0, 0.0, 1.0]], "explode": [0, 1, 0], "distance": 0.3},
+        {"id": "slab4", "label": "RESEARCH", "bind": "arb.research", "hint": "Research: findings this week and what the Kiln has tested", "boxes": [[0.0, 1.0, 0.655, 0.8, 0.0, 1.0]], "explode": [0, 0.75, 0.25], "distance": 0.24},
+        {"id": "slab3", "label": "POSITIONS", "bind": "arb.positions", "hint": "Open paper positions and what is invested", "boxes": [[0.0, 1.0, 0.505, 0.655, 0.0, 1.0]], "explode": [0, 0.5, 0.35], "distance": 0.2},
+        {"id": "slab2", "label": "FORWARD TESTS", "bind": "arb.forward", "hint": "Candidates running as independent forward tests", "boxes": [[0.0, 1.0, 0.355, 0.505, 0.0, 1.0]], "explode": [0, 0.25, 0.35], "distance": 0.16},
+        {"id": "slab1", "label": "AGENTS", "bind": "arb.agents", "hint": "The lineup: rule and learning agents, eligible and funded", "boxes": [[0.0, 1.0, 0.2, 0.355, 0.0, 1.0]], "explode": [0, 0.05, 0.35], "distance": 0.12},
+        {"id": "plinth", "label": "PORTFOLIO", "bind": "arb.portfolio", "hint": "The paper portfolio: equity, drawdown, cash", "rest": true, "explode": [0, -1, 0], "distance": 0.14}
+      ]
+    }
+  }
+}

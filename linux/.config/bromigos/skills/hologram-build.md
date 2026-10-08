@@ -24,7 +24,7 @@ process the five holograms of October 2026 were built with. Follow it in order.
 | Shared data readers | `live/sources.py` (Prometheus, repos + git, push reflogs, gh, herdr, ping) |
 | VECTOR's event feed reader | `live/vfeed.py` |
 | The shared 3D renderer (models with parts) | `/usr/lib/bromigos/vector/holo/` (bromigos-vector; source: bromigos-org/vector) (`render.Holo`, `stage.Stage`, `bind.reading`, `fmt` for `.holo.npz`) |
-| Models | `~/.config/bromigos/brand/3d/holo/*.holo.npz`, plus `/usr/lib/bromigos/live/models/starship.holo.npz` |
+| Models | the collections: `~/.config/bromigos/vector/holo/` (mine), `/usr/share/bromigos/homelab/holo/`, `/usr/share/bromigos/vector/holo/` (`*.holo.npz`), plus `/usr/lib/bromigos/live/models/starship.holo.npz` |
 | Headless renders | `/usr/lib/bromigos/live/tools/offscreen.py` |
 | The one config | `bromigos-live/config.toml` (reloads on save) |
 | Keys | a personal deck's: Sir's `~/.config/hypr/hyprland.lua`, after the defaults; bromigOS's decks: `/usr/share/bromigos/default/hypr/bromigos/live.lua` (read-only; source bromigOS `desktop/hypr/`) (skill `hyprland-config`) + bromigOS `widgets/keybinds.py` `EXEC` rows for SHORTCUTS |
@@ -232,7 +232,7 @@ np.savez_compressed(path, meta=json_bytes, pos=pos, nrm=nrm, part=part_u8, tri=t
 ```
 
 Parts exist so status can light each one separately. A purchased or generated mesh
-goes through the brand kit's bake tools (`brand/3d/tools/bake.py`) to the same
+goes through VECTOR's bake tools (`/usr/lib/bromigos/vector/tools/holo/bake.py --root DIR`) to the same
 format.
 
 **Instancing.** `live/starship.py` uploads the edges once as a static VBO of quads

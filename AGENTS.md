@@ -8,8 +8,8 @@ The operator's dotfiles (public repo `blackflame007/.dotfiles`, branch `master`)
 **What lives where.** The desktop is bromigOS (pacman packages from `bromigos-org/bromigOS`
 and `bromigos-org/vector`); this repo holds only what's mine: thin configs over bromigOS's
 defaults, my settings, the encrypted private overlay, my plugins (ARBITER and the rest),
-my Razer bits, my backup config, my likeness and personal brand, VECTOR's 3D models and my
-copies of his skills. Engine changes belong in bromigOS, not here. The full list:
+my Razer bits, my backup config, my likeness and personal brand, my own hologram models
+(the ARBITER monolith) and my copies of his skills. Engine changes belong in bromigOS, not here. The full list:
 `linux/.config/bromigos/README.md`, "What lives where".
 
 ## OVERVIEW
@@ -119,7 +119,8 @@ The Hyprland desktop is the operator's control center, styled as the Wick (BLACK
 
 | Piece | Where (under `linux/.config/`) | Docs |
 |-------|-------|------|
-| My brand kit: portraits, wordmarks, overlays, my lab's and ARBITER's marks, VECTOR's 3D models (bromigOS's own brand, palette and emblem kits are in bromigOS) | `bromigos/brand/` | `bromigos/brand/README.md`, `brand/3d/README.md` |
+| My brand kit: portraits, wordmarks, overlays, my lab's and ARBITER's marks, (bromigOS's own brand, palette and emblem kits are in bromigOS) | `bromigos/brand/` | `bromigos/brand/README.md` |
+| My hologram models: the ARBITER monolith (VECTOR's ship in bromigos-vector, the rack in bromigos-homelab) | `bromigos/vector/holo/` | `bromigos/vector/holo/README.md` |
 | Theme: Hyprland, bar, launcher, notifications, lock/idle, GTK/Qt themes, cursor | `hypr/`, `waybar/`, `rofi/`, `dunst/`, `bromigos/gtk/`, `../.local/share/` | `bromigos/README.md` "Theme" |
 | Hyprland config (Lua: binds, rules, devices, autostart; switch/rollback, dispatch helper) | `hypr/hyprland.lua`, `hypr/bromigos/*.lua`, `bromigos/bin/bromigos-{hyprconfig,dispatch}` | `bromigos/skills/hyprland-config.md` |
 | Widgets: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS (package `bromigos-widgets`, code in bromigOS `widgets/`); GAME SERVERS (plugin) | `bromigos/widgets/` (layout.json, launcher), `bromigos/plugins/widgets/` | `bromigos/widgets/README.md`, bromigOS `widgets/README.md`, `docs/plugins.md` |

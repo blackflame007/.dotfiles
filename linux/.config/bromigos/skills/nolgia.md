@@ -44,7 +44,7 @@ hunyuan3d-v3 21 (prefer procedural geometry; see `hologram-build.md`).
 
 - **Concept image:** `nolgia_generate image "<subject>, <style>, <composition>"
   model=flux-2-klein aspect_ratio=16:9`. For a 3D concept, end the prompt with the
-  isolation block from `brand/3d/README.md`: *"Isolated 3D product render on a plain pure
+  isolation block from `/usr/share/bromigos/vector/holo/README.md`: *"Isolated 3D product render on a plain pure
   white background, whole object fully in frame with margin, three-quarter view from
   slightly above, soft even studio lighting, no cast shadow, no text, no logos, no people,
   crisp hard-surface modelling with clear separable parts."*

@@ -6,9 +6,12 @@ when_to_use: "Making a new hologram, 3D model, wireframe model or 3D object for 
 
 # Making a hologram model
 
-The gallery and the holo deck show every `.holo.npz` in
-`linux/.config/bromigos/brand/3d/holo/` (format: `brand/3d/README.md`). A new model is a
-manifest entry plus a bake; no code changes, and it appears without a restart. Decks and
+The gallery and the holo deck show every `.holo.npz` in the hologram collections: mine
+(`linux/.config/bromigos/vector/holo/`, stowed at `~/.config/bromigos/vector/holo/`: the
+ARBITER monolith and anything new), bromigos-homelab's (`/usr/share/bromigos/homelab/holo/`:
+the rack) and VECTOR's (`/usr/share/bromigos/vector/holo/`: workstation, wick, emblem). The
+format and the tools: `/usr/share/bromigos/vector/holo/README.md` and `/usr/lib/bromigos/vector/tools/holo/`.
+New models go in mine. A new model is a manifest entry plus a bake; no code changes, and it appears without a restart. Decks and
 renderers themselves: `hologram-build.md`.
 
 ## Procedural first (no credits, exact)
@@ -16,12 +19,12 @@ renderers themselves: `hologram-build.md`.
 Write a spec JSON in the build worktree, then:
 
 ```bash
-~/.local/share/bromigos/venv/bin/python linux/.config/bromigos/brand/3d/tools/make-holo.py \
-    add satdish /tmp/satdish.json
+~/.local/share/bromigos/venv/bin/python /usr/lib/bromigos/vector/tools/holo/make-holo.py \
+    --root linux/.config/bromigos/vector/holo add satdish /tmp/satdish.json
 # -> {"ok", "counts", "parts": [[id, tris, edges]], "preview": "previews/satdish-parts.png", "warnings"}
 ```
 
-The spec (shapes in `tools/prims.py`; units free, normalised after: base on y = 0,
+The spec (shapes in `/usr/lib/bromigos/vector/tools/holo/prims.py`; units free, normalised after: base on y = 0,
 tallest extent 1, y up, front +z; angles in degrees):
 
 ```json
@@ -72,7 +75,7 @@ attached parts need their own coordinates computed (rotate the offset yourself).
 2. Image to 3D: trellis (2 credits) or hunyuan3d-v3 (21) — over the daily cap, ask.
    Generation scripts are refused in the terminal; use the nolgia tools.
 3. Parts as bbox-fraction boxes (`[x0, x1, y0, y1, z0, z1]`, see `manifest.json`), then
-   `make-holo.py glb NAME model.glb parts.json`.
+   `make-holo.py --root linux/.config/bromigos/vector/holo glb NAME model.glb parts.json`.
 
 ## Check it
 

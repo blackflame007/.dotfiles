@@ -129,7 +129,7 @@ def sources():
             add("kb-homelab", hl, rel)
     dot = os.path.join(HOME, ".dotfiles")
     for rel in ("AGENTS.md", "README.md", "linux/.config/bromigos/brand/README.md",
-                "linux/.config/bromigos/brand/3d/README.md"):
+                "linux/.config/bromigos/vector/holo/README.md"):
         if os.path.exists(os.path.join(dot, rel)):
             add("kb-desktop", dot, rel, "dotfiles")
     seen = {r for _, _, r, _ in spaces["kb-desktop"]}
