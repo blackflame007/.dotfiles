@@ -1,5 +1,6 @@
-# Bromigos shell theme: prompt colours and the startup banner.
-# Sourced from .zshrc after zsh-mehshell (zsh_add_file "zsh-bromigos").
+# Bromigos shell theme: mehshell's prompt in the Bromigos colours, then bromigOS's shell
+# defaults (the login banner, zoxide). Sourced from .zshrc after zsh-mehshell
+# (zsh_add_file "zsh-bromigos").
 #
 #   bromigos banner     print the banner (emblem + live system lines)
 #   BROMIGOS_BANNER     login (default: interactive login shells only)
@@ -39,18 +40,6 @@ if [[ $COLORTERM == (truecolor|24bit) || $TERM == (xterm-kitty|alacritty) ]]; th
   precmd_functions+=(_bromigos_prompt_colors)
 fi
 
-# ---------------------------------------------------------------- banner
-# The banner is its own script now: ~/.config/bromigos/bin/bromigos-banner
-# (`bromigos banner` runs it). `bromigos` itself is bromigOS's CLI, /usr/bin/bromigos.
-
-if [[ -o interactive && -t 1 && -z $NVIM && $BROMIGOS_BANNER != off ]]; then
-  if [[ $BROMIGOS_BANNER == always || -o login ]]; then
-    ~/.config/bromigos/bin/bromigos-banner
-  fi
-fi
-
-# ---------------------------------------------------------------- zoxide
-# Frecent folders: `z <part>` jumps, `zi` picks with fzf. Its database also feeds
-# the WORKBENCH desktop panel (bromigos-widgets), so the folders you actually use
-# show up there. Installed with `cargo install --locked zoxide`.
-(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
+# ---------------------------------------------------------------- bromigOS
+# The login banner and zoxide: bromigOS's shell defaults (package bromigos-desktop).
+[[ -r /usr/share/bromigos/default/zsh/bromigos.zsh ]] && source /usr/share/bromigos/default/zsh/bromigos.zsh

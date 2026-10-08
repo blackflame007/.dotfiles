@@ -27,7 +27,7 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 | Login screen | `bromigos/sddm/` | The SDDM theme at boot: the lock screen's den, burn-in and clock plus account, session and power; no live data; installed by `sddm/install.sh` with sudo | `sddm/bromigos/README.md` |
 | Razer integration | `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-knob`, `bromigos/bin/bromigos-rgb` | Macro keys and the dial bound to the desktop; lighting follows VECTOR | this file, "Razer" |
 | Shell | `bromigos/shell/`, `zsh/.config/zsh/zsh-bromigos` | Prompt colours and the `bromigos` banner | `zsh/.config/zsh/AGENTS.md` |
-| Capture | `bromigos/bin/bromigos-shot`, `bromigos-rec` | Screenshots and recordings with a themed notification and a quiet cue | the scripts' headers |
+| Capture | `bromigos-shot`, `bromigos-rec` (bromigOS, package bromigos-desktop) | Screenshots and recordings with a themed notification and a quiet cue | the scripts' headers |
 | Wallpaper switcher | `bromigos/bin/bromigos-wallpaper` | Chooses the den variant (den, empty, masked, v1) for the desktop and the lock screen | the script's header |
 | Services | `systemd/user/bromigos-*.{service,timer}` | Start page snapshot (every minute), knowledge-base sync (nightly), the dial, the lighting | this file, "Services" |
 
@@ -113,15 +113,22 @@ bromigOS `live/tools/make-starship.py` (the swarm's ship), `shell/build-emblem-b
 
 ## Theme
 
-- **Hyprland:** a Lua config (Hyprland 0.56; the old `.conf` format goes away in 0.57):
-  `hypr/hyprland.lua` (monitors, autostart, env, look, input, layer and window rules, the
-  Razer keymap, workspace→monitor rules) requires `hypr/bromigos/binds.lua` (keybinds) and
-  `hypr/bromigos/live.lua` (the `BROMIGOS LIVE` block); `hypr/bromigos/keys.lua` holds the
-  bind helpers. Theme edits sit in fenced `BROMIGOS THEME` blocks (VECTOR's and the
-  gallery's binds are in the keybinds block of `binds.lua`, under a `bromigos-holo`
-  comment). How to add a bind or rule, and the Lua form of `hyprctl dispatch`:
-  [`skills/hyprland-config.md`](skills/hyprland-config.md). `hypr/hyprland.conf` is kept
-  only as the rollback (see Operations).
+- **Hyprland:** a Lua config (Hyprland 0.56; the old `.conf` format goes away in 0.57).
+  bromigOS ships the desktop's defaults (package `bromigos-desktop`,
+  `/usr/share/bromigos/default/hypr/`: look, input, layer and generic window rules,
+  autostart, every bromigOS bind, the bind helpers `bromigos/keys.lua`); `hypr/hyprland.lua`
+  here sets the `bromigos` table (monitors, workspace→monitor, input options, the default
+  binds it replaces), runs the defaults, then adds what's mine: my apps' rules and binds, my
+  decks' binds (personal plugins) and the LAB panel's. The Razer (keymap, macro keys, the
+  mic-mute fix) is `hypr/bromigos/razer.lua`. How to add a bind or rule, and the Lua form of
+  `hyprctl dispatch`: [`skills/hyprland-config.md`](skills/hyprland-config.md).
+  `hypr/hyprland.conf` is kept only as the rollback (see Operations).
+- **Bar, launcher, notifications, idle:** bromigOS's defaults too (`/usr/share/bromigos/default/`):
+  `waybar/config` includes them and sets my outputs and the CPU sensor, `waybar/style.css`
+  imports the theme then the default style, `rofi/config.rasi` imports the default,
+  `dunst/dunstrc` links to the default (drop-ins in `dunstrc.d/`), `hypr/hypridle.conf`
+  sources the default. The lock screen's files (`gtklock/`, `hypr/hyprlock.conf`) are still
+  full copies here.
 - **Bar** (`waybar/`): HUD modules with icons from the brand kit, GPU and storage scripts,
   VECTOR's pip (`custom/vector`).
 - **Launcher** (`rofi/`): `bromigos.rasi`, a power menu, quick note, and the searchable
@@ -160,7 +167,7 @@ the Lab token, so `snapshot.py` writes `data.js` every minute from
 
 openrazer (the operator is in the `openrazer` group) puts the BlackWidow V4 Pro in
 driver mode, so M1–M5 send F13–F17, the side buttons F18–F20 and the dial press F24.
-`hypr/razer-blackwidow.xkb` keeps those as plain F-keys; the binds (`hypr/bromigos/binds.lua`)
+`hypr/razer-blackwidow.xkb` keeps those as plain F-keys; the binds (`hypr/bromigos/razer.lua`)
 use their keycodes and listen to the Razer only (its devices carry the `razer-blackwidow` tag):
 
 | Key | Action |
@@ -185,9 +192,9 @@ voice colour, amber when he is concerned, red breathing when alarmed, green at r
 | `bromigos-rgb.service` | `bin/bromigos-rgb` | `systemctl --user status bromigos-rgb` |
 
 The daemons themselves start from Hyprland's login autostart (`hl.on("hyprland.start", …)`
-in `hypr/hyprland.lua` and `hypr/bromigos/live.lua`: `waybar`, `dunst`,
-`bromigos-wallpaper apply`, `bromigos-widgets`, `bromigos-live start --login`,
-`hypridle`); the holo daemon starts on first use of its key.
+in bromigOS's default `hyprland.lua` and `bromigos/live.lua`: `waybar`, `dunst`,
+`bromigos wallpaper apply`, `bromigos-widgets`, `bromigos-live start --login`,
+`hypridle`; hyprload from `bromigos.autostart` here); the holo daemon starts on first use of its key.
 
 ## Operations
 
@@ -223,9 +230,9 @@ in `hypr/hyprland.lua` and `hypr/bromigos/live.lua`: `waybar`, `dunst`,
    README that says what it is, why it exists, how to run it and where its state lives.
 2. Follow `skills/desktop-style-guide.md` (real data only, palette tokens, hover hints,
    nothing over windows) and, for anything animated or 3D, `skills/hologram-build.md`.
-3. Keys: a `K.exec(…)` / `K.dsp(…)` line in the right fenced block of
-   `hypr/bromigos/binds.lua` (or `live.lua`; check `hyprctl binds -j` for free keys; see
-   `skills/hyprland-config.md`), an `EXEC` row in bromigOS `widgets/keybinds.py` for SHORTCUTS,
+3. Keys: a `K.exec(…)` / `K.dsp(…)` line in `hypr/hyprland.lua` (mine), or in bromigOS's
+   `desktop/hypr/bromigos/binds.lua` / `live.lua` for a bind every bromigOS desktop gets
+   (check `hyprctl binds -j` for free keys; see `skills/hyprland-config.md`), an `EXEC` row in bromigOS `widgets/keybinds.py` for SHORTCUTS,
    then `bromigos-docs keys` to regenerate the table in `AGENTS.md`.
 4. Secrets: a mode-600 file in `~/.local/share/bromigos/`, sourced from Vault; add its
    path (never its value) to the state table above.
