@@ -51,7 +51,7 @@ def probe(path):
 
 
 class VideoLoop:
-    def __init__(self, path, alpha=None, fps=None, scale=1.0, sync=False):
+    def __init__(self, path, alpha=None, fps=None, scale=1.0, sync=False, once=False, mask=None):
         self.path = path
         self.alpha = alpha or ("native" if path.lower().endswith(".webm") else "none")
         w, h, f = probe(path)
@@ -76,6 +76,11 @@ class VideoLoop:
         self.stop = threading.Event()
         self.last_use = 0.0
         self.sync = sync             # offscreen renders: wait for each frame instead of dropping it
+        self.once = once             # a one-shot clip: plays once, then holds its last frame
+        self.ended = False
+        base = os.path.splitext(path)[0]
+        self.mask_path = mask or next((base + "-mask" + e for e in (".png", ".webp") if os.path.isfile(base + "-mask" + e)), None)
+        self.mask_tex = None
 
     # ---- decoding
     def _cmd(self):
@@ -85,7 +90,7 @@ class VideoLoop:
                 cmd += ["-c:v", "libvpx-vp9"]          # ffmpeg's own VP9 decoder drops the alpha
         else:
             cmd += ["-hwaccel", "auto"]
-        cmd += ["-stream_loop", "-1", "-i", self.path]
+        cmd += ([] if self.once else ["-stream_loop", "-1"]) + ["-i", self.path]
         fh = self.h * 2 if self.alpha == "stacked" else self.h     # stacked: both halves
         if self.nv12:
             cmd += ["-vf", f"scale={self.w}:{fh}"] if (self.w, fh) != self._src_size() else []
@@ -124,6 +129,8 @@ class VideoLoop:
                 while got < n:
                     k = f.readinto(view[got:])
                     if not k:
+                        self.ended = True               # a one-shot clip's end: hold the last frame
+                        ready.set()
                         return
                     got += k
             except (OSError, ValueError):
@@ -145,7 +152,7 @@ class VideoLoop:
         self.clock += max(0.0, min(dt, 0.25))
         due = int(self.clock * self.fps)
         if due != self.shown:
-            if self.sync:
+            if self.sync and not self.ended:
                 self.ready.wait(5.0)
             with self.lock:
                 self.ready.clear()
@@ -155,6 +162,30 @@ class VideoLoop:
                 self.shown = due
                 self.taken.set()
         return self.tex
+
+    def finished(self):
+        """A one-shot clip has shown its last frame."""
+        return self.once and self.ended and self.frame is None
+
+    def restart(self):
+        """Play a one-shot clip again from its first frame."""
+        self.close(keep_texture=True)
+        self.clock, self.shown, self.ended = 0.0, -1, False
+
+    def _mask(self):
+        """The clip's feathered edge mask (<name>-mask.png), as a texture (NV12 path) and an array."""
+        if self.mask_tex is None and self.mask_path:
+            from PIL import Image
+            m = Image.open(self.mask_path).convert("L").resize((self.w, self.h), Image.BILINEAR)
+            self.mask_arr = np.asarray(m, np.uint8)
+            self.mask_tex = GL.glGenTextures(1)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, self.mask_tex)
+            GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_R8, self.w, self.h, 0, GL.GL_RED, GL.GL_UNSIGNED_BYTE,
+                            np.ascontiguousarray(self.mask_arr))
+            for p, v in ((GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR), (GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)):
+                GL.glTexParameteri(GL.GL_TEXTURE_2D, p, v)
+        return self.mask_tex
 
     def _upload(self, buf):
         if self.nv12:
@@ -168,8 +199,10 @@ class VideoLoop:
                          (GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE), (GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)):
                 GL.glTexParameteri(GL.GL_TEXTURE_2D, p, v)
         a = np.frombuffer(buf, np.uint8).reshape(self.h, self.w, 4)
-        if self.alpha != "none":                      # premultiply, like every other world texture
+        if self.alpha != "none" or self.mask_path:   # premultiply, like every other world texture
             a = a.copy()
+            if self._mask() is not None:
+                a[..., 3] = (a[..., 3].astype(np.uint16) * self.mask_arr // 255).astype(np.uint8)
             a[..., :3] = (a[..., :3].astype(np.uint16) * a[..., 3:4] // 255).astype(np.uint8)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.tex)
         GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
@@ -210,8 +243,13 @@ class VideoLoop:
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.planes[0])
         GL.glActiveTexture(GL.GL_TEXTURE1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.planes[1])
+        mt = self._mask()
+        GL.glActiveTexture(GL.GL_TEXTURE2)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, mt or self.planes[0])
         p.i("u_y", 0)
         p.i("u_uv", 1)
+        p.i("u_mask", 2)
+        p.f("u_has_mask", 1.0 if mt else 0.0)
         p.f("u_stacked", 1.0 if self.alpha == "stacked" else 0.0)
         p.f("u_bt709", 1.0 if self.h > 576 else 0.0)
         VideoLoop._fs.draw()

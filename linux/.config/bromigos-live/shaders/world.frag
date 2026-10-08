@@ -5,7 +5,6 @@
 // deep), then the effects the world declares, each compiled in only when used:
 //   FX_RAIN       rain streaks and rings on the water (its signal: CPU in Mire)
 //   FX_MIST       low mist over the water
-//   FX_FIREFLIES  fireflies, reflected in the water (network throughput in Mire)
 //   FX_LINE       a fishing line from a rod tip, slack or taut (ARBITER fills in Mire)
 //   FX_BEAM       a lighthouse beam turning (lab health in Tidewell)
 //   FX_SPRAY      spray bursts (a breach, a catch)
@@ -29,11 +28,10 @@ uniform vec4 u_swell;           // amplitude px, wavelength px, phase, crest lig
 uniform vec4 u_rain;            // rain 0..1, -, -, -
 uniform vec4 u_mist;            // strength 0..1, band y0, band y1, drift phase
 uniform vec3 u_mistcol;
-uniform vec4 u_ff;              // density 0..1, brightness, cell px, -
-uniform vec4 u_ffzone;          // x0, y0, x1, y1 px
-uniform vec3 u_ffcol;
 uniform vec4 u_wake[12];        // x, y px, strength, -
 uniform vec4 u_spray[6];        // x, y px, t0, strength
+uniform vec4 u_ring[8];         // ripple rings: x, y px, t0, strength (a Sleeper rising, going under)
+uniform vec4 u_bubble[8];       // bubbles: x, y px, t0, strength
 uniform vec4 u_fline;           // tip x, y, end x, y px
 uniform vec4 u_fline2;          // sag px, on, -, -
 uniform vec3 u_flinecol;
@@ -77,6 +75,15 @@ vec2 ripples(vec2 px, float depth) {
         }
     }
 #endif
+    for (int k = 0; k < 8; k++) {                 // event rings: they spread and settle over 4 s
+        float age = u_time - u_ring[k].z;
+        if (u_ring[k].w <= 0.0 || age < 0.0 || age > 4.0) continue;
+        vec2 dv = (px - u_ring[k].xy) * vec2(1.0, 3.2);
+        float d = length(dv) / u_scale;
+        float r0 = age * 70.0;
+        float ring = exp(-pow(d - r0, 2.0) / 60.0) + 0.6 * exp(-pow(d - r0 * 0.6, 2.0) / 40.0);
+        n += normalize(dv + 1e-4) * ring * u_ring[k].w * 3.5 * (1.0 - age / 4.0);
+    }
     for (int k = 0; k < 12; k++) {
         if (u_wake[k].z <= 0.0) continue;
         vec2 dv = (px - u_wake[k].xy) * vec2(1.0, 3.0);
@@ -169,28 +176,6 @@ vec3 mist(vec2 px, vec3 c) {
 }
 #endif
 
-#ifdef FX_FIREFLIES
-vec3 fireflies(vec2 px) {
-    if (u_ff.x <= 0.0 || px.x < u_ffzone.x || px.x > u_ffzone.z || px.y < u_ffzone.y || px.y > u_ffzone.w) return vec3(0.0);
-    float cs = u_ff.z;
-    vec2 q = px / cs;
-    vec2 id = floor(q);
-    vec3 acc = vec3(0.0);
-    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
-        vec2 c = id + vec2(i, j);
-        vec2 h = w_hash22(c);
-        float h3 = w_hash2(c + 7.7);
-        if (h3 > u_ff.x) continue;
-        vec2 p = (c + 0.5 + 0.38 * vec2(sin(u_time * (0.21 + h.x * 0.3) + h.y * 6.3), cos(u_time * (0.17 + h.y * 0.25) + h.x * 6.3))) * cs;
-        float blink = pow(0.5 + 0.5 * sin(u_time * (0.8 + h3 * 1.1) + h.x * 40.0), 4.0);
-        vec2 dv = (px - p) / u_scale;
-        float d2 = dot(dv, dv);
-        acc += u_ffcol * (exp(-d2 / 3.0) * 1.4 + exp(-d2 / 90.0) * 0.28) * blink;
-    }
-    return acc * u_ff.y;
-}
-#endif
-
 #ifdef FX_LINE
 vec3 fishing_line(vec2 px) {
     if (u_fline2.y < 0.5) return vec3(0.0);
@@ -256,6 +241,28 @@ vec3 spray(vec2 px) {
 }
 #endif
 
+vec3 bubbles(vec2 px) {
+    vec3 acc = vec3(0.0);
+    for (int k = 0; k < 8; k++) {
+        float age = u_time - u_bubble[k].z;
+        if (u_bubble[k].w <= 0.0 || age < 0.0 || age > 2.5) continue;
+        vec2 o0 = u_bubble[k].xy;
+        if (length((px - o0) * vec2(1.0, 3.0)) > 160.0 * u_scale) continue;
+        for (int i = 0; i < 14; i++) {
+            float h1 = w_hash1(float(i) * 3.1 + float(k) * 7.0 + floor(u_bubble[k].z * 10.0));
+            float h2 = w_hash1(float(i) * 7.7 + float(k) * 3.0 + floor(u_bubble[k].z * 10.0));
+            float tb = h1 * 2.0;                                    // when this bubble surfaces
+            float a = age - tb;
+            if (a < 0.0 || a > 0.45) continue;
+            vec2 p = o0 + vec2((h2 - 0.5) * 120.0, (h1 - 0.5) * 22.0) * u_scale;
+            float r = (2.0 + 3.0 * h2) * u_scale * (1.0 + a * 2.0);
+            float d = abs(length((px - p) * vec2(1.0, 2.2)) - r);
+            acc += vec3(0.7, 0.85, 0.85) * exp(-d * d / (0.6 * u_scale)) * (1.0 - a / 0.45) * u_bubble[k].w;
+        }
+    }
+    return acc * u_grade.rgb;
+}
+
 void main() {
     vec2 tuv = vec2(v_uv.x, 1.0 - v_uv.y);
     vec2 px = tuv * u_res;
@@ -263,15 +270,6 @@ void main() {
     c = water(px, c);
 #ifdef FX_MIST
     c = mist(px, c);
-#endif
-#ifdef FX_FIREFLIES
-    c += fireflies(px);
-#ifndef WATER_SPLIT
-    if (px.y > u_line.x) {                                    // their lights in the mirror
-        vec2 m = vec2(px.x + sin(px.y * 0.3 + u_time * 1.4) * 2.0 * u_scale, 2.0 * u_line.x - px.y);
-        c += fireflies(m) * 0.35;
-    }
-#endif
 #endif
 #ifdef FX_LINE
     c += fishing_line(px);
@@ -282,6 +280,7 @@ void main() {
 #ifdef FX_SPRAY
     c += spray(px);
 #endif
+    c += bubbles(px);
 #ifdef FX_RAIN
 #ifdef WATER_SPLIT
     if (px.y < surface(px.x)) c += rain(px);              // the storm plays out on the surface

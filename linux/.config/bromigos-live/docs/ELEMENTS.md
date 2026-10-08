@@ -450,7 +450,8 @@ bromigOS `docs/theming.md` ("Worlds"); this section is how the live layer runs i
   after an unlock the keeper wakes over a few seconds, the lantern brightening.
 - **Cost:** a frame's own CPU, best of 15 batches of 40 frames at 2560×1440 (RTX 5070,
   Ryzen 7 3700X): Mire 0.59 ms, Tidewell 0.74 ms, the den 0.56 ms; at 30 fps that is
-  about 2% of one core either way. GPU 0.2–0.4 ms a frame (the den 0.44). The world's own
+  about 2% of one core either way. Mire at full tilt (420 fireflies in a big download,
+  five agents) 1.1 ms, about 3.3%. GPU 0.2–0.4 ms a frame (the den 0.44). The world's own
   pollers add about 0.4% (herdr every 2 s). So a world costs what the den does in the
   daemon (7–9% of one core with GTK and the data threads). Whole-process headless runs
   (`tools/offscreen.py bench 40 world`) vary 3–8% with the machine's other load.
@@ -464,12 +465,12 @@ bromigOS `docs/theming.md` ("Worlds"); this section is how the live layer runs i
 
 | Thing | Shows | Signal |
 |---|---|---|
-| Sleeper heads (three, in the foreground water) | the first three herdr agents (oldest first): a steady eye glow spilling on the water and pads (working); the head turns to you, the eyes flash amber (needs you; red on an error); sinks a little, eyes dim (finished) | `agents` |
+| Sleeper heads (three, in the foreground water) | the first three herdr agents (oldest first): an agent starts, bubbles rise, a swell, the head breaks the surface and its eyes boot with a flicker, then a slow working pulse spilling light on the water and pads; needs you: it rises a little, turns to you, the eyes double-flash amber (red on an error); finished: it submerges, rings spread, the last bubbles rise | `agents` |
 | Sleepers wading (moss-covered exo-frames) | further agents: wading among the wrecks, eye-lamps lit (working); stop, turn to you, the eye flashes amber (needs you); settle into the water (finished); sink away (closed) | `agents` |
 | Hollis (the keeper) | fishing while you work, nodding in his rocking chair when idle, slumped with the lantern dimmed when locked | `user` |
 | His line | taut on every ARBITER paper fill; a fish comes up for a win, a boot for a loss, a twitch for an opening fill | fills |
 | Herons | a heron rises off the shore for a notification; a critical one flies at the screen, red-eyed | `notify`, `critical` |
-| Fireflies | this machine's network throughput | `net` |
+| Fireflies (`live/fireflies.py`) | this machine's network throughput: live particles on a slow curl flow, each blinking on its own rhythm, near ones reflected directly below; a handful when idle, hundreds in a big download (smoothed over 3 s), a few more in deep night; they scatter from a Sleeper rising or going under | `net` |
 | Mist, rain, thunder | CPU: mist thickens, then drizzle, a downpour on the water, lightning near 100% | `cpu` |
 | Two eyes, a long shape | lab trouble: eyes by the shack's stilts at health 1, a long shape too at 2 | `health` |
 | The crashed gunship, the wreckage, the boat | the scene (art only) | — |

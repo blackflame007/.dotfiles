@@ -128,7 +128,9 @@ def build_atlas(root, rels, width=4096, pad=3, loops=None, sync=False):
             path = os.path.join(root, rel)
             if os.path.isfile(path):
                 o = (loops or {}).get(rel, {})
-                v = VideoLoop(path, o.get("alpha"), o.get("fps"), float(o.get("scale", 1.0)), sync=sync)
+                once = bool(o.get("once", "/clips/" in rel))      # live/clips/: one-shot clips
+                v = VideoLoop(path, o.get("alpha"), o.get("fps"), float(o.get("scale", 1.0)), sync=sync, once=once,
+                              mask=os.path.join(root, o["mask"]) if o.get("mask") else None)
                 videos[rel] = A.Sprite([(0.0, 0.0, 1.0, 1.0, v.aspect)], video=v)
                 continue
             log(f"loop {rel} not found; a placeholder block stands in")
@@ -209,7 +211,7 @@ class Effects:
 
     def defines(self):
         d = []
-        for k, flag in (("rain", "FX_RAIN"), ("mist", "FX_MIST"), ("fireflies", "FX_FIREFLIES"),
+        for k, flag in (("rain", "FX_RAIN"), ("mist", "FX_MIST"),
                         ("line", "FX_LINE"), ("beam", "FX_BEAM"), ("spray", "FX_SPRAY"), ("rays", "FX_RAYS")):
             if k in self.by:
                 d.append(flag)
@@ -247,7 +249,11 @@ class World:
                 rels.append(a["emissive"])
             for sl in a.get("slots", []):
                 rels += [sl[k] for k in ("sprite", "emissive") if sl.get(k)]
-                rels += [st["sprite"] for st in (sl.get("states") or {}).values() if st.get("sprite")]
+                for st in (sl.get("states") or {}).values():
+                    rels += [st[k] for k in ("sprite", "clip") if st.get(k)]
+            for st in (a.get("states") or {}).values():
+                if isinstance(st, dict) and st.get("clip"):
+                    rels.append(st["clip"])
             for v in a.get("on", []):
                 if v.get("sprite"):
                     rels.append(v["sprite"])
@@ -261,6 +267,10 @@ class World:
         self.defs = [A.Def(a, sprites, self) for a in sp.get("actors", [])]
         self.actors = A.Actors(self.defs)
         self.keeper = next((d for d in self.defs if d.kind == "keeper"), None)
+        self.fireflies = None
+        if self.fx.has("fireflies"):
+            from .fireflies import Fireflies
+            self.fireflies = Fireflies(self.fx.by["fireflies"], self.water.get("line", 900))
         # GL
         defs = self.fx.defines() + (["WATER_SPLIT"] if self.split else [])
         src = glkit.read_shader("world.frag").replace(
@@ -280,6 +290,10 @@ class World:
         self.forced = {}
         self.spray = [(0.0, 0.0, -10.0, 0.0)] * 6
         self.spray_i = 0
+        self.rings = [(0.0, 0.0, -10.0, 0.0)] * 8        # ripple rings spreading on the water
+        self.ring_i = 0
+        self.bubbles = [(0.0, 0.0, -10.0, 0.0)] * 8      # bubbles rising and popping at the surface
+        self.bubble_i = 0
         self.line_hook = None
         self.queue = []             # (t, event) staggered fills
         self.sound_next = {}
@@ -348,6 +362,14 @@ class World:
     def _spray(self, x, y, t, s):
         self.spray[self.spray_i % 6] = (x * self.sx, y * self.sy, t, s)
         self.spray_i += 1
+
+    def _ring(self, x, y, t, s):
+        self.rings[self.ring_i % 8] = (x * self.sx, y * self.sy, t, s)
+        self.ring_i += 1
+
+    def _bubble(self, x, y, t, s):
+        self.bubbles[self.bubble_i % 8] = (x * self.sx, y * self.sy, t, s)
+        self.bubble_i += 1
 
     # ---- the control socket: bromigos-live ctl world …
     def command(self, verb, args):
@@ -494,6 +516,18 @@ class World:
                 self._advanced[v] = v.advance(dt)
         for (x, y, t0, s) in self.actors.spray:
             self._spray(x, y, t0, s)
+        for (x, y, t0, s) in self.actors.rings:
+            self._ring(x, y, t0, s)
+        for (x, y, t0, s) in self.actors.bubbles:
+            self._bubble(x, y, t0, s)
+        if self.fireflies:
+            for (x, y, t0) in self.actors.disturb:
+                self.fireflies.scatter(x, y, t0)
+            e = self.fx.by["fireflies"]
+            night = 1.0 - skyclock.daylight(sig["hour"])
+            lvl = float(sig.get(e.get("signal", "net"), 0.0) or 0.0)
+            for dep, arr in self.fireflies.update(t, dt, lvl, night).items():
+                glows.append((dep, arr))
         self._sounds(t, sig)
         if not getattr(self, "offscreen", False) and self.cfg.get("world", {}).get("ambient_sounds", True):
             for rel in self.actors.sounds[:1]:
@@ -718,13 +752,20 @@ class World:
         buf.draw()
 
     def _draw_glows(self, i, glows, depth):
-        rows = []
-        sx, sy = self.sx, self.sy
+        """glows: tuples (x, y, rx, ry, r, g, b, intensity, fog) or row blocks (n x 12), plate px."""
+        tup = [g for g in glows if not isinstance(g, np.ndarray)]
+        blocks = [g for g in glows if isinstance(g, np.ndarray)]
+        if tup:
+            a = np.zeros((len(tup), 12))
+            a[:, :9] = np.array(tup, dtype=np.float64)
+            blocks.append(a)
+        rows = np.concatenate(blocks).astype(np.float32)
         ox, oy = self._par(depth)
-        for (x, y, rx, ry, r, g, b, inten, fog) in glows:
-            rows.append([x * sx + ox, y * sy + oy, rx * sy, ry * sy, r, g, b, inten, fog, 0, 0, 0])
+        rows[:, 0] = rows[:, 0] * self.sx + ox
+        rows[:, 1] = rows[:, 1] * self.sy + oy
+        rows[:, 2:4] *= self.sy
         buf = self._inst_buf(self.glows_gl, i, "world_glow.vert", "world_glow.frag", 3)
-        buf.upload(np.array(rows, np.float32))
+        buf.upload(rows)
         p = buf.prog
         p.use()
         p.f("u_res", float(self.w), float(self.h))
@@ -817,14 +858,6 @@ class World:
             fx.mist_phase = (fx.mist_phase + dt * (0.015 + 0.06 * v)) % 1000.0
             p.f("u_mist", strength, band[0] * sy, band[1] * sy, fx.mist_phase)
             p.f("u_mistcol", *[float(x) for x in e.get("color", (0.55, 0.62, 0.62))])
-        e = fx.by.get("fireflies")
-        if e:
-            v = float(sig.get(e.get("signal", "net"), 0.0) or 0.0)
-            z = e.get("zone", (0, 600, 2560, 1100))
-            dens = float(e.get("base", 0.04)) + float(e.get("gain", 0.5)) * v
-            p.f("u_ff", dens, float(e.get("brightness", 1.0)) * (0.6 + 0.6 * v), float(e.get("cell", 70)) * sy, 0.0)
-            p.f("u_ffzone", z[0] * sx, z[1] * sy, z[2] * sx, z[3] * sy)
-            p.f("u_ffcol", *[float(x) for x in e.get("color", (0.85, 1.0, 0.45))])
         e = fx.by.get("line")
         if e:
             tip = self.line_tip()
@@ -883,6 +916,8 @@ class World:
             wk[i] = (x * sx + ox, y * sy + oy, s, 0.0)
         p.fv("u_wake", wk, 4)
         p.fv("u_spray", np.array(self.spray, np.float32), 4)
+        p.fv("u_ring", np.array(self.rings, np.float32), 4)
+        p.fv("u_bubble", np.array(self.bubbles, np.float32), 4)
         self.fs.draw()
 
     # ---- ambient sound: the creatures follow the user

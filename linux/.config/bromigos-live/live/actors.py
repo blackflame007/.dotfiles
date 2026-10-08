@@ -130,6 +130,8 @@ class Inst:
         self.placed = None
         self.slot = None
         self.slot_cfg = {}
+        self.clip = None
+        self.clip_hold = False
         r = _rng(d.id, key)
         self.r = r
         self.seed = r.random()
@@ -172,6 +174,7 @@ class Actors:
         wakes = [(x, y, strength)]."""
         self.spray = []
         self.sounds = []
+        self.rings, self.bubbles, self.disturb = [], [], []
         sprites, glows, wakes = [], [], []
         for d in self.defs:
             getattr(self, "_sync_" + d.kind, lambda *a: None)(d, t, sig)
@@ -315,8 +318,28 @@ class Actors:
             inst.turn_target = 0.0
         else:
             inst.turn_target = 1.0
-        if prev is None and inst.d.kind == "agents":
-            inst.sink = 1.0          # surfaces when it first appears
+        sc = inst.slot_cfg or {}
+        clip = ((sc.get("states") or {}).get(state, {}).get("clip")) or cfg.get("clip")
+        inst.clip = None
+        if clip and inst.d.sprites.get(clip) and inst.d.sprites[clip].video:
+            inst.clip = inst.d.sprites[clip]        # a one-shot clip: plays once, then holds or chains
+            inst.clip.video.restart()
+            inst.clip_hold = bool(((sc.get("states") or {}).get(state, {}).get("hold")) or cfg.get("hold"))
+        if inst.d.kind == "agents":
+            under = prev is None or prev in ("finished", "gone")
+            if state in ("working", "needs_you") and under:
+                # an agent starts (or works again): bubbles, a swell, then it breaks the surface
+                inst.sink = max(inst.sink, 1.0) if prev is None else inst.sink
+                inst.rise_t = t
+                inst.extra.pop("booted", None)
+                self.bubbles.append((inst.x, inst.y, t, 1.0))
+                self.bubbles.append((inst.x + 20, inst.y + 4, t + 0.7, 0.8))
+            elif state in ("finished", "gone") and prev in ("working", "needs_you"):
+                # it submerges: rings spread, the last bubbles rise, the fireflies scatter
+                inst.rise_t = None
+                inst.sub_t = t
+                self.rings.append((inst.x, inst.y, t, 1.0))
+                self.disturb.append((inst.x, inst.y - inst.d.height * 0.4, t))
         if state == "gone":
             inst.gone_t = t
 
@@ -347,6 +370,39 @@ class Actors:
             if a > 1.6:
                 inst.flare_t = -1.0
         m = cfg.get("motion", "hold")
+        rise_t = getattr(inst, "rise_t", None)
+        if d.kind == "agents" and rise_t is not None:
+            a = t - rise_t
+            hold = float(d.t.get("rise_hold", 1.2))          # bubbles first, still under
+            dur = float(d.t.get("rise_seconds", 2.6))
+            if a < hold:
+                inst.sink = max(inst.sink, 1.0)
+            elif a < hold + dur:
+                if not inst.extra.get("swell"):
+                    inst.extra["swell"] = True
+                    self.rings.append((inst.x, inst.y, t, 0.9))       # the swell, as it breaks the surface
+                    self.disturb.append((inst.x, inst.y - d.height * 0.3, t))
+                f = _smooth((a - hold) / dur)
+                inst.sink = 1.0 + (float(cfg.get("sink", 0.0)) - 1.0) * f
+            else:
+                inst.rise_t = None
+                inst.extra.pop("swell", None)
+            # the eyes boot with a flicker as they clear the water
+            eye_v = float(d.t.get("eye_v", 0.3))                    # how far down the sprite the eyes sit
+            wade = float(d.wade)
+            clear = inst.sink + wade < (1.0 - eye_v)
+            if clear and "booted" not in inst.extra:
+                inst.extra["booted"] = t
+        sub_t = getattr(inst, "sub_t", None)
+        if sub_t is not None:
+            for k, at in enumerate((2.6, 3.4)):                   # the last bubbles
+                if t - sub_t >= at and not inst.extra.get(f"lastbub{k}"):
+                    inst.extra[f"lastbub{k}"] = True
+                    self.bubbles.append((inst.x + 14 * k, inst.y, t, 0.7))
+            if t - sub_t > 4.0:
+                inst.sub_t = None
+                inst.extra.pop("lastbub0", None)
+                inst.extra.pop("lastbub1", None)
         if "at" in cfg and d.kind in ("keeper", "signal"):     # a state can have its own place
             inst.x, inst.y = cfg["at"]
         elif "at" not in cfg and d.kind in ("keeper", "signal") and m != "pace":
@@ -354,8 +410,10 @@ class Actors:
         inst.dx = inst.dy = inst.rot = 0.0
         inst.frame = None
         sink_target = float(cfg.get("sink", 0.0))
-        if m == "settle":
-            inst.sink = _ease(inst.sink, sink_target, dt, 2.2)
+        if getattr(inst, "rise_t", None) is not None:
+            pass                                    # the rise sets the sink itself
+        elif m == "settle":
+            inst.sink = _ease(inst.sink, sink_target, dt, 1.2)
         else:
             inst.sink = _ease(inst.sink, sink_target, dt, 1.5)
         if inst.state == "gone":
@@ -548,12 +606,26 @@ class Actors:
     # ---- output
     @staticmethod
     def _blink(inst, t, cfg):
-        """The lights' level for the state: one bright flash then a calm 0.55 Hz blink for "needs
-        you" (`signal`), a pulse, a flicker."""
+        """The lights' level for the state: a double flash then a calm 0.55 Hz blink for "needs
+        you" (`signal`), a pulse, a flicker; for a rising agent, dark until its eyes clear the
+        water, then a boot flicker."""
         blink = 1.0
+        if inst.d.kind == "agents" and getattr(inst, "rise_t", None) is not None or "booted" in inst.extra:
+            b = inst.extra.get("booted")
+            if b is None:
+                return 0.0                              # still under: the eyes are dark
+            a = t - b
+            if a < 0.9:                                 # the boot: an uneven flicker, settling
+                on = (math.sin(a * 61.0) * math.sin(a * 23.0 + 1.3)) > (-0.3 + a * 0.5)
+                return (1.3 if on else 0.15) * min(1.0, 0.3 + a)
+            if a > 6.0:
+                inst.extra.pop("booted", None)
         if cfg.get("signal"):
             a = t - inst.state_t
-            blink = 0.55 + 0.45 * math.sin(TAU * 0.55 * a - math.pi / 2) if a > 1.2 else 1.6 * math.exp(-((a - 0.5) ** 2) / 0.08) + 0.4
+            if a > 1.2:
+                blink = 0.55 + 0.45 * math.sin(TAU * 0.55 * (a - 1.2) - math.pi / 2)
+            else:                                       # the double flash
+                blink = 1.7 * (math.exp(-((a - 0.2) ** 2) / 0.005) + math.exp(-((a - 0.6) ** 2) / 0.005)) + 0.35
         if cfg.get("pulse"):
             blink *= 0.7 + 0.3 * math.sin(t * TAU * float(cfg["pulse"]))
         if cfg.get("flicker"):
@@ -569,7 +641,10 @@ class Actors:
         sc = inst.slot_cfg
         st_sprite = (sc.get("states") or {}).get(inst.state, {}).get("sprite") if sc else None
         sprite = d.sprites.get(v.get("sprite")) if v.get("sprite") else None
-        sprite = sprite or (d.sprites.get(st_sprite) if st_sprite else None) \
+        clip = getattr(inst, "clip", None)
+        if clip is not None and clip.video.finished() and not getattr(inst, "clip_hold", False):
+            inst.clip = clip = None                 # the clip is over: chain into the state's loop or sprite
+        sprite = sprite or clip or (d.sprites.get(st_sprite) if st_sprite else None) \
             or (d.sprites.get(cfg.get("sprite")) if cfg.get("sprite") else None) \
             or (d.sprites.get(sc.get("sprite")) if sc.get("sprite") else None) or d.sprite
         h = float(cfg.get("height", d.height)) * inst.scale * inst.extra.get("shrink", 1.0)
@@ -602,8 +677,13 @@ class Actors:
             fi = int(v["frame"])
         u0, v0, u1, v1, asp = sprite.frame(fi)
         w = h * asp
+        patch = sc.get("patch") or d.t.get("patch")
+        if patch:                                   # a patch of the scene, placed by its rect (one-shot clips)
+            px0, py0, pw, ph = (float(v_) for v_ in patch)
+            inst.x, inst.y, w, h, sx = px0 + pw / 2, py0 + ph, pw, ph, 1.0
+            inst.dx = inst.dy = inst.sink = 0.0
         sy = 1.0 + inst.extra.get("flap", 0.0) + 0.12 * inst.extra.get("throat", 0.0)
-        wade = float(cfg.get("wade", d.wade)) if d.wade or "wade" in cfg else 0.0
+        wade = float(cfg.get("wade", d.wade)) if (d.wade or "wade" in cfg) and not patch else 0.0
         x = inst.x + inst.dx
         cut = inst.y + inst.dy * 0.0 if wade > 0 else -1.0
         base = inst.y + inst.dy + (wade + inst.sink) * h
