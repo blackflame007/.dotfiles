@@ -119,9 +119,17 @@ case "${1:-status}" in
         ;;
     apply)
         # session start, and every theme switch (hooks/theme-set.d/wallpaper): recreate the
-        # links from the saved choice and the theme in force, then start swaybg
+        # links from the saved choice and the theme in force, then start swaybg. swaybg and
+        # the live layer share the background layer and the surface mapped last is drawn on
+        # top: a swaybg restarted after the live layer covered the animation with a still. So
+        # the live layer is remapped after it (ctl reload), and nothing restarts when the
+        # picture didn't change.
+        before=$(readlink "$STATE/den.jpg" 2>/dev/null || true)
         set_variant "$(current)"
-        restart_swaybg "$STATE/den.jpg"
+        if [ "$before" != "$(readlink "$STATE/den.jpg")" ] || ! pgrep -x swaybg >/dev/null; then
+            restart_swaybg "$STATE/den.jpg"
+            [ -x "$LIVE_BIN" ] && "$LIVE_BIN" ctl reload >/dev/null 2>&1 || true
+        fi
         ;;
     status)
         printf 'current: %s  (%s)\n' "$(current)" "$(readlink "$STATE/den.jpg" 2>/dev/null || echo "not set: default den")"
