@@ -9,7 +9,7 @@ when_to_use: "Adding a new animation, shader effect or ambient visual to the des
 How the live layer animates in general (loops, decks, pause rules, frame budgets) is in
 `live-layer-animation.md`; read it first. This is the plugin route, which needs no core
 edits. Every existing wallpaper element, and the full recipe for adding one to the core
-background, is in `linux/.config/bromigos-live/docs/ELEMENTS.md`.
+background, is in bromigOS `live/docs/ELEMENTS.md` (installed: `/usr/share/doc/bromigos-live/ELEMENTS.md`).
 
 ## Plugin or core?
 

@@ -24,10 +24,10 @@ process the five holograms of October 2026 were built with. Follow it in order.
 | Shared data readers | `live/sources.py` (Prometheus, repos + git, push reflogs, gh, herdr, ping) |
 | VECTOR's event feed reader | `live/vfeed.py` |
 | The shared 3D renderer (models with parts) | `~/.config/bromigos/holo/holo/` (`render.Holo`, `stage.Stage`, `bind.reading`, `fmt` for `.holo.npz`) |
-| Models | `~/.config/bromigos/brand/3d/holo/*.holo.npz`, plus `bromigos-live/models/starship.holo.npz` |
-| Headless renders | `bromigos-live/tools/offscreen.py` |
+| Models | `~/.config/bromigos/brand/3d/holo/*.holo.npz`, plus `/usr/lib/bromigos/live/models/starship.holo.npz` |
+| Headless renders | `/usr/lib/bromigos/live/tools/offscreen.py` |
 | The one config | `bromigos-live/config.toml` (reloads on save) |
-| Keys | `linux/.config/hypr/bromigos/live.lua` (the `BROMIGOS LIVE` block of the Lua config; skill `hyprland-config`) + `widgets/keybinds.py` `EXEC` rows for SHORTCUTS |
+| Keys | `linux/.config/hypr/bromigos/live.lua` (the `BROMIGOS LIVE` block of the Lua config; skill `hyprland-config`) + bromigOS `widgets/keybinds.py` `EXEC` rows for SHORTCUTS |
 
 The decks are registered by name in `overlays.kind_class()`: a module
 `live/<name>_deck.py` that ends with `DECK = YourDeck` is found automatically for
@@ -266,7 +266,7 @@ whose buttons hand the job to VECTOR (`bromigos-holo ask "…"`).
 
 1. Key: a `K.exec("SUPER + …", live .. " <deck>")` line in `hypr/bromigos/live.lua`
    (check free keys first: `hyprctl binds -j`; skill `hyprland-config`), plus an `EXEC`
-   row in `widgets/keybinds.py`.
+   row in bromigOS `widgets/keybinds.py`.
 2. Docs: the key table in `~/.dotfiles/AGENTS.md` (`bromigos-docs keys`), verbs in `holo/README.md`.
 3. Restart: `bromigos-live restart`.
 4. Commit in reviewable steps with the house style (`Added:` / `Updated:`), and push.

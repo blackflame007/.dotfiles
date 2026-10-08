@@ -19,8 +19,8 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 |-------|-------|------------|------|
 | Brand kit | `bromigos/brand/`, `bromigos/identity.json`, `bromigos/lib/bromigos_emblem.py`, `bromigos/bin/bromigos-emblem` | Palette, the burn-in emblem (one SVG source), logos, portraits, icons, wallpapers, 3D models | `brand/README.md`, `brand/3d/README.md` |
 | Theme | `hypr/`, `waybar/`, `rofi/`, `dunst/`, `bromigos/gtk/`, `~/.local/share/{themes,icons,color-schemes}` | Hyprland look, bar, launcher, notifications, GTK/Qt themes, cursor, lock and idle | this file, "Theme" |
-| Widgets | `bromigos/widgets/` | Seven GTK layer-shell panels on the BOTTOM layer: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS, plus plugin panels (GAME SERVERS) | `widgets/README.md` |
-| Live layer | `bromigos-live/` | The animated background behind every window, the summoned decks and holograms, event animations, codec calls, the screensaver, sounds | `../bromigos-live/README.md`; each wallpaper element: `../bromigos-live/docs/ELEMENTS.md` |
+| Widgets | package `bromigos-widgets` (bromigOS `widgets/`); here `bromigos/widgets/` (layout.json, launcher), `bromigos/plugins/widgets/` | Seven GTK layer-shell panels on the BOTTOM layer: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS, plus plugin panels (GAME SERVERS) | `widgets/README.md`, bromigOS `widgets/README.md`, `docs/plugins.md` |
+| Live layer | package `bromigos-live` (bromigOS `live/`); here `bromigos-live/` (config.toml, launcher), `bromigos/plugins/live/` (the ARBITER deck, replay, Netmap, Ops, Mind) | The animated background behind every window, the summoned decks and holograms, event animations, codec calls, the screensaver, sounds | `../bromigos-live/README.md`; bromigOS `live/README.md`, `live/docs/ELEMENTS.md`, `docs/plugins.md` |
 | VECTOR and the holo daemon | `bromigos/holo/` | VECTOR (chat, voice, memory, tools, his terminal), the shared 3D hologram renderer and the model gallery | `holo/README.md` |
 | Skills | `bromigos/skills/` | Markdown know-how VECTOR loads on demand (how the desktop is built, its data sources, homelab ops) | each file's frontmatter |
 | Start page | `bromigos/startpage/` | The browsers' home and new-tab page | this file, "Start page" |
@@ -80,7 +80,7 @@ flowchart LR
   unread) is read by the waybar pip and the Razer lighting.
 - **Speech:** codec calls in the live layer ask VECTOR's voice server for the line (one
   voice on the desktop); the homelab's Breeze TTS answers only if that server is down.
-- **Sounds:** short cues in `bromigos-live/sounds/`, played through PipeWire at low
+- **Sounds:** short cues in `/usr/lib/bromigos/live/sounds/` (package `bromigos-live`), played through PipeWire at low
   volume; one mute (SUPER+SHIFT+M) is honoured by the live layer, the capture scripts
   and codec calls. VECTOR has his own mute (SUPER+SHIFT+V).
 - **Homelab data:** the Lab API (bearer token from `lab-token`), Prometheus, ARBITER's
@@ -109,7 +109,7 @@ flowchart LR
 Generated assets that are in git are rebuilt with: `bromigos-emblem build` (emblem
 PNGs), `gtk/build-gtk-theme.py` and `gtk/build-icons-cursor.py` (themes, cursor),
 `brand/icons/build-icons.py`, `brand/3d/tools/bake.py` (models),
-`bromigos-live/tools/make-starship.py` (the swarm's ship), `shell/build-emblem-braille.py`.
+bromigOS `live/tools/make-starship.py` (the swarm's ship), `shell/build-emblem-braille.py`.
 
 ## Theme
 
@@ -196,7 +196,7 @@ in `hypr/hyprland.lua` and `hypr/bromigos/live.lua`: `waybar`, `dunst`,
   `pkill -f bromigos-widgets$ && hyprctl dispatch 'hl.dsp.exec_cmd("~/.config/bromigos/widgets/bromigos-widgets")'`;
   Hyprland reloads by itself when a `hypr/*.lua` file is saved (`hyprctl configerrors` shows
   mistakes; `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua` checks first). There
-  is no CI for the desktop; test headless first (`bromigos-live/tools/offscreen.py`,
+  is no CI for the desktop; test headless first (`/usr/lib/bromigos/live/tools/offscreen.py`,
   `holo/tools/offscreen.py`).
 - **Health:** `bromigos-live status` (mode, target and measured fps, surface mapped or
   missing, every bromigos layer on the monitor), `bromigos-holo status`,
@@ -225,7 +225,7 @@ in `hypr/hyprland.lua` and `hypr/bromigos/live.lua`: `waybar`, `dunst`,
    nothing over windows) and, for anything animated or 3D, `skills/hologram-build.md`.
 3. Keys: a `K.exec(…)` / `K.dsp(…)` line in the right fenced block of
    `hypr/bromigos/binds.lua` (or `live.lua`; check `hyprctl binds -j` for free keys; see
-   `skills/hyprland-config.md`), an `EXEC` row in `widgets/keybinds.py` for SHORTCUTS,
+   `skills/hyprland-config.md`), an `EXEC` row in bromigOS `widgets/keybinds.py` for SHORTCUTS,
    then `bromigos-docs keys` to regenerate the table in `AGENTS.md`.
 4. Secrets: a mode-600 file in `~/.local/share/bromigos/`, sourced from Vault; add its
    path (never its value) to the state table above.

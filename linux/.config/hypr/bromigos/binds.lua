@@ -5,7 +5,7 @@
 --   K.dsp("ALT + P", "hl.dsp.window.pin()")                              -- a dispatcher
 --   K.exec("SUPER + V", "... ptt off", { release = true })               -- on key-up
 -- Keys are "MODS + KEY" ("SUPER + SHIFT + K"), a keysym, or code:N (evdev code + 8).
--- Then add an EXEC row in ~/.config/bromigos/widgets/keybinds.py if it's an exec bind
+-- Then add an EXEC row in bromigOS's widgets/keybinds.py if it's an exec bind
 -- SHORTCUTS should name, and run `bromigos-docs keys`. Check free keys: hyprctl binds -j.
 
 local K = require("bromigos.keys")
@@ -76,7 +76,7 @@ K.exec("SUPER + B", "~/.config/bromigos/widgets/bromigos-widgets toggle workbenc
 K.exec("SUPER + F", "~/.config/bromigos/widgets/bromigos-widgets toggle notes")
 -- Shortcuts: the keybind panel / a searchable cheat sheet that runs the chosen bind.
 K.exec("SUPER + K", "~/.config/bromigos/widgets/bromigos-widgets toggle shortcuts")
-K.exec("SUPER + SHIFT + K", "~/.config/bromigos/widgets/keybinds.py rofi")
+K.exec("SUPER + SHIFT + K", "python3 /usr/lib/bromigos/widgets/keybinds.py rofi")
 -- Launcher: window switcher.
 K.exec(mainMod .. " + TAB", "rofi -show window")
 -- bromigos-holo: VECTOR, on a line from his post at the SpacePort (typed; Esc hands the keyboard back) / the hologram gallery.
