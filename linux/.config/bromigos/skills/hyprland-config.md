@@ -1,6 +1,6 @@
 ---
 name: hyprland-config
-description: "How Sir's Hyprland is configured — the Lua config (hypr/hyprland.lua and hypr/bromigos/*.lua), adding or changing a keybind, window rule, layer rule, workspace rule, device or autostart program, checking it, and running dispatchers from scripts (`hyprctl dispatch 'hl.dsp…'`) — and the rollback to the old hyprland.conf."
+description: "How Sir's Hyprland is configured — the Lua config (bromigOS's defaults in /usr/share/bromigos/default/hypr/ plus his own hypr/hyprland.lua), adding or changing a keybind, window rule, layer rule, workspace rule, device or autostart program, checking it, and running dispatchers from scripts (`hyprctl dispatch 'hl.dsp…'`) — and the rollback to the old hyprland.conf."
 when_to_use: "Adding, changing or finding a keybind, a window/layer/workspace rule, a monitor, a device (keyboard) setting, an environment variable or a login program; any script or tool that calls `hyprctl dispatch`; when a bind or rule doesn't work or Hyprland shows a config error."
 ---
 
@@ -10,23 +10,37 @@ Hyprland 0.56 runs a **Lua** config. The old `hyprland.conf` format (`bind=`, `w
 `exec-once=`, `hyprctl dispatch workspace 3`) is deprecated and is removed in 0.57; the file
 stays in the repo only as the rollback. Never add anything to it.
 
-| File (in `~/.dotfiles/linux/.config/hypr/`, stowed to `~/.config/hypr/`) | Holds |
+Two layers. bromigOS's defaults (package `bromigos-desktop`, read-only; updates replace
+them, so never edit them) and the user's own file, which runs them and then adds its own:
+
+| File | Holds |
 |------|-------|
-| `hyprland.lua` | monitors, autostart, env, look (gaps, borders, shadow, blur, animations), input, layer rules, window rules, Razer device keymap, workspace→monitor rules; requires the two below |
-| `bromigos/binds.lua` | every keybind except the live layer's (stock ones, the `BROMIGOS THEME: keybinds` block, the Razer macro keys) |
-| `bromigos/live.lua` | the `BROMIGOS LIVE` block: bromigos-live's autostart, its layer rule and its binds |
-| `bromigos/keys.lua` | the bind helpers `K.exec` / `K.dsp` (keep every bind's action as text for SHORTCUTS) |
+| `~/.config/hypr/hyprland.lua` (Sir's: `~/.dotfiles/linux/.config/hypr/`, stowed) | sets the `bromigos` table (`mod`, `monitors`, `workspaces`, `apps`, `config`, `unbind`, `autostart`), `dofile`s the defaults, then his own env, window rules and binds |
+| `~/.config/hypr/bromigos/razer.lua` (Sir's) | the Razer's macro keys, loaded by the defaults when it exists |
+| `/usr/share/bromigos/default/hypr/hyprland.lua` | the defaults: monitors and workspaces from the table, autostart, env, look, input, layer and window rules, the theme's colours; requires the four below |
+| `/usr/share/bromigos/default/hypr/bromigos/binds.lua` | bromigOS's keybinds |
+| `/usr/share/bromigos/default/hypr/bromigos/live.lua` | the live layer's start at login and its binds (its decks) |
+| `/usr/share/bromigos/default/hypr/bromigos/vector.lua` | VECTOR's binds, when he's installed |
+| `/usr/share/bromigos/default/hypr/bromigos/keys.lua` | the bind helpers `K.exec` / `K.dsp` (keep every bind's action as text for SHORTCUTS) |
+
+A default changes in bromigOS's repo (`desktop/hypr/`) and arrives with a package update.
+More: bromigOS `docs/desktop.md`.
 
 Hyprland loads `~/.config/hypr/hyprland.lua` when it exists, else `hyprland.conf`. Saving any
-of these files reloads Hyprland by itself. API reference: `/usr/share/hypr/stubs/hl.meta.lua`
+file it loads reloads Hyprland by itself, so a change that spans files (or a stow, merge or
+checkout under `~/.config/hypr`) can reload it half-written and trip its emergency mode. For
+those: `hyprctl keyword misc:disable_autoreload true` first, make the change, verify it
+(below), then one `hyprctl reload`, then check `hyprctl configerrors` and the bind count. API reference: `/usr/share/hypr/stubs/hl.meta.lua`
 (every `hl.*` function and option) and https://wiki.hypr.land/Configuring/.
-Keep edits inside the fenced `BROMIGOS THEME` / `BROMIGOS LIVE` blocks they belong to, with a
-comment line saying what the thing is.
+Sir's own lines go in his `hyprland.lua` after the `dofile`, each with a comment line saying
+what it is.
 
 ## Add a keybind
 
 1. Find a free key: `hyprctl binds -j` (or the SHORTCUTS panel, SUPER+K).
-2. In `bromigos/binds.lua` (or `live.lua` for a live-layer deck), with the helpers:
+2. In `~/.config/hypr/hyprland.lua`, after the defaults (`local K = require("bromigos.keys")` is
+   already there), with the helpers. To replace a default bind, list its keys in the
+   `bromigos.unbind` table and bind them yourself:
    ```lua
    K.exec("SUPER + Q", "~/.config/bromigos/bin/some-tool --flag")         -- a command (sh -c; ~ and $HOME expand)
    K.dsp("ALT + P", "hl.dsp.window.pin()")                                 -- a dispatcher, written as Lua source
@@ -43,11 +57,15 @@ comment line saying what the thing is.
    (`--check` says if it's stale).
 
 The Razer macro keys are `code:191`… binds limited to the keyboard with
-`{ device = { list = { "razer-blackwidow" } } }` (the tag its `hl.device()` entries set in
-`hyprland.lua`): in 0.56 a Lua `code:N` bind also fires for keys with no keysym, so an
+`{ device = { list = { "razer-blackwidow" } } }` (the tag its `hl.device()` entries set), in
+`hypr/bromigos/razer.lua`: in 0.56 a Lua `code:N` bind also fires for keys with no keysym, so an
 unlimited one could go off from a stray key on another keyboard.
 
-## Add a rule, device, env or login program (in `hyprland.lua`)
+## Add a rule, device, env or login program (in `~/.config/hypr/hyprland.lua`)
+
+Login programs: the `bromigos.autostart` table (it runs after bromigOS's). Settings: the
+`bromigos.config` table, merged over the defaults' `hl.config()`. Anything else, after the
+`dofile`:
 
 ```lua
 hl.window_rule({ match = { class = "^(pavucontrol)$" }, float = true, size = "800 600", center = true })
@@ -63,7 +81,7 @@ anonymous and apply top to bottom. Effects that take a size or position are stri
 
 ## Check it
 
-- Before saving a bigger change: `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua`
+- Before reloading: `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua`
   (prints `config ok` or each error with its file and line).
 - After saving: `hyprctl configerrors` (empty = fine). A mistake in one bind doesn't stop the
   binds after it; a Lua syntax error stops the reload and Hyprland keeps the last good config.
