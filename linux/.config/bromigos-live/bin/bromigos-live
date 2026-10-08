@@ -17,7 +17,9 @@
 #   bromigos-live job -- cmd ...   run cmd; a long run ends with a codec call
 #   bromigos-live mind|ops|swarm|netmap|replay [verb args]   VECTOR's holograms (see the hologram-build skill)
 #   bromigos-live plugin <name> [verb args]   a deck plugin from plugins/ (see live/plugins.py)
-#   bromigos-live ctl <cmd>        raw control command (burst, transmission, reload, state)
+#   bromigos-live world [verb …]   the theme's world: state, event notify|critical|fill win|lab_alert,
+#                                  set <signal> <value> (hold one, to try it), clear, rollcall
+#   bromigos-live ctl <cmd>        raw control command (burst, transmission, reload, state, theme, activity idle|active)
 #   bromigos-live status
 set -u
 HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
@@ -173,6 +175,7 @@ except Exception: print(60)')
         exit $rc ;;
     scan-hold) ctl "scan-hold ${2:-on}" ;;
     ctl) shift; ctl "$*" ;;
+    world) shift; ctl "world $*" || { echo "not running (bromigos-live start)"; exit 1; } ;;
     status)
         if running; then echo "daemon up (supervisor $(cat "$PIDF"))"; ctl state; else echo "stopped"; fi
         [ -f "$STATE/muted" ] && echo "sounds: muted" || echo "sounds: on"

@@ -5,10 +5,16 @@ real readings, without touching the desktop. For screenshots and tuning.
   offscreen.py bg OUT.png [t]             one background frame at time t
   offscreen.py bg OUT.mp4 SECONDS [fps]   a background clip (ffmpeg)
   offscreen.py <overlay> OUT ...          same for holodeck|intercept|screensaver|radial|transmission
+  offscreen.py world OUT ...              a theme's world (OFF_WORLD = the theme directory, default
+                                          the current theme), with real readings unless scripted
+  offscreen.py bench SECONDS [world|bg]   render in real time at 30 fps and report the cost
 
 OFF_SCRIPT drives it with timed steps ("at verb args; ..."): burst, select, cmd (a VECTOR
 verb), event, key, part, notes, scan, pin, radial, and for the zoomable maps
 wheel X Y DY, dclick X Y, drag X0 Y0 X1 Y1 [shift|right], hover X Y (2560x1440 coords).
+For worlds: w <verb> <args> runs a world verb (live/world.py World.command), e.g.
+  "0 w set agents a:working,b:working; 4 w set agents a:needs_you,b:working; 6 w event critical;
+   8 w event fill win; 9 w set user dozing; 10 w set cpu 0.95; 12 w set hour 19.2"
 """
 import ctypes
 import os
@@ -83,9 +89,13 @@ def main():
         if call.wav:
             import shutil
             shutil.copy(call.wav, out.rsplit(".", 1)[0] + ".wav")
+    if kind == "bench":
+        return bench(cfg, data)
     if kind == "bg":
         from live.scene import Background
         r = Background(cfg, data, W, H)
+    elif kind == "world":
+        r = make_world(cfg, data)
     else:
         from live import overlays
         r = overlays.offscreen(kind, cfg, data, W, H)
@@ -162,6 +172,8 @@ def main():
                     r.scan_pin_toggle()
                 elif ev[1] == "radial":
                     r._select(int(ev[2][0]))
+                elif ev[1] == "w":                 # a world verb: w set cpu 0.9 · w event notify
+                    print("world:", r.command(ev[2][0], " ".join(ev[2][1:])), file=sys.stderr)
         if hasattr(r, "tick"):
             r.tick(t)
         r.render(tgt.fbo, 30)
@@ -205,6 +217,61 @@ def main():
         ff.stdin.close()
         ff.wait()
     data.stop.set()
+
+
+def make_world(cfg, data):
+    from live import world
+    if os.environ.get("OFF_WORLD"):
+        os.environ["BROMIGOS_WORLD"] = os.environ["OFF_WORLD"]
+    p = world.world_file(cfg)
+    if not p:
+        sys.exit("no world: set OFF_WORLD to a theme directory with live/world.toml")
+    r = world.World(cfg, data, W, H, p)
+    r.offscreen = True
+    return r
+
+
+def bench(cfg, data):
+    """bench SECONDS [world|bg]: render at 30 fps in real time, like the daemon, and report
+    this process's CPU (all threads: the data pollers too) and the GPU time per frame."""
+    import resource
+    secs = float(sys.argv[2]) if len(sys.argv) > 2 else 30.0
+    what = sys.argv[3] if len(sys.argv) > 3 else "world"
+    from live import glkit
+    if what == "world":
+        r = make_world(cfg, data)
+    else:
+        from live.scene import Background
+        r = Background(cfg, data, W, H)
+    tgt = glkit.Target(W, H)
+    q = GL.glGenQueries(1)[0]
+    gpu = []
+    for _ in range(30):                          # warm up
+        r.render(tgt.fbo, 30)
+    GL.glFinish()
+    ru0, t0 = resource.getrusage(resource.RUSAGE_SELF), time.monotonic()
+    n = 0
+    nxt = t0
+    while time.monotonic() - t0 < secs:
+        GL.glBeginQuery(GL.GL_TIME_ELAPSED, q)
+        r.render(tgt.fbo, 30)
+        GL.glEndQuery(GL.GL_TIME_ELAPSED)
+        if n % 15 == 0:
+            v = ctypes.c_uint64(0)
+            GL.glGetQueryObjectui64v(q, GL.GL_QUERY_RESULT, ctypes.byref(v))
+            gpu.append(v.value / 1e6)
+        n += 1
+        GL.glFlush()
+        nxt += 1 / 30
+        time.sleep(max(0.0, nxt - time.monotonic()))
+    ru1, t1 = resource.getrusage(resource.RUSAGE_SELF), time.monotonic()
+    cpu = (ru1.ru_utime - ru0.ru_utime + ru1.ru_stime - ru0.ru_stime) / (t1 - t0) * 100
+    gpu.sort()
+    print(f"{what} {W}x{H}: {n / (t1 - t0):.1f} fps, process CPU {cpu:.1f}% of one core, "
+          f"GPU {gpu[len(gpu) // 2]:.2f} ms median, {gpu[int(len(gpu) * 0.95)]:.2f} ms p95 per frame")
+    data.stop.set()
+    if hasattr(r, "close"):
+        r.close()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,73 @@
+#version 330 core
+// One layer of a world: the art (premultiplied RGBA), shifted for parallax and graded
+// by the clock. The sky layer also carries the real moon, the twilight glow and the
+// lightning bolt; layers marked fog are fogged under a split world's surface.
+in vec2 v_uv;
+out vec4 o;
+uniform sampler2D u_tex;
+uniform vec2 u_res;
+uniform vec4 u_view;      // uv offset x, y, zoom, -
+uniform vec4 u_grade;     // r, g, b multiplier, twilight 0..1
+uniform float u_flash;    // lightning: added light
+uniform vec3 u_lift;      // daylight: ambient light added to the night-painted art
+uniform vec4 u_sky;       // is sky, horizon y px, twilight colour gain, -
+uniform vec3 u_twi;       // twilight colour
+uniform vec4 u_moon;      // x, y px, radius px (0 = none), phase 0..1
+uniform vec4 u_moon2;     // brightness, -, -, -
+uniform vec4 u_bolt;      // x px, bottom y px, amount, seed
+uniform vec4 u_fog;       // surface y px, fog distance px, on, -
+uniform vec3 u_fogcol;
+#include world_common
+
+vec3 moon(vec2 px) {
+    if (u_moon.z <= 0.0) return vec3(0.0);
+    vec2 d = (px - u_moon.xy) / u_moon.z;
+    float r = length(d);
+    vec3 c = vec3(0.0);
+    float k = cos(6.2831853 * u_moon.w);
+    if (r < 1.0) {
+        float w = sqrt(max(1.0 - d.y * d.y, 0.0));
+        float lit = u_moon.w < 0.5 ? smoothstep(k * w - 0.04, k * w + 0.04, d.x)
+                                   : smoothstep(-k * w + 0.04, -k * w - 0.04, d.x);
+        float mare = 0.82 + 0.18 * w_noise(d * 3.0 + 7.0);
+        float edge = smoothstep(1.0, 0.94, r);
+        c = vec3(0.93, 0.95, 0.88) * mare * (lit * 0.95 + 0.03) * edge;
+    }
+    float illum = 0.5 * (1.0 - k);
+    c += vec3(0.6, 0.7, 0.8) * exp(-max(r - 1.0, 0.0) * 1.6) * 0.18 * illum;
+    return c * u_moon2.x;
+}
+
+vec3 bolt(vec2 px) {
+    if (u_bolt.z <= 0.0 || px.y > u_bolt.y) return vec3(0.0);
+    float y = px.y;
+    float x = u_bolt.x;
+    float seg = floor(y / 38.0);
+    float f = fract(y / 38.0);
+    float a = (w_hash1(seg + u_bolt.w * 13.0) - 0.5) * 70.0;
+    float b = (w_hash1(seg + 1.0 + u_bolt.w * 13.0) - 0.5) * 70.0;
+    float drift = (w_hash1(floor(y / 230.0) + u_bolt.w) - 0.5) * 160.0 * (y / u_bolt.y);
+    x += mix(a, b, f) + drift;
+    float d = abs(px.x - x);
+    return vec3(0.85, 0.9, 1.0) * (exp(-d * d / 2.5) + exp(-d / 40.0) * 0.18) * u_bolt.z;
+}
+
+void main() {
+    vec2 tuv = vec2(v_uv.x, 1.0 - v_uv.y);
+    vec2 px = tuv * u_res;
+    vec2 uv = (tuv - 0.5) / u_view.z + 0.5 + u_view.xy;
+    vec4 s = texture(u_tex, uv);
+    vec3 c = (s.rgb * u_grade.rgb + u_lift * s.a) * (1.0 + u_flash);
+    float a = s.a;
+    if (u_sky.x > 0.5) {
+        float hz = exp(-abs(px.y - u_sky.y) / (u_res.y * 0.18));
+        c += u_twi * u_grade.a * hz * u_sky.z * a;
+        vec3 m = moon(px) + bolt(px);
+        c += m * a;
+    }
+    if (u_fog.z > 0.5 && px.y > u_fog.x) {
+        float f = 1.0 - exp(-(px.y - u_fog.x) / u_fog.y);
+        c = mix(c, u_fogcol * a, f);
+    }
+    o = vec4(c, a);
+}

@@ -274,7 +274,9 @@ class Data:
                     total = d.get("total")
                     if prev is not None and total is not None and total > prev:
                         new = (d.get("trades") or [])[:min(total - prev, 10)]
-                        self.on_event("arbiter_fill", n=total - prev, notable=self._notable(new))
+                        results = ["win" if (t.get("realized_usd") or 0) > 0 else
+                                   "loss" if (t.get("realized_usd") or 0) < 0 else "open" for t in new]
+                        self.on_event("arbiter_fill", n=total - prev, notable=self._notable(new), results=results)
                     prev = total
                     self._set(arbiter_total=total)
                 except Exception:

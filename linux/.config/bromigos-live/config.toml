@@ -20,6 +20,8 @@ reduced_motion = false   # no tears, no rotation; crossfades only
 #     constellation, hologram.
 #   decoration (fixed calm pace, tied to nothing): [loops] streaks, floor-row
 #     scroll and mug steam, stars, the emblem's rotation, the scanner sweep itself.
+#   worlds ([world]; a theme's live/world.toml): every effect and actor names its signal
+#     there; docs/ELEMENTS.md "Worlds" lists them.
 
 [background]
 enabled = true           # the live background layer (SUPER+SHIFT+B toggles at runtime)
@@ -81,6 +83,12 @@ relay_beam = true        # beam from the station while every lab node is Ready a
 health_tint = true       # space + rain shift amber (hot / lab link stale) or red (node or service down)
 planet = true            # screensaver gas giant; its terminator is the local time of day
 station = true           # screensaver Drift relay station; spokes are the lab's services, lit = up
+
+[world]                  # a theme's world (bromigos theme set mire|tidewell): drawn instead of the den
+enabled = true           # false = always the den, whatever the theme
+dir = ""                 # "" = the current theme (~/.local/state/bromigos/theme/current); or a theme directory
+idle_after = 90          # seconds without input before the keeper and the creatures doze (DATA: your activity)
+ambient_sounds = true    # the world's creature sounds, by your activity (mute and sounds.volume apply)
 
 [holodeck]               # SUPER+H: arc rings, the cluster constellation, the machine hologram
 enabled = true

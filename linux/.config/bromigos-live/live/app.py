@@ -174,8 +174,17 @@ class GLWindow:
             self.failed = True
 
     def _unrealize(self, area):
-        self.renderer = None
+        self._close_renderer()
         self.rsize = None
+
+    def _close_renderer(self):
+        """A world owns pollers (herdr, VECTOR's state); stop them with it."""
+        r, self.renderer = self.renderer, None
+        if r is not None and hasattr(r, "close"):
+            try:
+                r.close()
+            except Exception:
+                pass
 
     rsize = None
 
@@ -190,6 +199,7 @@ class GLWindow:
             return True
         if self.renderer is None or size != self.rsize:
             try:
+                self._close_renderer()
                 self.renderer = self.make_renderer(*size)
                 self.rsize = size
             except Exception as e:
@@ -230,6 +240,7 @@ class GLWindow:
     def destroy(self):
         self.set_fps(0)
         self.dead = True
+        self._close_renderer()
         self.win.destroy()
 
 
@@ -281,6 +292,8 @@ class App:
         GLib.idle_add(self.refresh_state)
         if login and self.cfg["events"].get("intercept_on_login", True):
             GLib.timeout_add(1200, lambda: (self.overlay("intercept"), False)[1])
+        if login:                                  # a world's roll call, after the intercept
+            GLib.timeout_add(5500, lambda: (self._world_event("login"), False)[1])
 
     # ------------------------------------------------------------------ layers
     def show_background(self):
@@ -288,10 +301,13 @@ class App:
         retried by heal() with backoff (30 s, 60 s, 2 min, then every 5 min)."""
         if self.bg:
             return True
-        from .scene import Background
+        from . import world
 
         def make(w, h):
-            return Background(self.cfg, self.data, w, h)
+            r = world.make_scene(self.cfg, self.data, w, h)   # the theme's world, or the Wick's den
+            r.app = self
+            return r
+        self.world_sig = world.signature(self.cfg)
         try:
             self.bg = GLWindow(self, GtkLayerShell.Layer.BACKGROUND, "bromigos-live", make, input_ok=False)
         except Exception as e:
@@ -323,6 +339,26 @@ class App:
             self.show_background()
         else:
             self.hide_background()
+
+    def _world_event(self, name, **info):
+        """An event for the world, when one is drawn (the den takes rain bursts instead)."""
+        r = self.bg.renderer if self.bg else None
+        if r is not None and getattr(r, "is_world", False):
+            r.event(name, **info)
+            return True
+        return False
+
+    def check_world(self):
+        """Theme switched (bromigos theme set → `theme` on the socket), or world.toml edited:
+        rebuild the background as the new world or the den."""
+        from . import world
+        sig = world.signature(self.cfg)
+        if sig != getattr(self, "world_sig", None) and self.bg_enabled:
+            log("world changed:", sig[0] if sig else "none (the den)")
+            self.hide_background()
+            self.show_background()
+            return "world " + (os.path.basename(os.path.dirname(os.path.dirname(sig[0]))) if sig else "none (the den)")
+        return "ok"
 
     def overlay(self, kind, **kw):
         from . import overlays
@@ -540,6 +576,9 @@ class App:
             self.heal_soon(f"monitor removed: {arg}", (0.3, 2.0))
         if ev == "workspacev2" and self.bg:
             self.bg.renderer and self.bg.renderer.wipe()
+        if ev in ("workspacev2", "activewindowv2", "openwindow", "focusedmon", "activespecial"):
+            from .activity import get as activity
+            activity().touch()
         if ev == "openwindow":
             parts = arg.split(",", 3)
             if len(parts) >= 3 and parts[2] in self.cfg["sounds"].get("terminal_classes", []):
@@ -551,6 +590,8 @@ class App:
         if locked != was:
             self.history.event("lock" if locked else "unlock")
         self.locked = locked
+        from .activity import get as activity
+        activity().set_locked(locked)
         le = getattr(self, "lock_emblem", None)
         if le:
             le.start(self.lockwatch.pid) if locked else le.stop()      # the turning burn-in on the lock screen
@@ -573,7 +614,7 @@ class App:
             quiet = quiet or app_name in self.cfg["sounds"].get("quiet_apps", [])
             self.history.event("critical" if urgency >= 2 else "notify",
                                f"{app_name}: {summary}" if urgency >= 2 else (app_name or "notification"))
-            if self.bg and self.bg.renderer:
+            if not self._world_event("critical" if urgency >= 2 else "notify") and self.bg and self.bg.renderer:
                 self.bg.renderer.burst(2 if urgency >= 2 else 0)
             if urgency >= 2 and self.cfg["events"].get("critical_flash", True) and not self.locked:
                 if not quiet:
@@ -598,7 +639,8 @@ class App:
             elif kind == "cluster_alert":
                 self.history.event("lab", "node left Ready" if info.get("node_down")
                                    else f"alerts firing up to {int(info.get('count') or 0)}")
-            if self.bg and self.bg.renderer:
+            world_ev = ("fill", {"results": info.get("results")}) if kind == "arbiter_fill" else ("lab_alert", {})
+            if not self._world_event(world_ev[0], **world_ev[1]) and self.bg and self.bg.renderer:
                 self.bg.renderer.burst(1 if kind == "arbiter_fill" else 2)
             cc = self.cfg.get("codec", {})
             # VECTOR explains lab alerts himself (holo/vector/briefing.py, through this codec channel);
@@ -733,6 +775,17 @@ class App:
                 return "schematic pinned" if r.scan_pin_toggle() else "schematic unpinned"
             r.scan_hold(arg.strip() != "off")
             return "hold " + ("off" if arg.strip() == "off" else "on")
+        if c == "theme":                            # bromigos theme set: the world may have changed
+            return self.check_world()
+        if c == "world":                            # bromigos-live ctl world [state|event …|set …|clear|rollcall]
+            r = self.bg.renderer if self.bg else None
+            if r is None or not getattr(r, "is_world", False):
+                return "no world: the current theme has none (the Wick's den is drawn)"
+            verb, _, rest = arg.strip().partition(" ")
+            return r.command(verb, rest.strip())
+        if c == "activity":                         # hypridle: activity idle|active
+            from .activity import get as activity
+            return "activity " + activity().hypridle_says(arg.strip() or "active")
         if c == "burst":
             if self.bg and self.bg.renderer:
                 self.bg.renderer.burst(int(arg or 0))
@@ -760,6 +813,8 @@ class App:
         if m != self.cfg_mtime:
             self.cfg_mtime = m
             self.reload()
+        elif self.bg:
+            self.check_world()
         return True
 
     def reload(self):

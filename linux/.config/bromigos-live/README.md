@@ -10,6 +10,9 @@ GtkLayerShell, PyOpenGL, numpy, psutil), supervised by `bin/bromigos-live`, star
 Hyprland (`bromigos-live start --login` in the `hyprland.start` autostart of `hypr/bromigos/live.lua`). Part of the desktop described in
 `../bromigos/README.md`.
 
+**Worlds:** a bromigOS theme with a world (`bromigos theme set mire`) replaces the den
+with its own scene; the Wick (the default) keeps the den.
+
 **Every element of the live wallpaper** (what it looks like, what it means, its data,
 code, config key and how to change it, plus how to add one) is catalogued in
 [docs/ELEMENTS.md](docs/ELEMENTS.md).
@@ -35,6 +38,7 @@ The full verb list is the header of `bin/bromigos-live`. Keys are in `AGENTS.md`
 | `config.toml` | Every toggle, reloaded on save; documents which layers are data and which decoration |
 | `live/app.py` | The daemon: windows, Hyprland and notification events, pause rules, self-healing on monitor hotplug, the control socket |
 | `live/scene.py`, `shaders/bg.frag`, `space.glsl`, `rain.glsl`, `denloop.glsl` | The background: the den wallpaper made live, glyph rain, floor pulses, the Drift space layer, the hardware scanner, seamless decorative loops |
+| `live/world.py`, `actors.py`, `worldfeed.py`, `activity.py`, `skyclock.py`, `shaders/world*` | Worlds: a theme's whole scene (Mire, Tidewell) drawn instead of the den when the theme has `live/world.toml`; its actors, the readings only worlds need, the user's activity, the local sky (docs/ELEMENTS.md "Worlds") |
 | `live/plate.py` | The clean plate: baked steam and streaks removed in memory so loops can redraw them (the wallpaper file is never changed) |
 | `live/overlays.py` | The overlay renderer and the built-in overlays: intercept, transmission, holo deck, screensaver, radial menu; `make()` opens any of them |
 | `live/deckkit.py` | The base for 3D decks: drag, drift, picking, hover readouts, the Tab cycle, verbs, pollers that live only while a deck is open |

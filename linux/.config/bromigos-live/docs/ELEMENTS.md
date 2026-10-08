@@ -38,6 +38,8 @@ Paths are relative to `linux/.config/bromigos-live/` (installed as
 | [Plugin shader layers](#plugin-shader-layers) | anywhere, behind windows | whatever the layer says (real readings only) | `u_load`, `u_net`, `u_health` | `layers/<name>.json` |
 | [Sound cues](#sound-cues) | (audio) | terminal opened, notification, critical, intercept | events | `[sounds]` |
 
+| [Worlds](#worlds) | the whole background, when the theme has one (Mire, Tidewell) | everything below, as a scene | see the world's table | `[world]`, the theme's `live/world.toml` |
+
 The summoned decks (holo deck, ARBITER, timeline, Drift map, Mind, Ops, Swarm, Network,
 Replay) and the radial menu are overlays you open, not part of the wallpaper; they
 are in `../README.md` ("Decks") and the `hologram-build` skill.
@@ -392,6 +394,89 @@ when a terminal opens (`terminal_classes`), a chirp on a notification (not for
 sign-off in the intercept, a sweep when a Swarm ship warps in. One mute file
 (SUPER+SHIFT+M); `sounds.sink` or `BROMIGOS_LIVE_SINK` sends them to another sink (test
 with a null sink, never the speakers).
+
+## Worlds
+
+When the current theme (bromigOS: `bromigos theme set mire`) has `live/world.toml`, the
+background is that **world** instead of the den: layered art with parallax, a water
+plane, effects and actors, every moving thing bound to a real signal. The Wick has no
+world, so the den above is drawn exactly as before; `bromigos theme set wick` goes back.
+The format (layers, effects, actors, their states, the signals) is documented once, in
+bromigOS `docs/theming.md` ("Worlds"); this section is how the live layer runs it.
+
+- **Where it comes from:** `live/world.py` `world_file()`: `$BROMIGOS_WORLD`, then
+  `[world] dir`, then `~/.local/state/bromigos/theme/current/live/world.toml` (copied
+  there by `bromigos theme set`, which then sends `theme` to the socket).
+  `App.check_world()` also compares its signature every 3 s and rebuilds the background
+  (a world that fails to load falls back to the den and logs why).
+- **Frame** (`World.render()`): the hour's grade and lightning; every layer and actor
+  shallower than the water into a back target; `shaders/world.frag` composes the frame
+  from it (the water: a mirror reflecting the back target with ripples, rain rings and
+  wakes, or a split view with a moving surface, the deep's fog and caustics; then mist,
+  fireflies and their reflections, the fishing line, the lighthouse beam, spray, rain);
+  then the deeper layers and actors over it. Layers: `world_layer.frag` (the sky layer
+  also carries the real moon, the twilight glow, the bolt). Actors: instanced sprites
+  from one atlas (`world_sprite.*`) and additive lights (`world_glow.*`).
+- **Actors** (`live/actors.py`): `keeper`, `agents`, `signal`, `crowd`, `traffic`,
+  `event`; motions and the "needs you" turn-and-signal gesture are shared by all.
+  Positions are planned on the CPU in plate pixels (like the ships: nothing pops).
+- **Data:** the den's snapshot (CPU, network, lab health, ARBITER fills with their
+  realized P&L, notifications); `live/worldfeed.py` while a world is up: herdr's agents
+  (2 s, 8 s paused) and VECTOR's state file (a stat every 0.5 s);
+  `live/activity.py`: the user working / dozing / asleep (hypridle's listener at 90 s
+  in `hypr/hypridle.conf` → `ctl activity idle|active`; until hypridle reads it, the
+  pointer (Hyprland IPC, 2 Hz) and focus/workspace events; the lock watch);
+  `live/skyclock.py`: the hour's light, the moon's phase and place, the tide, all local.
+- **Camera:** the layers sway with the pointer while the user works (parallax), and
+  settle home when idle.
+- **Sound:** the world's `[sounds] ambient` cues (Mire's frogs and crickets) through
+  `live/sound.py`: often while the user works, a third as often when idle, none when
+  locked; mute and `sounds.volume` apply; `[world] ambient_sounds = false` stops them.
+- **Roll call:** at login (after the intercept) the world's lights wake one by one
+  (`[rollcall]`; its `sound` is reserved).
+- **Pause rules:** the den's: 30 fps visible, 20 under windows, 0 locked, under a
+  true fullscreen window or a full-screen deck. A world catches up when it resumes:
+  after an unlock the keeper wakes over a few seconds, the lantern brightening.
+- **Cost** (measured headless at 2560×1440, 30 fps, RTX 5070, `tools/offscreen.py
+  bench 30 world`, whole process with its pollers): Mire 3.7% of one core, GPU 0.34 ms
+  a frame; the den 5.2%, 0.44 ms on the same bench.
+- **Try it without switching themes:** `tools/offscreen.py world out.mp4 20` with
+  `OFF_WORLD=<theme dir>` and `OFF_SCRIPT` steps `w set <signal> <value>`, `w event
+  <name>`; on the desktop, with a world up: `bromigos-live world state|event critical|
+  set cpu 0.95|clear|rollcall`.
+- **Config:** `[world]`: `enabled`, `dir`, `idle_after = 90`, `ambient_sounds`.
+
+### Mire
+
+| Thing | Shows | Signal |
+|---|---|---|
+| Sleepers (moss-covered exo-frames) | herdr agents: wading, eye-lamps lit (working); stop, turn to you, the eye flashes amber (needs you; red on an error); settle into the water (finished); sink away (closed) | `agents` |
+| Hollis (the keeper) | fishing while you work, nodding in his rocking chair when idle, slumped with the lantern dimmed when locked | `user` |
+| His line | taut on every ARBITER paper fill; a fish comes up for a win, a boot for a loss, a twitch for an opening fill | fills |
+| Herons | a heron rises off the shore for a notification; a critical one flies at the screen, red-eyed | `notify`, `critical` |
+| Fireflies | this machine's network throughput | `net` |
+| Mist, rain, thunder | CPU: mist thickens, then drizzle, a downpour on the water, lightning near 100% | `cpu` |
+| Two eyes, a long shape | lab trouble: eyes by the shack at health 1, a long shape too at 2 | `health` |
+| The mast's light | the lab all green | `lab_green` |
+| The drone by the lantern | VECTOR: hovering (idle), circling amber (thinking), pulsing (speaking), facing you (listening), flickering red (error), gone (off) | `vector` |
+| Frogs, crickets | your activity: croaking while you work, still when idle, gone under when locked | `user` |
+| Moon, light | the real moon; dusk, night and dawn by the clock | clock |
+
+### Tidewell
+
+| Thing | Shows | Signal |
+|---|---|---|
+| The Choir (glowing swimmers) | herdr agents: a cyan glow at work; rise, face you and breach with light and spray (needs you); dive leaving a trail (finished) | `agents` |
+| Maren (the keeper) | about the gallery while you work, by the lamp-room glass when idle, asleep (her window dark) when locked | `user` |
+| Greywater Light's beam | its colour is lab health (white, amber, red); its turn the ingress rate | `health`, `ingress` |
+| Storm, lightning | something in the lab is down | `storm` |
+| Trawlers, haulers | download (in, left to right), upload (out, right to left) | `net_rx`, `net_tx` |
+| Jellyfish blooms | notifications, rising; red when critical | `notify`, `critical` |
+| Silver fish in the net | ARBITER fills: green flashes for a win, red for a loss | fills |
+| The swell | CPU | `cpu` |
+| The tide | the moon, computed locally | clock |
+| Seabirds | your activity: wheeling round the light, on the rock when idle, gone when locked | `user` |
+| The lamp-drone | VECTOR | `vector` |
 
 ## The den plate and its variants
 

@@ -46,6 +46,7 @@ DEFAULTS = {
     "screensaver": {"enabled": True},
     "sounds": {"enabled": True, "volume": 0.3, "terminal_classes": ["kitty", "Alacritty"]},
     "radial": {"items": []},
+    "world": {"enabled": True, "dir": "", "idle_after": 90, "ambient_sounds": True},
 }
 
 

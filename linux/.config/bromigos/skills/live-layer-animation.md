@@ -26,6 +26,15 @@ when_to_use: "Adding or changing anything that moves on the desktop: a backgroun
   change it, plus the den plate fitting rules and how to add a new element. Read the
   element's section before you touch it, and update the section when you change it.
 
+- **Worlds** (`live/world.py`, `actors.py`, `shaders/world*`): when the current theme
+  has `live/world.toml` (bromigOS `bromigos theme set mire`), the background is that
+  world instead of the den: layers with parallax, a water plane, effect blocks and
+  actors, each bound to a signal. The format is bromigOS `docs/theming.md`
+  ("Worlds"); how it runs, and each world's table, is ELEMENTS.md "Worlds". Preview a
+  world headless with `OFF_WORLD=<theme dir> tools/offscreen.py world out.mp4 20` and
+  `OFF_SCRIPT="0 w set cpu 0.9; 3 w event critical"`; never switch the operator's theme
+  to look.
+
 Nothing ever draws over application windows: no CRT pass, no scanlines, no tint.
 Overlays are either summoned by the operator or brief event animations that leave
 nothing behind.
