@@ -103,8 +103,10 @@ Where each layer may draw:
   `[[actors.craft]]` crosses the sky at a random distance (nearer: bigger, faster, less
   haze), behind the layers in front of its `depth`. Time runs toward the next pass at
   `1 + gain x` the signal's level (network: busier, sooner), `every = [min, max]` seconds
-  apart, `max` at once; `sky = [top, bottom]` keeps the whole craft inside a band (Tidewell:
-  above the trawlers' masts). Each craft has nav lamps (`blink = "strobe"` or a beacon's
+  apart, `max` at once, never two through each other (a pass takes an altitude and a path
+  that never share a place and a moment with a craft already up, or waits); `sky = [top, bottom]` keeps the whole craft inside a band (Tidewell:
+  above the trawlers' masts), and craft nearer than `near` can fly at `near_depth` (in front of a
+  layer the far ones pass behind). Each craft has nav lamps (`blink = "strobe"` or a beacon's
   period), a moonlight rim on its top edges (`rim`), the night air's haze (`haze`), exhaust
   `trails` laid where it flew that drift and fade, and with `clouds` the sky layer's lit
   clouds (`cloud_luma`; the moon's disc stays clear) hide it and its lamps. The mirror

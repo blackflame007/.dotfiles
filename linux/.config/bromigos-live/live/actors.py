@@ -172,8 +172,8 @@ class Actors:
                 inst.override = (ev, t0, t0 + float(ev.get("seconds", 3.0)))
         if name.startswith("flyby"):                # a pass now (testing): "flyby" or "flyby:<craft id>"
             for d in self.defs:
-                if d.kind == "flyby":
-                    self._flyby(d, t, name.partition(":")[2] or None)
+                if d.kind == "flyby" and not self._flyby(d, t, name.partition(":")[2] or None):
+                    self.lanes.setdefault(d.id, {}).setdefault("waiting", []).append(name.partition(":")[2] or None)
         if name == "rollcall":
             i = 0
             for inst in sorted(self.insts.values(), key=lambda s: (s.d.depth, s.x)):
@@ -345,6 +345,8 @@ class Actors:
         if "need" not in st:
             f = d.t.get("first", (30, 120))
             st["need"], st["acc"] = f[0] + (f[1] - f[0]) * random.random(), 0.0
+        if st.get("waiting") and self._flyby(d, t, st["waiting"][0]):
+            st["waiting"].pop(0)                         # a pass held back for a clear altitude
         lv = float(sig.get(d.signal, 0.0) or 0.0) if d.signal else 0.0
         st["acc"] += dt * (1.0 + float(d.t.get("gain", 1.0)) * max(0.0, min(lv, 1.0)))
         if st["acc"] >= st["need"]:
@@ -358,7 +360,7 @@ class Actors:
         if which:
             crafts = [c for c in crafts if c.get("id") == which] or crafts
         if not crafts:
-            return
+            return True
         self.n_event += 1
         inst = Inst(d, f"fly{self.n_event}", t)
         r = inst.r
@@ -376,21 +378,56 @@ class Actors:
         direction = float(c.get("dir", 0)) or (1.0 if r.random() < 0.5 else -1.0)
         sprite = d.sprites[c["sprite"]]
         w = h * sprite.frame(0)[4]
+        climb = (r.random() - 0.5) * float(c.get("climb", 40))
+        room = h * 0.5 + abs(climb) * 0.5 + float(c.get("bob", 3.0)) * 1.3   # its half-height in flight
+        band = d.t.get("sky")                            # the whole craft stays inside [top, bottom], climb and bob too
+        speed = sp[0] + (sp[1] - sp[0]) * z
         x0, x1 = d.t.get("span", (0, 2560))
         x0, x1 = x0 - w * 0.6 - 40, x1 + w * 0.6 + 40
-        y = ys[0] + (ys[1] - ys[0]) * (0.55 * z + 0.45 * r.random())   # the farther, the lower toward the horizon
-        climb = (r.random() - 0.5) * float(c.get("climb", 40))
-        band = d.t.get("sky")                            # the whole craft stays inside [top, bottom], climb and bob too
-        if band:
-            room = h * 0.5 + abs(climb) * 0.5 + float(c.get("bob", 3.0)) * 1.3
-            y = max(float(band[0]) + room, min(y, float(band[1]) - room))
-        speed = sp[0] + (sp[1] - sp[0]) * z
+        dur = (x1 - x0) / speed
+        start = x0 if direction > 0 else x1
+        # never through another craft: an altitude and a path that never share a place and a
+        # moment with any craft already in the sky (else the pass waits for the sky to clear)
+        others = [o for (did, _), o in self.insts.items() if did == d.id and "room" in o.extra]
+        y = None
+        for k in range(12):
+            u = 0.55 * z + 0.45 * r.random() if k == 0 else r.random()          # the farther, the lower toward the horizon
+            cand = ys[0] + (ys[1] - ys[0]) * u
+            if band:
+                cand = max(float(band[0]) + room, min(cand, float(band[1]) - room))
+            if all(not self._clash(cand, room, w, start, direction * speed, t, t + dur, o) for o in others):
+                y = cand
+                break
+        if y is None:
+            return False
         inst.v = None
         inst.state = "flying"
-        inst.extra.update(craft=c, z=z, h=h, w=w, y=y, dir=direction, speed=speed, x0=x0, x1=x1,
-                          dur=(x1 - x0) / speed, climb=climb, trails={})
+        inst.extra.update(craft=c, z=z, h=h, w=w, y=y, room=room, dir=direction, speed=speed, x0=x0, x1=x1,
+                          dur=dur, climb=climb, trails={})
         inst.face = direction
         self.insts[(d.id, inst.key)] = inst
+        return True
+
+    @staticmethod
+    def _clash(y, room, w, x_start, vx, t0, t1, o):
+        """Would a new pass (altitude y, half-height room, width w, at x_start moving vx px/s
+        from t0 to t1) overlap craft o at some moment? Both move in straight lines, so their
+        gap is linear in time: check the window's ends."""
+        e = o.extra
+        if abs(y - e["y"]) > room + e["room"] + 6:
+            return False                                 # different altitudes
+        o_t1 = o.born + e["dur"]
+        a, b = max(t0, o.born), min(t1, o_t1)
+        if a >= b:
+            return False                                 # never in the sky together
+        ovx = (e["x1"] - e["x0"]) / e["dur"] * e["dir"]
+        ox_start = e["x0"] if e["dir"] > 0 else e["x1"]
+        reach = (w + e["w"]) * 0.5 + 30
+
+        def gap(tt):
+            return (x_start + vx * (tt - t0)) - (ox_start + ovx * (tt - o.born))
+        ga, gb = gap(a), gap(b)
+        return min(ga, gb) < reach and max(ga, gb) > -reach
 
     def _step_flyby(self, inst, t):
         e = inst.extra
@@ -420,7 +457,10 @@ class Actors:
         hz = d.t.get("haze", (0.05, 0.08, 0.07, 0.5))
         haze = float(hz[3]) * (float(c.get("haze", 0.15)) + (1.0 - float(c.get("haze", 0.15))) * z ** 0.8)
         bright = float(c.get("bright", 0.6)) * (1.0 - 0.35 * z)
-        depth = float(c.get("depth", d.depth)) + 0.2 * (1.0 - z)        # nearer craft over farther ones
+        depth = float(c.get("depth", d.depth))
+        if d.t.get("near_depth") is not None and z < float(d.t.get("near", 0.5)):
+            depth = float(d.t["near_depth"])            # a near craft passes in front of a small far landmark, never behind it
+        depth += 0.2 * (1.0 - z)                         # nearer craft over farther ones
         x, base = inst.x, inst.y + h * 0.5                               # inst.y is the craft's middle
         sprites.append((depth, {"x": x, "y": base, "w": w * sx, "h": h, "uv": (u0, v0, u1, v1), "rot": inst.rot,
                                 "video": sprite.video, "alpha": inst.alpha, "cut": -1.0, "tint": (hz[0], hz[1], hz[2], haze),
