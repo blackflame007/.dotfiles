@@ -7,7 +7,7 @@ uniform sampler2D u_y;
 uniform sampler2D u_uv;
 uniform float u_stacked;     // 1: colour on top, alpha below
 uniform float u_bt709;       // 1: BT.709, 0: BT.601 (limited range)
-uniform sampler2D u_mask;    // a patch's feathered edge (one-shot clips), when u_has_mask
+uniform sampler2D u_mask;    // a feathered edge (<loop>-mask.png: a patch, or a piece cut from a loop), when u_has_mask
 uniform float u_has_mask;
 uniform float u_luma;        // 1: glow art on black (an additive actor): coverage is its brightness
 void main() {
@@ -26,7 +26,7 @@ void main() {
         // the black around the creature is coverage 0, so nothing (fog, lift, the water's
         // tint) can light up its frame; a small floor drops the encoder's near-black noise
         float m = max(rgb.r, max(rgb.g, rgb.b));
-        float k = smoothstep(0.025, 0.09, m);
+        float k = smoothstep(0.025, 0.09, m) * a;   // a: the feathered mask, when it has one
         o = vec4(rgb * k, m * k);
         return;
     }
