@@ -37,7 +37,16 @@ try:
 except OSError:
     sys.exit(3)
 s.sendall(sys.argv[2].encode())
-print(s.recv(256).decode())
+chunks = []
+while True:                      # the daemon closes after its reply; status replies exceed one recv
+    try:
+        b = s.recv(65536)
+    except socket.timeout:
+        break
+    if not b:
+        break
+    chunks.append(b)
+print(b"".join(chunks).decode(errors="replace"))
 EOF
 }
 

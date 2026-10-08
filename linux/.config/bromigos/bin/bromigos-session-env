@@ -48,7 +48,9 @@ case "${1:-}" in
     adopt)
         # bromigos-live moves itself (its start checks the session); VECTOR's daemon is
         # checked here so his protected launcher stays untouched.
-        pid=$(pgrep -f "python -m holo.app" | head -1)
+        # VECTOR's daemon by its argv (any python/python3 binary running `-m holo.app`), not
+        # by a substring that a command line merely mentioning it would also match
+        pid=$(ps -eo pid=,args= | awk '$2 ~ /python[0-9.]*$/ && $3 == "-m" && $4 == "holo.app" {print $1; exit}')
         if [ -n "$pid" ]; then
             theirs=$(tr '\0' '\n' <"/proc/$pid/environ" 2>/dev/null | sed -n 's/^HYPRLAND_INSTANCE_SIGNATURE=//p')
             if [ "$theirs" != "$HYPRLAND_INSTANCE_SIGNATURE" ]; then

@@ -12,7 +12,7 @@
   bromigos lock                    lock the screen now
   bromigos wallpaper …             the den wallpaper (bromigos-wallpaper)
 
-Animation switches are yours: they go in ~/.local/state/bromigos-live/overrides.toml,
+Animation switches are yours: they go in ~/.config/bromigos/live/overrides.toml,
 merged over the dotfiles' config.toml, and the live layer applies them within ~3 s.
 """
 import os
@@ -22,7 +22,8 @@ import tomllib
 
 HOME = os.path.expanduser("~")
 LIVE_CONF = os.path.join(HOME, ".config/bromigos-live/config.toml")
-OVERRIDES = os.path.join(HOME, ".local/state/bromigos-live/overrides.toml")
+OVERRIDES = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "bromigos/live/overrides.toml")
+OVERRIDES_OLD = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local/state"), "bromigos-live/overrides.toml")
 LIVE = os.path.join(HOME, ".config/bromigos-live/bin/bromigos-live")
 HOLO = os.path.join(HOME, ".config/bromigos/holo/bin/bromigos-holo")
 WALL = os.path.join(HOME, ".config/bromigos/bin/bromigos-wallpaper")
@@ -49,6 +50,10 @@ ANIMS = {
 }
 
 
+def _load_overrides():
+    return _load(OVERRIDES if os.path.exists(OVERRIDES) else OVERRIDES_OLD)
+
+
 def _load(path):
     try:
         with open(path, "rb") as f:
@@ -69,6 +74,8 @@ def _write_overrides(ov):
     with open(tmp, "w") as f:
         f.writelines(lines)
     os.replace(tmp, OVERRIDES)
+    if os.path.exists(OVERRIDES_OLD):          # moved to ~/.config/bromigos/live (user-owned)
+        os.unlink(OVERRIDES_OLD)
 
 
 def _state(base, ov, name):
@@ -90,7 +97,7 @@ def _names(args):
 
 
 def anim(args):
-    base, ov = _load(LIVE_CONF), _load(OVERRIDES)
+    base, ov = _load(LIVE_CONF), _load_overrides()
     if not args:
         bg = base.get("background", {}).get("enabled", True)
         print(f"background layer: {'on' if bg else 'OFF'} (bromigos live on|off for the whole thing)\n")
@@ -133,12 +140,15 @@ def main():
         sub = rest[0] if rest else "status"
         if sub in ("on", "off"):          # runtime toggle of the whole background (SUPER+SHIFT+B)
             out = subprocess.run([LIVE, "status"], capture_output=True, text=True).stdout
+            if "daemon up" not in out:
+                print("not running (bromigos live start)")
+                return 1
             is_on = "background off" not in out
             if (sub == "on") != is_on:
                 return run(LIVE, "toggle")
             print(f"background already {sub}")
         else:
-            return run(LIVE, *rest)
+            return run(LIVE, *(rest or ["status"]))   # no arguments: status, never an implicit start
     elif cmd == "vector":
         return run(HOLO, *rest)
     elif cmd == "lock":

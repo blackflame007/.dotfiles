@@ -748,7 +748,7 @@ class App:
     def _mtime(self):
         """config.toml and the overrides file: a change to either reloads."""
         m = []
-        for p in (config.PATH, config.OVERRIDES):
+        for p in (config.PATH, config.OVERRIDES_NEW, config.OVERRIDES_OLD):
             try:
                 m.append(os.path.getmtime(p))
             except OSError:

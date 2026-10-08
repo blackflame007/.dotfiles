@@ -15,8 +15,14 @@ import bromigos_private as PRIV  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 PATH = os.environ.get("BROMIGOS_LIVE_CONFIG") or os.path.join(os.path.expanduser("~/.config/bromigos-live"), "config.toml")
-# Sir's own switches (`bromigos anim on|off …`), merged over config.toml; local state, not in git
-OVERRIDES = os.path.join(os.path.expanduser("~/.local/state/bromigos-live"), "overrides.toml")
+# Sir's own switches (`bromigos anim on|off …`), merged over config.toml. User-owned, so
+# ~/.config/bromigos/ (bromigOS's file homes); the old state path is read until the
+# first write moves it (bromigos CLI, Python or Rust).
+_XDG_CONFIG = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+_XDG_STATE = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+OVERRIDES_NEW = os.path.join(_XDG_CONFIG, "bromigos", "live", "overrides.toml")
+OVERRIDES_OLD = os.path.join(_XDG_STATE, "bromigos-live", "overrides.toml")
+OVERRIDES = OVERRIDES_NEW if os.path.exists(OVERRIDES_NEW) or not os.path.exists(OVERRIDES_OLD) else OVERRIDES_OLD
 if not os.path.exists(PATH):
     PATH = os.path.join(HERE, "config.toml")
 
@@ -84,8 +90,9 @@ def load():
     except (OSError, tomllib.TOMLDecodeError) as e:
         print("bromigos-live: config error, using defaults:", e, flush=True)
         cfg = copy.deepcopy(DEFAULTS)
+    path = OVERRIDES_NEW if os.path.exists(OVERRIDES_NEW) else OVERRIDES_OLD
     try:
-        with open(OVERRIDES, "rb") as f:
+        with open(path, "rb") as f:
             cfg = _merge(cfg, tomllib.load(f))
     except FileNotFoundError:
         pass
