@@ -17,3 +17,9 @@ fonts/.local/share/fonts/.uuid
 __pycache__/
 # fontconfig cache markers
 .uuid
+
+# bromigOS user-owned files under ~/.config/bromigos (that path is a stow link into this
+# public repo): Sir's own switches and profile stay on the machine, never in git.
+linux/.config/bromigos/live/overrides.toml
+linux/.config/bromigos/profile.toml
+linux/.config/bromigos/themes/
