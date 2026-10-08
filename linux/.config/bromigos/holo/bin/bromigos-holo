@@ -15,6 +15,14 @@
 #   bromigos-holo status | stop | restart | log
 #   bromigos-holo evals [--only CAT] [--task ID] [--list]   run VECTOR's eval suite now (headless)
 set -u
+# VECTOR is a bromigOS package now (bromigos-vector, from bromigos-org/vector; installed in
+# /usr/lib/bromigos/vector): when it's installed this copy hands every call to it, so the
+# binds, waybar, the live layer and the units that name this path run the packaged one.
+# BROMIGOS_HOLO_FROM_DOTFILES=1 runs this copy instead.
+if [ -z "${BROMIGOS_HOLO_FROM_DOTFILES:-}" ] && [ -x /usr/bin/bromigos-holo ] \
+        && [ "$(readlink -f /usr/bin/bromigos-holo)" != "$(readlink -f "$0")" ]; then
+    exec /usr/bin/bromigos-holo "$@"
+fi
 HERE="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 RUN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 SOCK="$RUN/bromigos-holo.sock"
