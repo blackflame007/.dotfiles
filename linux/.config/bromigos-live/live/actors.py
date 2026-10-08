@@ -678,6 +678,9 @@ class Actors:
         u0, v0, u1, v1, asp = sprite.frame(fi)
         w = h * asp
         patch = sc.get("patch") or d.t.get("patch")
+        if isinstance(patch, str):                  # a clip's name: its rect from live/clips/manifest.toml
+            m = (d.world.manifest.get(patch) or d.world.manifest.get("clips", {}).get(patch) or {}) if d.world else {}
+            patch = m.get("rect") if isinstance(m, dict) else m
         if patch:                                   # a patch of the scene, placed by its rect (one-shot clips)
             px0, py0, pw, ph = (float(v_) for v_ in patch)
             inst.x, inst.y, w, h, sx = px0 + pw / 2, py0 + ph, pw, ph, 1.0
@@ -694,7 +697,8 @@ class Actors:
         par = d.parallax
         spr = {"x": x, "y": base, "w": w * sx, "h": h * sy, "uv": (u0, v0, u1, v1), "rot": inst.rot, "video": sprite.video,
                "alpha": inst.alpha, "cut": cut, "tint": tint, "bright": bright, "fog": d.fog,
-               "reflect": d.reflect if wade > 0 else 0.0, "par": par}
+               "reflect": d.reflect if wade > 0 else 0.0, "par": par,
+               "add": (v.get("blend") or cfg.get("blend") or d.t.get("blend")) == "add"}   # glow creatures on black
         sprites.append((depth, spr))
         inst.placed = (x, base, w * sx, h * sy, inst.rot, fi)
         # an emissive mask (eye-lamps painted as light): drawn additively in the light's colour
@@ -707,7 +711,7 @@ class Actors:
             if lit_e > 0.01:
                 e_uv = es.frame(fi)
                 sprites.append((depth + 0.005, dict(spr, uv=e_uv[:4], video=es.video, tint=(col[0], col[1], col[2], 1.0),
-                                                     bright=lit_e * float(d.t.get("emissive_gain", 1.4)), add=True,
+                                                     bright=lit_e * float(d.t.get("emissive_gain", 1.4)), add=True, emissive=True,
                                                      reflect=0.0)))
         # a diver leaves a fading trail of light above it
         if cfg.get("motion") == "dive" and inst.v is None:

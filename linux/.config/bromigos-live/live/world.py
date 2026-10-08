@@ -116,7 +116,7 @@ def sprite_frames(root, rel):
     return []
 
 
-def build_atlas(root, rels, width=4096, pad=3, loops=None, sync=False):
+def build_atlas(root, rels, width=4096, pad=3, loops=None, sync=False, crops=None):
     """Pack every sprite's frames into one premultiplied atlas. Returns (pixels, w, h,
     {rel: actors.Sprite}). A missing sprite becomes a grey block and is logged. A sprite
     that names a video file is a loop (live/videoloop.py), drawn from its own texture."""
@@ -141,7 +141,12 @@ def build_atlas(root, rels, width=4096, pad=3, loops=None, sync=False):
             blk[...] = (60, 60, 60, 255)
             imgs[rel] = [blk]
             continue
-        imgs[rel] = [load_rgba(f)[0] for f in files]
+        frames = [load_rgba(f)[0] for f in files]
+        crop = (crops or {}).get(rel)
+        if crop:                                  # a full-frame mask, cut to its piece's rect
+            x, y, w, h = (int(round(v)) for v in crop)
+            frames = [f[y:y + h, x:x + w].copy() if f.shape[:2] == (int(PLATE_H), int(PLATE_W)) else f for f in frames]
+        imgs[rel] = frames
     x = y = row = 0
     place = {}
     for rel, frames in imgs.items():
@@ -261,9 +266,19 @@ class World:
                 if isinstance(st, dict) and st.get("sprite"):
                     rels.append(st["sprite"])
         rels = list(dict.fromkeys(rels))
-        atlas, aw, ah, sprites = build_atlas(self.root, rels, loops=loops, sync=self.sync)
+        crops = {}
+        for a in sp.get("actors", []):
+            for sl in a.get("slots", []):
+                if sl.get("emissive") and isinstance(sl.get("patch"), (list, tuple)):
+                    crops[sl["emissive"]] = sl["patch"]
+        atlas, aw, ah, sprites = build_atlas(self.root, rels, loops=loops, sync=self.sync, crops=crops)
         self.videos = [s.video for s in sprites.values() if s.video] + [L.video for L in self.layers if L.video]
         self.atlas = glkit.texture_rgba(np.ascontiguousarray(atlas), aw, ah, GL.GL_RGBA)
+        self.manifest = {}                        # live/clips/manifest.toml: where each clip's patch sits
+        mf = os.path.join(self.root, "live", "clips", "manifest.toml")
+        if os.path.isfile(mf):
+            with open(mf, "rb") as f:
+                self.manifest = tomllib.load(f)
         self.defs = [A.Def(a, sprites, self) for a in sp.get("actors", [])]
         self.actors = A.Actors(self.defs)
         self.keeper = next((d for d in self.defs if d.kind == "keeper"), None)
@@ -732,7 +747,7 @@ class World:
             tint = s.get("tint")
             tr = (tint[0], tint[1], tint[2], tint[3] if len(tint) > 3 else 0.5) if tint else (0.0, 0.0, 0.0, 0.0)
             base = [x, y, w, h, *s["uv"], s["rot"], s["alpha"], cut, 0.0, *tr, s["reflect"],
-                    1.0 if s["fog"] else 0.0, s["bright"], 1.0 if s.get("add") else 0.0]
+                    1.0 if s["fog"] else 0.0, s["bright"], 1.0 if s.get("emissive") else 0.0]
             if s["reflect"] > 0 and cut > 0:
                 r = list(base)
                 r[11] = 1.0
