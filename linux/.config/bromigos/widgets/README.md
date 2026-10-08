@@ -1,56 +1,14 @@
-# bromigos-widgets — the desktop panels
+# bromigos-widgets (the operator's layout)
 
-Seven core HUD panels pinned to the desktop, showing this machine and the homelab at a
-glance: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES and SHORTCUTS, plus the
-plugin panels in `plugins/` (GAME SERVERS). They sit
-on the BOTTOM layer-shell layer of the monitor in `layout.json`: above the live
-background, below every window.
+The desktop widgets — SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS
+— are bromigOS's now: the `bromigos-widgets` package, from `bromigos-org/bromigOS`
+`widgets/` (README there and in `/usr/share/doc/bromigos-widgets/`). Code changes go in
+that repo; new keybind `EXEC` rows go in its `widgets/keybinds.py`.
 
-**Status:** active. One GTK3 process (system Python, GtkLayerShell, Cairo/Pango,
-psutil), started by Hyprland at login (the `hyprland.start` autostart in `hypr/hyprland.lua`).
+Here:
+- `layout.json` — the operator's panels and positions (with LAB and the LAN ping hosts
+  from the private overlay); it replaces the packaged default whole.
+- `bromigos-widgets` — hands every call to `/usr/bin/bromigos-widgets`.
 
-## Use
-
-```bash
-bromigos-widgets toggle all|system|network|storage|lab|workbench|shortcuts|notes|game_servers
-bromigos-widgets notes        # focus FIELD NOTES for typing (Esc hands focus back)
-bromigos-widgets reload       # re-read layout.json
-bromigos-widgets stats        # draw counts and coverage, to the app's stderr
-```
-
-Keys: SUPER+W all panels, SUPER+S/N/D/C/B/F one each, SUPER+K shortcuts, ALT+N type
-in notes (the full table is generated into `AGENTS.md`).
-
-## Files
-
-| File | What |
-|------|------|
-| `bromigos-widgets` | The app: one layer-shell window per panel, the 100 ms heartbeat, the control socket `$XDG_RUNTIME_DIR/bromigos-widgets.sock` (datagram), hotplug recovery |
-| `layout.json` | Panel positions and sizes on the monitor, `visible`, and the latency radar's hosts |
-| `panels.py` | The panels; each draws real readings only, with a tooltip on every region |
-| `sources.py` | Readers: psutil, NVML, temperatures, wifi signal, ping, storage, the Lab API |
-| `draw.py` | Cairo/Pango primitives in the house style (frames, brackets, gauges, bars) |
-| `keybinds.py` | Reads the binds for SHORTCUTS and the rofi cheat sheet (`keybinds.py rofi`, Enter runs it): live from Hyprland (the list `hypr/bromigos/keys.lua` keeps, via `hyprctl repl`), else from the Lua config files through `keybinds-dump.lua` (or the old `hyprland.conf` on the rollback); its `EXEC` table names every exec bind. `bromigos-docs keys` uses it to generate the table in `AGENTS.md` |
-
-## Panels
-
-| Panel | Reads | Every |
-|-------|-------|-------|
-| SYSTEM | CPU per core, memory, GPU (NVML), temperatures, uptime | 2 s |
-| NETWORK | Throughput, wifi signal, a latency radar to the hosts in `layout.json` | 1 s |
-| STORAGE | Mounts and usage | 30 s |
-| LAB | EchoCraft Lab `/api/status` (bearer token in `~/.local/share/bromigos/lab-token`) | 20 s |
-| WORKBENCH | Recent git repos by local activity and zoxide's most-used folders; rows open nvim, a terminal or a file manager | 60 s |
-| FIELD NOTES | `~/.local/share/bromigos/notes.md`, autosaved | on edit |
-| SHORTCUTS | Every bind, from `keybinds.py` | 5 s |
-| GAME SERVERS (plugin, `plugins/game_servers.py`) | The Pelican game servers (Minecraft network, Satisfactory): state, players online/max, CPU and memory, a network total, from Prometheus (`pelican_server_*`, pelican-exporter); Minecraft player names from a server-list ping to the proxy's public address (`games.minecraft_ping`) when the proxy shares them. A row click opens the server in Pelican (`endpoints.pelican`) | 15 s; ping 60 s |
-
-Redraws pause while windows cover the desktop on that monitor; sampling continues
-cheaply so graphs have history when you come back.
-
-## Notes
-
-- The WORKBENCH rows open folders in Dolphin (`WorkbenchPanel.FILES`), while ALT+E and
-  the operator's choice is PCManFM.
-- The start page reads its link list from a `SwitchboardPanel` class that no longer
-  exists here, so its switchboard is currently empty (see `../README.md`, "Known issues").
+GAME SERVERS is a plugin in `../plugins/widgets/` (bromigOS `docs/plugins.md`); the old
+`plugins/` folder here is still read, for panels VECTOR's build loop writes.

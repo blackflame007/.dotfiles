@@ -38,7 +38,7 @@ comment line saying what the thing is.
    Use the helpers, not a bare `hl.bind`: they put the action in the bind's description, which is
    how SHORTCUTS, the rofi cheat sheet and `bromigos-docs keys` name and run it.
 3. An exec bind SHORTCUTS should name: an `EXEC` row (regex, description, section) in
-   `~/.config/bromigos/widgets/keybinds.py`. A new kind of dispatcher bind: a `DISPATCH` row there.
+   bromigOS bromigOS `widgets/keybinds.py`. A new kind of dispatcher bind: a `DISPATCH` row there.
 4. `~/.config/bromigos/bin/bromigos-docs keys` regenerates the key table in `AGENTS.md`
    (`--check` says if it's stale).
 

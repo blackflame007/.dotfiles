@@ -46,7 +46,7 @@ IP and where it is attached from UniFi (`unpoller_client_uptime_seconds`), the n
 
 ## Code you can reuse
 
-`bromigos-live/live/sources.py`:
+bromigOS `live/live/sources.py`:
 
 ```python
 from live import sources
@@ -59,7 +59,7 @@ sources.herdr()                                    # agents with status and cwd
 sources.ping(host)                                 # ms or None
 ```
 
-`bromigos-live/live/arbiter.py` `Feed(cfg).get(path)` is the read-only ARBITER
+`~/.config/bromigos/plugins/live/arbiter.py` (a plugin) `Feed(cfg).get(path)` is the read-only ARBITER
 client (it only ever sends GET).
 
 ## Things that bit us

@@ -12,7 +12,4 @@ the seam is documented in bromigOS's `docs/plugins.md`.
 | `widgets/` | widget panels (`panels.Panel` subclasses) | GAME SERVERS (`game_servers.py`) |
 
 These read the homelab through the private overlay (`bromigos_private`) and stay off
-without it. Until the dotfiles' own copies of the live layer and widgets are removed
-(they hand over to the packages once `bromigos-live`/`bromigos-widgets` are installed),
-the copies in `bromigos-live/live/` and `bromigos/widgets/plugins/` are what the
-dotfiles code runs: change both, or wait for the removal.
+without it.
