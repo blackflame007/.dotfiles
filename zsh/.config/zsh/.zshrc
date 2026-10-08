@@ -41,7 +41,7 @@ zsh_add_file "zsh-secrets"
 zsh_add_file "zsh-vim-mode"
 zsh_add_file "zsh-aliases"
 zsh_add_file "zsh-mehshell"
-zsh_add_file "zsh-bromigos"     # Bromigos prompt colours + login banner (`bromigos`)
+zsh_add_file "zsh-bromigos"     # Bromigos prompt colours + login banner (`bromigos banner`)
 
 # Plugins
 zsh_add_plugin "zsh-users/zsh-autosuggestions"
