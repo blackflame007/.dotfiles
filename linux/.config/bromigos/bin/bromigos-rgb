@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# bromigos:summary=Razer lighting follows VECTOR's voice and mood (daemon)
+# bromigos:hidden=true
 """Razer lighting follows VECTOR: the keyboard and mouse take the colour of whichever
 voice is speaking, and his mood on top of it (alarmed = red breathing, concerned =
 amber). When VECTOR isn't running, they rest in Bromigos phosphor green.

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# bromigos:summary=Build the burn-in emblem assets (brand kit, lock image)
+# bromigos:args=build
 """Build every burn-in asset from identity.json + brand/flame.svg.
 
   bromigos-emblem build    brand kit (SVGs + PNGs) and the lock-screen image

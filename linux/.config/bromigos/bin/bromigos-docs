@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# bromigos:summary=Keep the desktop docs' generated sections in step with the config
+# bromigos:args=keys|check|…
 """Doc tooling for the Bromigos desktop: keep generated sections of the docs in step
 with the config they describe, so they can't drift.
 

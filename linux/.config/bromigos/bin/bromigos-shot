@@ -1,4 +1,6 @@
 #!/bin/sh
+# bromigos:summary=Screenshot to ~/Pictures/screenshots and the clipboard
+# bromigos:args=[region|screen]
 # bromigos-shot [region|screen]
 # Screenshot: saved to ~/Pictures/screenshots, copied to the clipboard, a short
 # Bromigos cue (the live layer's blip, honouring its mute), and a notification

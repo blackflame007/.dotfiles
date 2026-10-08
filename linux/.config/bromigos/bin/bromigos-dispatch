@@ -1,4 +1,7 @@
 #!/bin/sh
+# bromigos:summary=Run one Hyprland dispatcher from a script (Lua or old config form)
+# bromigos:args='<lua dispatcher>' [old form…]
+# bromigos:hidden=true
 # Run one Hyprland dispatcher from a script, whichever config format Hyprland runs.
 #
 #   bromigos-dispatch '<Lua dispatcher>' [old dispatcher and its args]

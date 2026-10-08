@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# bromigos:summary=Switch the den wallpaper and its lock-screen twin
+# bromigos:args=den|empty|v1|apply
 # bromigos-wallpaper — switch the den wallpaper (and its lock-screen twin).
 #
 #   bromigos-wallpaper den     the Wick with the operator at the desk (default)

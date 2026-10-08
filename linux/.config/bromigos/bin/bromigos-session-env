@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# bromigos:summary=The live Hyprland session (shim for `bromigos session`)
+# bromigos:args=[import|exec CMD…|adopt]
+# bromigos:hidden=true
 # bromigos-session-env: the live Hyprland session's WAYLAND_DISPLAY and
 # HYPRLAND_INSTANCE_SIGNATURE, put back into systemd's and D-Bus's activation
 # environment.

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# bromigos:summary=The animated live layer: start/stop, decks, toggles
+# bromigos:args=start|stop|restart|status|<deck> …
 # bromigos-live — the animated, data-reactive live layer.
 #
 #   bromigos-live start [--login]  start the daemon (supervised; no-op if running)

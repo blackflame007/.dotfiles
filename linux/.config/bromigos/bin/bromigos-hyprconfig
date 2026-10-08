@@ -1,4 +1,6 @@
 #!/bin/sh
+# bromigos:summary=Show or switch Hyprland's config format (Lua / .conf)
+# bromigos:args=status|lua|conf
 # Which Hyprland config format runs, and the one-command switch between them.
 #
 #   bromigos-hyprconfig status   the format Hyprland runs now, and the file it loads at login

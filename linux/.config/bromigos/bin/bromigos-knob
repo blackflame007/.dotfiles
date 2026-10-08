@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# bromigos:summary=The Razer dial as VECTOR's voice dial (daemon)
+# bromigos:hidden=true
 """The BlackWidow V4 Pro's command dial as VECTOR's voice dial.
 
 Turning the dial right/left steps VECTOR's voice through
