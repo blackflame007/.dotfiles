@@ -105,12 +105,12 @@ class Fireflies:
         self.vh[hi] = -np.abs(self.vh[hi])
         # blinking: a soft flash on each one's own rhythm
         u = np.sin(t * TAU / self.period + self.phase)
-        blink = np.clip(u, 0.0, 1.0) ** 3 * 0.9 + 0.1 * (u > -0.2)
-        bright = float(e.get("brightness", 1.0)) * (0.55 + 0.6 * min(level * 1.4, 1.0))
+        blink = 0.22 + 0.78 * np.clip(u, 0.0, 1.0) ** 2
+        bright = float(e.get("brightness", 1.0)) * (0.6 + 0.8 * min(level * 1.4, 1.0))
         inten = self.alpha * blink * bright * (0.45 + 0.55 * self.zdepth)
         live = inten > 0.02
         cols = self.c0[None, :] * (1 - self.hue[:, None]) + self.c1[None, :] * self.hue[:, None]
-        rad = (1.6 + 3.2 * self.zdepth) * self.size
+        rad = (2.0 + 3.6 * self.zdepth) * self.size
         y = self.ground - self.h
         rows = np.zeros((self.n, 12))
         rows[:, 0], rows[:, 1], rows[:, 2], rows[:, 3] = self.x, y, rad, rad
