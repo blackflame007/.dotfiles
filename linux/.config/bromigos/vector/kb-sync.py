@@ -128,8 +128,8 @@ def sources():
         for rel in tracked_docs(hl):
             add("kb-homelab", hl, rel)
     dot = os.path.join(HOME, ".dotfiles")
-    for rel in ("AGENTS.md", "README.md", "linux/.config/bromigos/holo/README.md", "linux/.config/bromigos/brand/README.md",
-                "linux/.config/bromigos/brand/3d/README.md", "linux/.config/bromigos/holo/voices/README.md"):
+    for rel in ("AGENTS.md", "README.md", "linux/.config/bromigos/brand/README.md",
+                "linux/.config/bromigos/brand/3d/README.md"):
         if os.path.exists(os.path.join(dot, rel)):
             add("kb-desktop", dot, rel, "dotfiles")
     seen = {r for _, _, r, _ in spaces["kb-desktop"]}
@@ -144,6 +144,19 @@ def sources():
             doc = py_docs(os.path.join(dot, rel), rel)
             if doc:
                 spaces["kb-desktop"].append(("dotfiles", dot, rel, doc))
+    # the desktop's packaged parts: VECTOR (bromigos-org/vector) and bromigOS (the live layer,
+    # the widgets, the CLI, the worlds), their docs and their Python's docstrings
+    for name in ("bromigos-org/vector", "bromigos-org/bromigOS"):
+        repo = os.path.join(GH, name)
+        if not os.path.isdir(repo):
+            continue
+        for rel in tracked_docs(repo):
+            add("kb-desktop", repo, rel, name.split("/")[1])
+        for rel in git(repo, "ls-files", "*.py").splitlines():
+            if not SKIP.search(rel) and not SECRETISH.search(rel):
+                doc = py_docs(os.path.join(repo, rel), rel)
+                if doc:
+                    spaces["kb-desktop"].append((name.split("/")[1], repo, rel, doc))
     try:      # the live keybind table, as the desktop sees it
         kbpy = next((p for p in ("/usr/lib/bromigos/widgets/keybinds.py",            # packaged: bromigos-widgets
                                  os.path.join(dot, "linux/.config/bromigos/widgets/keybinds.py")) if os.path.isfile(p)), "")

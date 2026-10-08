@@ -9,7 +9,7 @@
         manifest.json; the GLB is copied next to the others
 
 Every part needs an id, a LABEL, a "hint" (the hover text: what it is and what it shows)
-and a "bind": one of the live readings in ~/.config/bromigos/holo/holo/bind.py KEYS, or
+and a "bind": one of the live readings in VECTOR's holo/bind.py KEYS (bromigos-vector), or
 "" for a part that only shapes the model. Parts get "explode": [x, y, z] (direction) and
 "distance". The model lands in manifest.json and holo/NAME.holo.npz, with
 previews/NAME-parts.png; the gallery (SUPER+O) and the holo deck pick it up by
@@ -30,9 +30,10 @@ def bind_keys():
     """The reading keys the holo renderer answers (the handlers in holo/holo/bind.py), read
     from its source without importing it."""
     import re
-    p = os.path.join(os.path.dirname(os.path.dirname(ROOT)), "holo", "holo", "bind.py")
-    if not os.path.exists(p):
-        p = os.path.expanduser("~/.config/bromigos/holo/holo/bind.py")
+    p = next((q for q in ("/usr/lib/bromigos/vector/holo/bind.py",                 # bromigos-vector
+                          os.path.expanduser("~/github.com/bromigos-org/vector/holo/bind.py"),
+                          os.path.join(os.path.dirname(os.path.dirname(ROOT)), "holo", "holo", "bind.py"))
+              if os.path.exists(q)), "/usr/lib/bromigos/vector/holo/bind.py")
     src = open(p).read()
     keys = set()
     for m in re.finditer(r'key\s*(?:==|in)\s*(\([^)]*\)|"[a-z]+\.[a-z_]+")', src):
