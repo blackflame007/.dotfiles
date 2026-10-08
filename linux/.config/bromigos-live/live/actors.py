@@ -320,9 +320,9 @@ class Actors:
                 sizes = d.t.get("sizes")              # each one its own size: [lo, hi] x height
                 if sizes:
                     inst.extra["zscale"] = inst.extra.get("zscale", 1.0) * (sizes[0] + (sizes[1] - sizes[0]) * inst.r.random())
-                tints = d.t.get("tints")              # and its own colour, from these
-                if tints:
-                    inst.extra["tint"] = tuple(tints[inst.r.randrange(len(tints))])
+                tints = d.t.get("tints")              # and its own colour, from these, dealt in turn
+                if tints:                             # so five residents are five colours
+                    inst.extra["tint"] = tuple(tints[i % len(tints)])
                 self.insts[(d.id, i)] = inst
             self._set_state(inst, sig.get("user", "working"), t)
 
@@ -1164,7 +1164,8 @@ class Actors:
                 gy = base + lx * sa + ly * ca
                 if wade > 0 and gy > cut + 1:
                     continue
-                c = col_sig or tuple(cfg.get("color") or L.get("color", (1, 1, 1)))
+                own = inst.extra.get("tint")          # a creature with its own colour: its lights wear it too
+                c = col_sig or tuple(cfg.get("color") or (own[:3] if own else None) or L.get("color", (1, 1, 1)))
                 rad = float(L.get("radius", 6)) * (h / max(d.height, 1)) ** 0.5
                 if col_sig:
                     rad *= float(d.t.get("signal_radius", 1.8))
