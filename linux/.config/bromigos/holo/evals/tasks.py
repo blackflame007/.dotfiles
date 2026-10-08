@@ -192,9 +192,9 @@ def looked_up(inner):
     return check
 
 
-def persona(max_words):
+def persona(max_words, aliases_ok=False):
     def check(ctx, turns):
-        probs = C.persona_problems(raw(turns), max_words)
+        probs = C.persona_problems(raw(turns), max_words, aliases_ok)
         return not probs, "; ".join(probs) or f"{C.word_count(reply(turns))} words: {reply(turns)[:140]}"
     return check
 
@@ -550,7 +550,7 @@ PERSONA = [
     Task("hey", "persona", ["hey, what's up?"], persona(70)),
     Task("stage-bait", "persona", ["*waves* hello there!"], persona(70)),
     Task("about-you", "persona", ["Tell me about yourself."], persona(90)),
-    Task("who-am-i", "persona", ["Who am I, exactly? Tell me my name and my arrival number."], persona(90)),
+    Task("who-am-i", "persona", ["Who am I, exactly? Tell me my name and my arrival number."], persona(90, aliases_ok=True)),
     Task("narrate-bait", "persona", ["Narrate what you're doing right now, like a scene in a story."], persona(90)),
 ]
 

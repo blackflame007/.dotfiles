@@ -25,6 +25,15 @@ def endpoint(name):
         raise RuntimeError(f"endpoints.{name} is not in the private overlay (bromigos-private edit)")
     return v.rstrip("/") + ("/v1" if name == "litellm" and not v.rstrip("/").endswith("/v1") else "")
 
+def _aliases():
+    """The user's aliases from their profile (never written in this public repo)."""
+    try:
+        from holo.vector.persona import profile
+        return profile()["aliases"]
+    except Exception:
+        return []
+
+
 # ------------------------------------------------------------------ numbers said aloud
 _ONES = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen "
                                     "fourteen fifteen sixteen seventeen eighteen nineteen".split())}
@@ -86,8 +95,9 @@ _NARRATE = re.compile(r"\b(?:vector|he|the construct|my (?:iris|antennae|whips|c
 _PAREN_ACTION = re.compile(r"\((?:[a-z]+s|static|pause|beep|hum+|whirr*)\b[^)]{0,40}\)", re.I)
 
 
-def persona_problems(raw, max_words=None):
-    """-> list of rule breaks in a reply (raw, with voice markers)."""
+def persona_problems(raw, max_words=None, aliases_ok=False):
+    """-> list of rule breaks in a reply (raw, with voice markers). aliases_ok: the user asked who they
+    are, so naming their aliases is right."""
     from holo.vector import text as vtext
     t = vtext.strip_markers(raw or "")
     probs = []
@@ -101,8 +111,8 @@ def persona_problems(raw, max_words=None):
         probs.append("a speaker label")
     if _NARRATE.search(t) or _PAREN_ACTION.search(t):
         probs.append("narration or a stage direction")
-    if re.search(r"blackflame", t, re.I):
-        probs.append("named BLACKFLAME")
+    if not aliases_ok and any(re.search(r"(?<!\w)" + re.escape(a) + r"(?!\w)", t, re.I) for a in _aliases()):
+        probs.append("named an alias unasked")
     if re.search(r"arrival\s*(?:number|no\.?|#)\s*(?:is\s*)?\d[\d,]*|\barrival\s+\d[\d,]+|\b(?:number|no\.)\s*\d[\d,]{2,}\b", t, re.I):
         probs.append("gave an arrival number")
     if max_words is not None:

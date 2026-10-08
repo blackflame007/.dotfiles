@@ -137,6 +137,13 @@ games:
 operator:
     name: ENC[AES256_GCM,data:bKr2Yw==,iv:nw4xyWOjWzHFErgq7EN51y4HGN+esqXL78YGs3s/Myo=,tag:qZr222PqaXNdXW9L1p7EOA==,type:str]
     full_name: ENC[AES256_GCM,data:RMOGvqEEY6jfbmGPu5E3ug==,iv:jcHHCSzXRmtokyt/Q9tFcBPi41xklNq/koasE3c/ESs=,tag:T4yE8vks23FgPqCy2j392Q==,type:str]
+    pronouns: ENC[AES256_GCM,data:UB0H5IgF,iv:4BrAuzIUvhx09g+ekNTEoK40PdKSNJypnCSXA0AEE4M=,tag:eW+TkMZwXmIb8/1HKpZzOg==,type:str]
+    aliases:
+        - ENC[AES256_GCM,data:/mlYa0jRS6b9BA==,iv:T1wXxhjr6/QUgjwkDab/Aa9Jj7JCJNRYROKpIypWpaM=,tag:1Nc12rdSKUwFrMJSKVK3pQ==,type:str]
+        - ENC[AES256_GCM,data:by9IBcqMxwkfpU1IGA==,iv:qGttK1oVFwhZ1syDja1ZrpO/fEiCNx0hOrhIFsAEocc=,tag:29uAY5nlxkjAG7DwUkwD6Q==,type:str]
+    address:
+        - ENC[AES256_GCM,data:l1Hz,iv:vBGT6B1SWF9dgOF0tqhr5e5OBh7m17+v8gr02lH33Ps=,tag:rZ6KMd7bBuirH1abVSAnjw==,type:str]
+        - ENC[AES256_GCM,data:dCvhiCYCQw==,iv:vz01zd70FSpNErhh4b+J9QmGLAc6Ie/T9mBJkQr3laQ=,tag:qOT6ntvfZY3xMEyLzaWcNA==,type:str]
 sops:
     age:
         - enc: |
@@ -148,7 +155,7 @@ sops:
             QRY4Hg3PP7ywXyLNhGDt/VqBB/t3T2A2vp+WxhMFAvLQINvA63OI5A==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1ux5d8tpxlucm7gpyctc0skg0dwwt0qeu5vaadce8f7jqs6lr7szsjrc07f
-    lastmodified: "2026-10-07T01:14:41Z"
-    mac: ENC[AES256_GCM,data:pRVi53UXvreJolzhtxSAnKfgQ6O1xicD3ntTp9qmSA1/QeV53Hpu8UYXF0TKPCrrL/rGL1uL7ej6v4NKoRYhZB6a++Zf4C3Xa3ZaaR6tutqIpTzc9ouaz4gzCfgyXutawn0cOUeI5NM/LQV1X6jqjybekgyWNpmYh7nR0Ds+e7E=,iv:OYt9PHXZ4/in5rhX8qB1EEMr7867bp0rLsD+Ep4HpbE=,tag:L+QQ8beuUbuJRxVakd74Ig==,type:str]
+    lastmodified: "2026-10-08T07:38:39Z"
+    mac: ENC[AES256_GCM,data:q+gnHQadkWRsz+Tr2IYKrbTd+KFJ2mDcbKGbQaI8yIKhtH8e4ovZR+svrJgEZ4kra9RNUIFK0V+hW80QbSPqC5hQCh+b01nWUtUI53sjNO02dmaxXlvUW5azQZy9Rn1gOG2dYlA+jZ19NYZt+UVeDdRYjL2dTZyRma86wnfEM2I=,iv:6pkKZHgTMasLaKUazjpeCXESh/eM9sC08SMt5Ds5bdk=,tag:MvyZa+0iVSr8cSALzTNTSw==,type:str]
     unencrypted_suffix: _unencrypted
     version: 3.13.3

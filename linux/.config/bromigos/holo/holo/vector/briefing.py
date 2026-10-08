@@ -124,15 +124,34 @@ def _compose(system, facts, max_tokens=180):
         return scrub(strip_markers(json.load(r)["choices"][0]["message"]["content"])).strip()
 
 
-ALERT_STYLE = ("You are VECTOR, the caretaker on a line to the operator (call him 'Sir', or now and then 'Mr. 007'). Lab alerts just "
-               "started firing; the facts are below. In one or two short spoken sentences (under 40 words), say what "
-               "is wrong, where, and how serious, plainly; the most severe first. No markdown, no lists, no greeting, "
-               "no 'Lab here'. Only what the facts say.")
-BRIEF_STYLE = ("You are VECTOR, the caretaker on a line to the operator (call him 'Sir', or now and then 'Mr. 007'), greeting him as he "
-               "returns. From the facts below, give a brief of three or four short spoken sentences (under 80 words): "
-               "lead with anything broken or failed, then lab health, then ARBITER's paper results since he left, then "
-               "anything else worth knowing. Only what the facts say; if everything is fine, say so in one sentence. "
-               "No markdown, no lists.")
+def _style(p=None):
+    """'the caretaker on a line to …' with what to call the user, from their profile."""
+    from . import persona
+    p = persona.profile() if p is None else p
+    w = persona.words(p)
+    forms = p["address"]
+    if forms:
+        call = f"call {w['him']} '{forms[0]}'" + (f", or now and then '{forms[1]}'" if forms[1:] else "")
+    elif p["name"]:
+        call = f"call {w['him']} {p['name']}"
+    else:
+        call = "use no form of address and no name"
+    return f"You are VECTOR, the caretaker on a line to {w['ref']} ({call}; never 'host' or 'operator')", w
+
+
+def alert_style(p=None):
+    head, _ = _style(p)
+    return (head + ". Lab alerts just started firing; the facts are below. In one or two short spoken sentences "
+            "(under 40 words), say what is wrong, where, and how serious, plainly; the most severe first. No markdown, "
+            "no lists, no greeting, no 'Lab here'. Only what the facts say.")
+
+
+def brief_style(p=None):
+    head, w = _style(p)
+    return (head + f", greeting {w['him']} on {w['his']} return. From the facts below, give a brief of three or four "
+            "short spoken sentences (under 80 words): lead with anything broken or failed, then lab health, then "
+            f"ARBITER's paper results since {w['his']} last session, then anything else worth knowing. Only what the "
+            "facts say; if everything is fine, say so in one sentence. No markdown, no lists.")
 
 
 class Briefing:
@@ -165,7 +184,7 @@ class Briefing:
                 if new and not why:
                     facts = {"new": list(new.values()), "still_firing_total": len(now)}
                     try:
-                        text = _compose(ALERT_STYLE, facts, 120)
+                        text = _compose(alert_style(), facts, 120)
                     except Exception:
                         a = sorted(new.values(), key=lambda x: x.get("severity") != "critical")[0]
                         text = f"{a['name']} is firing{' in ' + a['where'] if a['where'] else ''}: {a['summary'] or 'no summary'}."
@@ -221,7 +240,7 @@ class Briefing:
         time.sleep(8)                                   # let him settle in (and the lock fade)
         facts = gather(away_s)
         try:
-            text = _compose(BRIEF_STYLE, facts, 220)
+            text = _compose(brief_style(), facts, 220)
         except Exception as e:
             text = f"Welcome back, sir. I couldn't put the brief together ({type(e).__name__})."
         st["last_brief"] = time.time()

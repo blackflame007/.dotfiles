@@ -18,8 +18,10 @@ Hard limits (enforced here, not by the prompt):
     names; the one write is appending to FIELD NOTES;
   * actions: launch an allowlisted app or an http(s) URL, toggle a widget panel, switch
     the den wallpaper, run a scanner pass, show a hologram;
-  * his own browser (browser.py): a separate Chrome he drives, never Sir's; no sensitive
-    sites, logins, purchases, downloads or uploads.
+  * his own browser (browser.py): a separate Chrome he drives, never the user's; no
+    sensitive sites, logins, purchases, downloads or uploads;
+  * the user's profile (set_profile): only its own fields (name, full_name, pronouns,
+    address, alias), through `bromigos profile` with a fixed argv; the CLI validates values.
 Every call is appended to ~/.local/state/bromigos/vector-audit.log (tool, args, ok, ms).
 """
 import calendar
@@ -115,7 +117,7 @@ EXHIBIT = {
 
 LAST_USER_TEXT = {"text": ""}          # the host's latest words (set by the brain each turn)
 PRIVATE_ARGS = {"remember": ("text",), "forget": ("what",), "gnosis_search": ("query",), "herdr_send": ("text",),
-                "browser_type": ("text",)}
+                "browser_type": ("text",), "set_profile": ("value",)}
 
 
 def _audit(name, args, ok, ms, size=0, err=None):
@@ -644,6 +646,76 @@ def my_setup():
     }
 
 
+# ------------------------------------------------------------------ the user's profile
+PROFILE_FIELDS = {  # field -> (bromigos profile argv words, actions, default action)
+    "name": (["set", "name"], ("set", "clear"), "set"),
+    "full_name": (["set", "full_name"], ("set", "clear"), "set"),
+    "pronouns": (["set", "pronouns"], ("set", "clear"), "set"),
+    "address": (["address"], ("prefer", "add", "remove"), "prefer"),
+    "alias": (["alias"], ("add", "remove"), "add"),
+}
+
+
+def _profile_memory(field, action, value):
+    """The short note filed to memory for a profile change."""
+    v = f'"{value}"'
+    return {("address", "prefer"): f"Profile: wants to be addressed as {v} first.",
+            ("address", "add"): f"Profile: also happy to be addressed as {v} now and then.",
+            ("address", "remove"): f"Profile: no longer wants to be addressed as {v}.",
+            ("alias", "add"): f"Profile: also goes by {v}.",
+            ("alias", "remove"): f"Profile: no longer goes by {v}.",
+            }.get((field, action)) or (f"Profile: cleared {field.replace('_', ' ')}." if action == "clear"
+                                       else f"Profile: {field.replace('_', ' ')} is {v}.")
+
+
+def set_profile(field, value="", action="", ui=None):
+    """Changes the user's own profile (bromigos profile …) and files a short memory of it.
+    Only these fields of ~/.config/bromigos/profile.toml; the CLI validates every value
+    (one line, at most 80 characters) and the argv is fixed, never a shell string."""
+    from . import persona
+    field = (field or "").strip().lower().replace("full name", "full_name").replace("aliases", "alias")
+    if field not in PROFILE_FIELDS:
+        return {"error": f"field must be one of {', '.join(PROFILE_FIELDS)}"}
+    words, actions, default = PROFILE_FIELDS[field]
+    action = (action or default).strip().lower()
+    if action not in actions:
+        return {"error": f"action for {field} must be one of {', '.join(actions)}"}
+    value = " ".join(str(value or "").split())
+    if action != "clear" and not value:
+        return {"error": "value is empty"}
+    b = persona.bromigos_bin()
+    if not b:
+        return {"error": "the bromigos command is not installed (package bromigos-core)"}
+    if action == "prefer":           # this form first, the others kept after it
+        rest = [x for x in persona.profile()["address"] if x.lower() != value.lower()]
+        argv = words + ["set", "--", value] + rest
+    elif action == "clear":
+        argv = words + ["--", ""]
+    elif field in ("address", "alias"):
+        argv = words + [action, "--", value]
+    else:
+        argv = words + ["--", value]
+    r = subprocess.run([b, "profile", "--json"] + argv, capture_output=True, text=True, timeout=10,
+                       stdin=subprocess.DEVNULL)
+    try:
+        doc = json.loads(r.stdout) if r.returncode == 0 else None
+    except ValueError:
+        doc = None
+    if not isinstance(doc, dict) or doc.get("schema") != 1:
+        err = (r.stderr or r.stdout).strip()[:200]
+        if "unknown command" in err:
+            err = "this bromigos is too old for profiles (update the bromigos-core package)"
+        return {"error": err or f"bromigos profile exited {r.returncode}"}
+    out = {"ok": True, "you": doc.get("you"), "addressed_as": doc.get("addressed_as")}
+    if ui is not None:
+        try:
+            ui("remember", {"text": _profile_memory(field, action, value), "category": "preference"})
+            out["remembered"] = True
+        except Exception as e:
+            out["remembered"] = f"not filed: {type(e).__name__}"
+    return out
+
+
 def time_now():
     now = dt.datetime.now().astimezone()
     return {"local": now.strftime("%A %d %B %Y, %H:%M:%S %Z"), "iso": now.isoformat(timespec="seconds"),
@@ -728,6 +800,13 @@ SPECS = {
                  "decisions, lab facts or recurring problems.", _p({"text": S, "category": S}, ["text"])),
     "forget": ("Remove something from your own long-term memory when the host asks you to forget it. what: a description "
                "of it, or 'that' for the last thing you filed.", _p({"what": S})),
+    "set_profile": ("Change the user's own profile: what you call them and who they are. Call it when they tell you "
+                    "('call me Captain', 'my pronouns are she/her', 'I also go by Ace', 'stop calling me that'). field: "
+                    "address (a form of address; action prefer = make it the usual one, the default; add = also use it "
+                    "now and then; remove), alias (another name they go by; add or remove), name, full_name or pronouns "
+                    "(action set, the default, or clear). value: the word or name exactly as they said it. It also "
+                    "files the change to your memory. Only for the user's own profile.",
+                    _p({"field": S, "value": S, "action": S}, ["field"])),
     "set_voice": ("Pin your voice on the line: auto (you pick per sentence, the default), or one of main, robot, scientist, "
                   "floor, notify. ALWAYS call this when the host asks to switch or change your voice ('switch to your robot "
                   "voice', 'back to normal' = auto); a marker in your reply does not switch it.",
@@ -957,6 +1036,8 @@ def call(name, args, ui=None, live=None):
             res = ui(name, args)
         elif name == "system_stats":
             res = system_stats(live)
+        elif name == "set_profile":                # fixed keywords: ui is never an argument
+            res = set_profile(args.get("field"), args.get("value", ""), args.get("action", ""), ui=ui)
         elif name in FUNCS:
             res = FUNCS[name](**args)
         else:
