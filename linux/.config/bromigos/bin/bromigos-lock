@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# bromigos-lock: lock the screen, and keep it locked if the locker crashes.
+#
+# Runs the screen locker (hyprlock, or $BROMIGOS_LOCKER). Exit 0 means Sir unlocked it
+# with his password: done. Anything else (a crash, a kill) means the session is still
+# locked with no lock screen on it, so the locker is started again at once; Hyprland's
+# misc.allow_session_lock_restore lets the new one take over. He always types his
+# password; this never unlocks anything.
+#
+# hypridle's lock_cmd runs this (Super+L and before-sleep go through loginctl
+# lock-session -> hypridle). One instance at a time (flock); a second call is a no-op.
+set -u
+run=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+exec 9>"$run/bromigos-lock.flock"
+flock -n 9 || exit 0
+locker=${BROMIGOS_LOCKER:-hyprlock}
+for try in $(seq 1 30); do
+    "$locker"
+    rc=$?
+    [ "$rc" -eq 0 ] && exit 0
+    logger -t bromigos-lock "$locker exited $rc while locked (try $try); starting it again"
+    sleep 0.5
+done
+logger -t bromigos-lock "$locker kept failing; giving up after 30 tries"
+exit 1
