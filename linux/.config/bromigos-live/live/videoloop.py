@@ -7,9 +7,10 @@ render thread uploads its two planes and converts them to premultiplied RGBA on 
 GPU (shaders/world_yuv.frag) when the loop's clock says a new frame is due. Decoding is
 hardware accelerated where ffmpeg can (`-hwaccel auto`: CUDA/NVDEC, VAAPI, Vulkan ...),
 except VP9 with an alpha channel, which only the software decoder (libvpx) reads (that
-one comes as RGBA). Measured (RTX 5070, a 1920x1080 30 fps high-motion test loop): about
-9% of one core in ffmpeg as NV12, against 41% converted to RGBA by ffmpeg; 1280x720 at
-24 fps or less keeps a backdrop within the live layer's budget.
+one comes as RGBA). A seamless loop is decoded once: its first pass is kept on the GPU as
+NV12 planes per frame and played from there, so no decoder runs and nothing is uploaded
+after it (a loop not drawn for a minute gives its VRAM back). One-shot clips stream: an
+ffmpeg process costs about 4-6% of a core while it runs, whatever the size.
 
 Pausing is free: the reader takes a frame only after the previous one was used, so when
 the layer stops rendering (locked, fullscreen, a deck on top) the pipe fills, ffmpeg
@@ -51,7 +52,7 @@ def probe(path):
 
 
 class VideoLoop:
-    def __init__(self, path, alpha=None, fps=None, scale=1.0, sync=False, once=False, mask=None):
+    def __init__(self, path, alpha=None, fps=None, scale=1.0, sync=False, once=False, mask=None, cache=True):
         self.path = path
         self.alpha = alpha or ("native" if path.lower().endswith(".webm") else "none")
         w, h, f = probe(path)
@@ -81,6 +82,13 @@ class VideoLoop:
         base = os.path.splitext(path)[0]
         self.mask_path = mask or next((base + "-mask" + e for e in (".png", ".webp") if os.path.isfile(base + "-mask" + e)), None)
         self.mask_tex = None
+        # A seamless loop is decoded once and kept on the GPU (NV12 planes per frame): after its
+        # first pass no decoder runs and nothing is uploaded. One-shot clips stream.
+        self.cache_on = cache and not once and self.nv12
+        self.frames = []
+        self.cached = False
+        self.ended = False
+        self.clock, self.shown = 0.0, -1
 
     # ---- decoding
     def _cmd(self):
@@ -90,7 +98,7 @@ class VideoLoop:
                 cmd += ["-c:v", "libvpx-vp9"]          # ffmpeg's own VP9 decoder drops the alpha
         else:
             cmd += ["-hwaccel", "auto"]
-        cmd += ([] if self.once else ["-stream_loop", "-1"]) + ["-i", self.path]
+        cmd += ([] if (self.once or self.cache_on) else ["-stream_loop", "-1"]) + ["-i", self.path]
         fh = self.h * 2 if self.alpha == "stacked" else self.h     # stacked: both halves
         if self.nv12:
             cmd += ["-vf", f"scale={self.w}:{fh}"] if (self.w, fh) != self._src_size() else []
@@ -147,10 +155,16 @@ class VideoLoop:
         """Advance the loop's clock by dt (the frame's time) and upload a new frame when one is
         due. Returns the texture (None until the first frame arrives)."""
         self.last_use = time.monotonic()
-        if self.proc is None:
+        if self.proc is None and not self.cached:
             self._start()
         self.clock += max(0.0, min(dt, 0.25))
         due = int(self.clock * self.fps)
+        if self.cached:                                    # playing from the GPU
+            k = due % len(self.frames)
+            if k != self.shown:
+                self._convert(self.frames[k])
+                self.shown = k
+            return self.tex
         if due != self.shown:
             if self.sync and not self.ended:
                 self.ready.wait(5.0)
@@ -161,6 +175,11 @@ class VideoLoop:
                 self._upload(buf)
                 self.shown = due
                 self.taken.set()
+            elif self.cache_on and self.ended and self.frames:
+                self.cached = True                         # the whole loop is on the GPU: stop decoding
+                self.close(keep_texture=True)
+                self.clock = 0.0
+                self.shown = -1
         return self.tex
 
     def finished(self):
@@ -208,44 +227,56 @@ class VideoLoop:
         GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
         GL.glTexSubImage2D(GL.GL_TEXTURE_2D, 0, 0, 0, self.w, self.h, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, a)
 
+    def _new_planes(self):
+        fh = self.h * 2 if self.alpha == "stacked" else self.h
+        planes = GL.glGenTextures(2)
+        for t, (fmt, w, h) in zip(planes, ((GL.GL_R8, self.w, fh), (GL.GL_RG8, self.w // 2, fh // 2))):
+            GL.glBindTexture(GL.GL_TEXTURE_2D, t)
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, fmt, w, h, 0, GL.GL_RED if fmt == GL.GL_R8 else GL.GL_RG,
+                            GL.GL_UNSIGNED_BYTE, None)
+            for p, v in ((GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR), (GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR),
+                         (GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE), (GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)):
+                GL.glTexParameteri(GL.GL_TEXTURE_2D, p, v)
+        return list(planes)
+
     def _upload_nv12(self, buf):
-        """The frame's Y and UV planes into two textures, converted into the RGBA target."""
+        """The frame's Y and UV planes into textures (their own, kept, while a loop's first pass is
+        being cached), then converted into the RGBA target."""
         from . import glkit
         fh = self.h * 2 if self.alpha == "stacked" else self.h
         if self.target is None:
             self.target = glkit.Target(self.w, self.h)
             self.tex = self.target.tex
-            self.planes = GL.glGenTextures(2)
-            for t, (fmt, w, h) in zip(self.planes, ((GL.GL_R8, self.w, fh), (GL.GL_RG8, self.w // 2, fh // 2))):
-                GL.glBindTexture(GL.GL_TEXTURE_2D, t)
-                GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, fmt, w, h, 0, GL.GL_RED if fmt == GL.GL_R8 else GL.GL_RG,
-                                GL.GL_UNSIGNED_BYTE, None)
-                for p, v in ((GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR), (GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR),
-                             (GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE), (GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)):
-                    GL.glTexParameteri(GL.GL_TEXTURE_2D, p, v)
+            self.planes = self._new_planes()
             VideoLoop._prog = getattr(VideoLoop, "_prog", None) or glkit.program("fs.vert", "world_yuv.frag")
             VideoLoop._fs = getattr(VideoLoop, "_fs", None) or glkit.Fullscreen()
+        planes = self._new_planes() if self.cache_on else self.planes
         a = np.frombuffer(buf, np.uint8)
         ysz = self.w * fh
         GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.planes[0])
+        GL.glBindTexture(GL.GL_TEXTURE_2D, planes[0])
         GL.glTexSubImage2D(GL.GL_TEXTURE_2D, 0, 0, 0, self.w, fh, GL.GL_RED, GL.GL_UNSIGNED_BYTE, a[:ysz])
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.planes[1])
+        GL.glBindTexture(GL.GL_TEXTURE_2D, planes[1])
         GL.glTexSubImage2D(GL.GL_TEXTURE_2D, 0, 0, 0, self.w // 2, fh // 2, GL.GL_RG, GL.GL_UNSIGNED_BYTE, a[ysz:])
-        prev_fbo = GL.glGetIntegerv(GL.GL_DRAW_FRAMEBUFFER_BINDING)
-        prev_vp = GL.glGetIntegerv(GL.GL_VIEWPORT)
+        if self.cache_on:
+            self.frames.append(planes)
+        self._convert(planes)
+
+    def _convert(self, planes):
+        """NV12 planes to the premultiplied RGBA target. Called at the start of a frame, before any
+        pass binds its own target, so nothing needs restoring but the blend state."""
         blend = GL.glIsEnabled(GL.GL_BLEND)
         GL.glDisable(GL.GL_BLEND)
         self.target.bind()
         p = VideoLoop._prog
         p.use()
         GL.glActiveTexture(GL.GL_TEXTURE0)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.planes[0])
+        GL.glBindTexture(GL.GL_TEXTURE_2D, planes[0])
         GL.glActiveTexture(GL.GL_TEXTURE1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, self.planes[1])
+        GL.glBindTexture(GL.GL_TEXTURE_2D, planes[1])
         mt = self._mask()
         GL.glActiveTexture(GL.GL_TEXTURE2)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, mt or self.planes[0])
+        GL.glBindTexture(GL.GL_TEXTURE_2D, mt or planes[0])
         p.i("u_y", 0)
         p.i("u_uv", 1)
         p.i("u_mask", 2)
@@ -254,12 +285,21 @@ class VideoLoop:
         p.f("u_bt709", 1.0 if self.h > 576 else 0.0)
         VideoLoop._fs.draw()
         GL.glActiveTexture(GL.GL_TEXTURE0)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, int(prev_fbo))
-        GL.glViewport(*[int(x) for x in prev_vp])
         if blend:
             GL.glEnable(GL.GL_BLEND)
 
+    def _free_frames(self):
+        for planes in self.frames:
+            try:
+                GL.glDeleteTextures(planes)
+            except Exception:
+                pass
+        self.frames = []
+        self.cached = False
+
     def idle_check(self, now, after=20.0):
+        if self.cached and now - self.last_use > 60.0:     # a loop not drawn for a minute gives its VRAM back
+            self._free_frames()
         """Stop the decoder of a loop that hasn't been drawn for a while (it restarts on use)."""
         if self.proc is not None and now - self.last_use > after:
             self.close(keep_texture=True)
@@ -277,6 +317,8 @@ class VideoLoop:
         self.stop = threading.Event()
         self.taken = threading.Event()
         self.taken.set()
+        if not keep_texture:
+            self._free_frames()
         if not keep_texture and self.tex is not None:
             try:
                 if self.target is not None:

@@ -20,7 +20,8 @@ void main() {
     vec4 s = texture(u_atlas, uv);
     bool emissive = v_a4.w > 0.5;                    // an emissive mask: light, not lit by the hour
     vec3 c = emissive ? v_a3.rgb * s.a * v_a4.z
-                      : (mix(s.rgb, v_a3.rgb * s.a, v_a3.a) * u_grade.rgb + u_lift * s.a) * v_a4.z * (1.0 + u_flash);
+                      : (mix(s.rgb, v_a3.rgb * dot(s.rgb, vec3(0.3, 0.59, 0.11)) * 1.7, v_a3.a) * u_grade.rgb + u_lift * s.a)
+                        * v_a4.z * (1.0 + u_flash);     // a tint keeps the art's light and shade (glow loops on black too)
     float m = v_a2.y;                                // the instance's alpha (premultiplied art)
     if (v_a2.z > 0.0) {
         float under = v_y0 - v_a2.z;                 // > 0 below the water line
