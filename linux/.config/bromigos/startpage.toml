@@ -1,0 +1,11 @@
+# My start page (bromigOS's, package bromigos-desktop; docs/desktop.md "Start page").
+# The page folder stays where my browsers already point (LibreWolf's user.js and the
+# new-tab extension load it from here); the packaged snapshot fills it every minute.
+dir = "~/.config/bromigos/startpage"
+
+# ARBITER's console: its address is in my encrypted private overlay (endpoints.arbiter)
+[[link]]
+id = "arbiter"
+name = "ARBITER"
+role = "The Floor: ARBITER console"
+endpoint = "arbiter"

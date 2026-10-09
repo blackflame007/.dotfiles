@@ -41,7 +41,7 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 | Live layer | package `bromigos-live` (bromigOS `live/`); here `bromigos-live/` (config.toml, launcher), `bromigos/plugins/live/` (the ARBITER deck, replay, Netmap, Ops, Mind) | The animated background behind every window, the summoned decks and holograms, event animations, codec calls, the screensaver, sounds | `../bromigos-live/README.md`; bromigOS `live/README.md`, `live/docs/ELEMENTS.md`, `docs/plugins.md` |
 | VECTOR and the holo daemon | package `bromigos-vector` (bromigos-org/vector); here `bromigos/vector/` (his settings, kb-sync, make-refs), `bromigos/plugins/vector/` (Gnosis) | VECTOR (chat, voice, memory, tools, his terminal), the shared 3D hologram renderer and the model gallery | vector repo `README.md` |
 | Skills | `bromigos/skills/` | Markdown know-how VECTOR loads on demand (how the desktop is built, its data sources, homelab ops) | each file's frontmatter |
-| Start page | `bromigos/startpage/` | The browsers' home and new-tab page | this file, "Start page" |
+| Start page | `bromigos/startpage.toml` (my links; the page is bromigOS's, filled into `bromigos/startpage/`) | The browsers' home and new-tab page | bromigOS docs/desktop.md, "Start page" |
 | Login screen | `bromigos/sddm/` | The SDDM theme at boot: the lock screen's den, burn-in and clock plus account, session and power; no live data; installed by `sddm/install.sh` with sudo | `sddm/bromigos/README.md` |
 | Razer integration | `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-knob`, `bromigos/bin/bromigos-rgb` | Macro keys and the dial bound to the desktop; lighting follows VECTOR | this file, "Razer" |
 | Shell | `zsh/.config/zsh/zsh-bromigos` (the banner is bromigOS's `bromigos-banner`; its emblem the theme's kit) | Prompt colours and the `bromigos` banner | `zsh/.config/zsh/AGENTS.md` |
@@ -120,7 +120,7 @@ flowchart LR
 | Knowledge base sync state | `~/.local/state/bromigos/kb-sync.json` | `holo/tools/kb-sync.py` | a full re-sync (about 7 min) |
 | Live layer history | `~/.local/state/bromigos-live/history.npz`, `events.jsonl` (72 h), `swarm-seen.json`, `live.log` | the live layer | history restarts empty |
 | Caches | `~/.cache/bromigos/` (TTS lines, emblem text), `~/.cache/bromigos-live/` (clean plate, kb chart, CI, Drift map layout) | on demand | rebuilt automatically |
-| Start page data | `bromigos/startpage/data.js` (gitignored) | `bromigos-startpage.timer` | next minute |
+| Start page data | `bromigos/startpage/` (all generated, gitignored but librewolf-user.js) | `bromigos-startpage.timer` (packaged) | next minute |
 | Runtime | `$XDG_RUNTIME_DIR/bromigos-*` (sockets, pid, the event feed, VECTOR's state) | the daemons | recreated on start |
 | KDE colour config | `~/.config/kdeglobals` (untracked) | `plasma-apply-colorscheme Bromigos` | rerun it |
 
@@ -169,10 +169,12 @@ braille), its `settings/gtk/` builders (GTK themes, icons, cursor) and
 
 ## Start page
 
-`bromigos/startpage/index.html`: search, the switchboard of homelab links with up/down,
-Lab status, the latest FIELD NOTES and a clock. A page can't read local files or send
-the Lab token, so `snapshot.py` writes `data.js` every minute from
-`bromigos-startpage.timer`; the token never reaches the page.
+bromigOS's start page (package bromigos-desktop; its docs/desktop.md "Start page"):
+search, the switchboard of homelab links with up/down, lab status, the latest FIELD NOTES
+and a clock. Its packaged snapshot (`bromigos-startpage.timer`) fills
+`bromigos/startpage/` every minute: the page, the theme's colours and emblem, and
+`data.js`; the token never reaches the page. Mine: `bromigos/startpage.toml` (the folder
+stays here, where my browsers point, plus the ARBITER link) and `librewolf-user.js`.
 
 - **LibreWolf:** `librewolf-user.js` is linked as the profile's `user.js`, so Home and
   new windows open the page. For new tabs: load `startpage/manifest.json` as a temporary

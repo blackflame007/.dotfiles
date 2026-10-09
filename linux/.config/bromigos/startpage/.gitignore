@@ -1,2 +1,6 @@
-data.js
-data.js.tmp
+# The start page itself is bromigOS's (package bromigos-desktop): its snapshot keeps this
+# folder (startpage.toml dir) with the packaged page, the theme's colours and data.js.
+# Only my LibreWolf prefs are mine.
+*
+!.gitignore
+!librewolf-user.js
