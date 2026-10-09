@@ -22,8 +22,8 @@ my settings (`bromigos-live/config.toml`, `bromigos/widgets/layout.json`,
 Ops, Mind, GAME SERVERS, Gnosis), my Razer bits (`hypr/bromigos/razer.lua`,
 `bromigos/bin/bromigos-{knob,rgb}`, `vector-converse`), my backup config
 (`bromigos/system/`), my likeness and personal brand (`bromigos/brand/`, my den variants in
-`~/.config/wallpaper/`), VECTOR's 3D models (`bromigos/brand/3d/`, read in place by his
-gallery and build loop) and my copies of his skills (`bromigos/skills/`). Still here until
+`~/.config/wallpaper/`), my own hologram models (`bromigos/vector/holo/`: the ARBITER monolith; VECTOR's
+workstation, wick and emblem ship in bromigos-vector, the rack in bromigos-homelab) and my copies of his skills (`bromigos/skills/`). Still here until
 their own moves: `bromigos/{gtk,sddm,startpage}/` (bromigOS packages them as
 `bromigos-settings`) and the lock screen's full copies (`gtklock/`, `hypr/hyprlock.conf`).
 
@@ -34,7 +34,8 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 
 | Piece | Where (in `~/.config`, from `linux/.config`) | What it is | Docs |
 |-------|-------|------------|------|
-| My brand kit | `bromigos/brand/` (bromigOS's own brand and the emblem are in bromigOS: `brand/`, `themes/*/emblem/`, `bromigos emblem build`) | My portraits, wordmarks, overlays and sting, my lab's and ARBITER's marks, VECTOR's 3D models | `brand/README.md`, `brand/3d/README.md` |
+| My brand kit | `bromigos/brand/` (bromigOS's own brand and the emblem are in bromigOS: `brand/`, `themes/*/emblem/`, `bromigos emblem build`) | My portraits, wordmarks, overlays and sting, my lab's and ARBITER's marks | `brand/README.md` |
+| My hologram models | `bromigos/vector/holo/` (VECTOR's own ship in bromigos-vector, the rack in bromigos-homelab) | The ARBITER monolith: source GLB, concept, parts, the baked file | `vector/holo/README.md` |
 | Theme | `hypr/`, `waybar/`, `rofi/`, `dunst/`, `bromigos/gtk/`, `~/.local/share/{themes,icons,color-schemes}` | Hyprland look, bar, launcher, notifications, GTK/Qt themes, cursor, lock and idle | this file, "Theme" |
 | Widgets | package `bromigos-widgets` (bromigOS `widgets/`); here `bromigos/widgets/` (layout.json, launcher), `bromigos/plugins/widgets/` | Seven GTK layer-shell panels on the BOTTOM layer: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS, plus plugin panels (GAME SERVERS) | `widgets/README.md`, bromigOS `widgets/README.md`, `docs/plugins.md` |
 | Live layer | package `bromigos-live` (bromigOS `live/`); here `bromigos-live/` (config.toml, launcher), `bromigos/plugins/live/` (the ARBITER deck, replay, Netmap, Ops, Mind) | The animated background behind every window, the summoned decks and holograms, event animations, codec calls, the screensaver, sounds | `../bromigos-live/README.md`; bromigOS `live/README.md`, `live/docs/ELEMENTS.md`, `docs/plugins.md` |
@@ -110,7 +111,7 @@ flowchart LR
 |------|-------|---------|---------|
 | Private values (internal URLs, LAN hosts, Vault paths, netmap) | `../private.sops.yaml` (encrypted, in git) → `~/.config/bromigos/private/` (`config.json`, `env`, `NOTES.md`) | `bromigos-private decrypt` (at login) | `bromigos-private decrypt`; the age key at `~/.config/sops/age/keys.txt` is backed up in Vault (see the private notes) |
 | Keys and tokens | `~/.local/share/bromigos/*-token`, `*-key`, `*-kubeconfig`, `vault-vector-*` | `bromigos-secrets sync`, from Vault (paths in the private overlay's `secrets:` manifest) | `bromigos-secrets sync`; see AGENTS.md, "Private values" |
-| Python environments | `~/.local/share/bromigos/venv` (3D model baking), `venv-brain` (VECTOR's Pydantic AI brain, with system site packages), `venv-tts` (speech: Python 3.12, torch) | by hand | `venv`: the `uv` command in `brand/3d/README.md`; `venv-brain` and `venv-tts`: their packages are listed in `holo/README.md` (no one-line recreate script yet) |
+| Python environments | `~/.local/share/bromigos/venv` (3D model baking), `venv-brain` (VECTOR's Pydantic AI brain, with system site packages), `venv-tts` (speech: Python 3.12, torch) | by hand | `venv`: the `uv` command in `/usr/share/bromigos/vector/holo/README.md`; `venv-brain` and `venv-tts`: their packages are listed in `holo/README.md` (no one-line recreate script yet) |
 | Voice models | `~/.local/share/bromigos/voice/` (Kokoro, Silero VAD), `voices/` (VECTOR's voice references) | `holo/voices/make-refs.py` | re-render (`holo/voices/README.md`) |
 | FIELD NOTES | `~/.local/share/bromigos/notes.md` | the operator | not recoverable: back it up |
 | Wallpaper choice | `~/.local/state/bromigos/wallpaper/{den,lock}.jpg`, `variant` | `bromigos-wallpaper` | `bromigos-wallpaper den` |
@@ -123,8 +124,8 @@ flowchart LR
 | Runtime | `$XDG_RUNTIME_DIR/bromigos-*` (sockets, pid, the event feed, VECTOR's state) | the daemons | recreated on start |
 | KDE colour config | `~/.config/kdeglobals` (untracked) | `plasma-apply-colorscheme Bromigos` | rerun it |
 
-Generated assets in git are rebuilt with `brand/3d/tools/bake.py` (models, here); the
-rest are bromigOS's: `bromigos emblem build --theme DIR` (emblem kits and the banner's
+Generated assets in git are rebuilt with VECTOR's `/usr/lib/bromigos/vector/tools/holo/bake.py --root
+bromigos/vector/holo` (my models, here); the rest are bromigOS's: `bromigos emblem build --theme DIR` (emblem kits and the banner's
 braille), its `settings/gtk/` builders (GTK themes, icons, cursor) and
 `live/tools/make-starship.py` (the swarm's ship).
 

@@ -13,7 +13,7 @@ when_to_use: "Sir asks to change, fix, restyle or extend an existing panel, gaug
 | SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, SHORTCUTS panels | bromigOS `widgets/panels.py` (+ `draw.py`, `sources.py`) | `widgets/bromigos-widgets render <name> out.png` |
 | A widget plugin | `widgets/plugins/<name>.py` | same, with the file path |
 | VECTOR's console and construct | `holo/holo/vector/scene.py`, `avatar.py` | `holo/tools/offscreen.py vector out.png` |
-| The gallery (SUPER+O), models | `holo/holo/gallery.py`, `stage.py`, `render.py`; models `brand/3d/` | `holo/tools/offscreen.py gallery out.png <model>` |
+| The gallery (SUPER+O), models | `holo/holo/gallery.py`, `stage.py`, `render.py`; models: the hologram collections (`~/.config/bromigos/vector/holo/` mine, `/usr/share/bromigos/{homelab,vector}/holo/`) | `holo/tools/offscreen.py gallery out.png <model>` |
 | Background, decks (SUPER+H, Mind, Ops, …) | bromigOS `live/live/` (installed: `/usr/lib/bromigos/live/live/`) | `/usr/lib/bromigos/live/tools/offscreen.py <kind> out.png` |
 | A background shader layer | `bromigos-live/layers/` | `python3 -m live.plugins test-layer` |
 | The login screen (SDDM, before anyone signs in) | `linux/.config/bromigos/sddm/bromigos/` (QML), `sddm/build.py` | `build.py OUT --test-shots DIR`, then `sddm-greeter-qt6 --test-mode` offscreen (its README) |
