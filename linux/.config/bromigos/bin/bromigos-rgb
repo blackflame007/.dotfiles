@@ -20,9 +20,7 @@ from openrazer.client import DeviceManager
 RUNTIME = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 STATE = os.path.join(RUNTIME, "bromigos-vector.json")
 SOCK = os.path.join(RUNTIME, "bromigos-holo.sock")
-VOICE_JSON = next((p for p in map(os.path.expanduser, ("~/.config/bromigos/vector/voice.json",   # VECTOR's (bromigos-vector)
-                                                          "~/.config/bromigos/holo/voice.json")) if os.path.exists(p)),
-                  os.path.expanduser("~/.config/bromigos/vector/voice.json"))
+VOICE_JSON = os.path.expanduser("~/.config/bromigos/vector/voice.json")   # VECTOR's (bromigos-vector)
 PHOSPHOR, AMBER, DANGER = "#39ff14", "#d4af37", "#ff766f"
 REST_BRIGHTNESS, ACTIVE_BRIGHTNESS = 55, 100
 

@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# bromigos-holo: VECTOR is bromigOS's package now (bromigos-vector, from bromigos-org/vector;
-# installed in /usr/lib/bromigos/vector). Everything that calls this path (Hyprland, the
-# keybinds, waybar, the live layer, the knob, the session tools, ~/.local/bin/vector) is
-# handed to it. His settings here: ~/.config/bromigos/vector/ (voice.json, eyes.json,
-# vector.toml); his plugins: ~/.config/bromigos/plugins/vector/ (Gnosis).
-if [ -x /usr/bin/bromigos-holo ]; then exec /usr/bin/bromigos-holo "$@"; fi
-echo "bromigos-holo is not installed: sudo pacman -S bromigos-vector (the [bromigos] repo)" >&2
-exit 127

@@ -4,6 +4,14 @@ The operator's dotfiles (public repo `blackflame007/.dotfiles`, branch `master`)
 `README.md` for installing; this file is for agents and contributors. The Linux side is the
 **Bromigos desktop**: its map is below, its architecture is `linux/.config/bromigos/README.md`.
 
+
+**What lives where.** The desktop is bromigOS (pacman packages from `bromigos-org/bromigOS`
+and `bromigos-org/vector`); this repo holds only what's mine: thin configs over bromigOS's
+defaults, my settings, the encrypted private overlay, my plugins (ARBITER and the rest),
+my Razer bits, my backup config, my likeness and personal brand, VECTOR's 3D models and my
+copies of his skills. Engine changes belong in bromigOS, not here. The full list:
+`linux/.config/bromigos/README.md`, "What lives where".
+
 ## OVERVIEW
 
 GNU Stow-managed dotfiles for Arch Linux and macOS. Zsh (custom plugin loader, no framework), Neovim (lazy.nvim, 100+ plugins), tmux (tpm), Hyprland/Yabai window managers. 5 git submodules for nvim config, zsh plugins, and private configs.
@@ -68,7 +76,7 @@ Each top-level directory mirrors `$HOME`. Running `stow common` creates symlinks
 - **Submodules** for independently-versioned configs (nvim, zsh plugins, private)
 - **No framework** for zsh — custom `zsh_add_plugin()` / `zsh_add_file()` loader functions
 - **Font**: MesloLGM Nerd Font, 16pt in the terminals (kitty + alacritty); Geist Mono for the desktop HUD
-- **Color theme**: the Bromigos palette (`linux/.config/bromigos/brand/palette.*`); on Linux the apps read bromigOS's active theme (`bromigos theme`, `~/.local/state/bromigos/theme/current/`), kitty on macOS `bromigos-macos.conf`; tokyonight-night (neovim)
+- **Color theme**: the Bromigos palette (bromigOS's `brand/palette.*`, the Wick's); on Linux the apps read bromigOS's active theme (`bromigos theme`, `~/.local/state/bromigos/theme/current/`), kitty on macOS `bromigos-macos.conf`; tokyonight-night (neovim)
 - **Commit style**: `Added:`, `Updated:`, `Removed:`, `Fixed:` prefix
 - **Public repo**: no private infrastructure details and no secrets in plaintext; see "Private values" below
 
@@ -78,7 +86,7 @@ The rule, for every helper and for VECTOR: nothing that maps the operator's lab 
 
 - **Where private values live:** `linux/.config/bromigos/private.sops.yaml`, committed **encrypted** with sops + age (recipient pinned in `.sops.yaml`). Keys stay readable and values are `ENC[...]`. At login `bromigos-private.service` decrypts it to `~/.config/bromigos/private/` (gitignored, 0600): `config.json` (all of it), `env` (its `env:` section, sourced by `zsh-exports`) and `NOTES.md` (the private runbook: addresses, hosts, which Vault path holds what). `bromigos-private.path` re-decrypts after a `git pull` changes the file. The age private key is `~/.config/sops/age/keys.txt` (0600, never committed). A backup is in Vault; the private notes say where and how to restore it.
 - **Add or change a value:** `bromigos-private edit` (this is `sops edit` on the file, then decrypt), then commit the encrypted file. Sections: `endpoints.*` (base URLs: `lab`, `arbiter`, `prometheus`, `grafana`, `argocd`, `litellm`, `gnosis_gate`, `searxng`, `tts`, `vault`, `pelican`), `games.minecraft_ping` (the Minecraft proxy's public `host:port`, for GAME SERVERS' player names), `lan.*` (`domain`, `ping` list for the radar, `ssh_host`), `netmap.*` (gateway/switch/AP models and IPs, `roles`, `aliases`, `show_prefixes`, `show_hosts`), `vault.root`, `vault.paths.*`, `paths.*` (`admin_kubeconfig`, `homelab_repo`), `env.*`, `secrets` (the manifest below), `guard.patterns`, `docs.*`. `operator.*` (`name`, `full_name`, `aliases`, `address`, `pronouns`) says who the operator is and what VECTOR calls him: `bromigos-private decrypt` seeds the user profile `~/.config/bromigos/profile.toml` (gitignored; `bromigos profile`) from it when there is no profile, and never overwrites one, so the public code holds no names.
-- **Read them in code** through `linux/.config/bromigos/lib/bromigos_private.py`: `P.url("lab", "/api/status")`, `P.get("lan.ping", [])`, `P.vault("lab_api")`, `P.path("admin_kubeconfig")`. The holo package has `holo/private.py` (`PRIV`, plus `fill()` for `{{endpoints.lab}}` placeholders in prompts), and bromigos-live has `live/config.py` (`PRIV`; radial items take `endpoint = "<name>"`). Every caller passes a neutral default (empty), so a fresh clone without the key runs and just shows "not configured".
+- **Read them in code** through `bromigos_private` (bromigOS, `/usr/lib/bromigos/lib/bromigos_private.py`; `bromigos private decrypt|edit|status` and `bromigos secrets sync|status` manage the overlay and the Vault files): `P.url("lab", "/api/status")`, `P.get("lan.ping", [])`, `P.vault("lab_api")`, `P.path("admin_kubeconfig")`. The holo package has `holo/private.py` (`PRIV`, plus `fill()` for `{{endpoints.lab}}` placeholders in prompts), and bromigos-live has `live/config.py` (`PRIV`; radial items take `endpoint = "<name>"`). Every caller passes a neutral default (empty), so a fresh clone without the key runs and just shows "not configured".
 - **Docs and skills** name the key instead of the value, e.g. "the Lab URL is `endpoints.lab`". Skills can write `{{endpoints.lab}}`; VECTOR's skill loader fills it in, and other readers find the value in `~/.config/bromigos/private/config.json`.
 - **Real secrets never go in the repo, not even encrypted.** Tokens, keys and kubeconfigs stay in Vault. `bromigos-secrets sync` copies each one to a 0600 file in `~/.local/share/bromigos/`, using the `secrets:` manifest (file → Vault path#key) that sits inside the encrypted file. It logs in with `$VAULT_TOKEN`, then the operator's `~/.vault-token`, then VECTOR's AppRole. It never prints a value and never blanks a file it can't read. `bromigos-secrets.service` runs it at login, and `bromigos-secrets status` lists the files.
 - **The guard:** `.githooks/pre-commit` (turn it on with `.githooks/install`, which sets `core.hooksPath`; `./install` does this) runs `lib/privacy_guard.py check-staged` on every commit. It blocks private IPv4 addresses, internal DNS names, MAC addresses, token shapes (plus gitleaks when installed) and the lab's own names from `guard.patterns`. It also checks that every `*.sops.*` file carries sops metadata and only `ENC[...]` values. `.github/workflows/privacy.yml` runs the same check over the whole tree, plus gitleaks over the pushed commits, with the lab patterns from the `PRIVACY_PATTERNS` repo secret. VECTOR's build guard and shell push check use the same patterns. A reviewed false positive can end its line with `privacy: allow`. Never use `--no-verify` to get real details in.
@@ -111,7 +119,7 @@ The Hyprland desktop is the operator's control center, styled as the Wick (BLACK
 
 | Piece | Where (under `linux/.config/`) | Docs |
 |-------|-------|------|
-| Brand kit: palette, the burn-in emblem, logos, portraits, icons, wallpapers, 3D models | `bromigos/brand/`, `bromigos/identity.json`, `bromigos/bin/bromigos-emblem` | `bromigos/brand/README.md`, `brand/3d/README.md` |
+| My brand kit: portraits, wordmarks, overlays, my lab's and ARBITER's marks, VECTOR's 3D models (bromigOS's own brand, palette and emblem kits are in bromigOS) | `bromigos/brand/` | `bromigos/brand/README.md`, `brand/3d/README.md` |
 | Theme: Hyprland, bar, launcher, notifications, lock/idle, GTK/Qt themes, cursor | `hypr/`, `waybar/`, `rofi/`, `dunst/`, `bromigos/gtk/`, `../.local/share/` | `bromigos/README.md` "Theme" |
 | Hyprland config (Lua: binds, rules, devices, autostart; switch/rollback, dispatch helper) | `hypr/hyprland.lua`, `hypr/bromigos/*.lua`, `bromigos/bin/bromigos-{hyprconfig,dispatch}` | `bromigos/skills/hyprland-config.md` |
 | Widgets: SYSTEM, NETWORK, STORAGE, LAB, WORKBENCH, FIELD NOTES, SHORTCUTS (package `bromigos-widgets`, code in bromigOS `widgets/`); GAME SERVERS (plugin) | `bromigos/widgets/` (layout.json, launcher), `bromigos/plugins/widgets/` | `bromigos/widgets/README.md`, bromigOS `widgets/README.md`, `docs/plugins.md` |
@@ -122,7 +130,7 @@ The Hyprland desktop is the operator's control center, styled as the Wick (BLACK
 | Login screen (SDDM theme, matches the lock screen) | `bromigos/sddm/` (theme in `bromigos/`, `build.py`, `install.sh` run with sudo) | `bromigos/sddm/bromigos/README.md` |
 | Razer keyboard and mouse (macro keys, dial, lighting) | `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-{knob,rgb}` | `bromigos/README.md` "Razer" |
 | Services and timers | `systemd/user/bromigos-*` | `bromigos/README.md` "Services" |
-| Wallpaper switcher, capture, shell banner | `bromigos/bin/bromigos-{wallpaper,shot,rec}`, `bromigos/shell/` | script headers, `zsh/.config/zsh/AGENTS.md` |
+| Wallpaper switcher, capture, shell banner (bromigOS, package bromigos-desktop; my den variants in `wallpaper/.config/wallpaper/`) | `/usr/bin/bromigos-{wallpaper,shot,rec,banner}` | script headers, `zsh/.config/zsh/AGENTS.md` |
 | Doc tooling | `bromigos/bin/bromigos-docs` | its header |
 
 ### How they talk (summary)

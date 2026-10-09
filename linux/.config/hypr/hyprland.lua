@@ -1,9 +1,8 @@
 -- Hyprland (Lua, Hyprland >= 0.55): bromigOS's defaults (package bromigos-desktop), then mine.
 -- The defaults and every setting are described in /usr/share/bromigos/default/hypr/hyprland.lua.
--- Hyprland loads this file when it exists and only falls back to hyprland.conf (the old
--- format, kept for rollback) when it doesn't; switch and roll back with
--- ~/.config/bromigos/bin/bromigos-hyprconfig. Saving reloads Hyprland; errors show in
--- `hyprctl configerrors`. Check first: Hyprland --verify-config -c ~/.config/hypr/hyprland.lua
+-- Saving reloads Hyprland; errors show in `hyprctl configerrors`. Check first:
+-- Hyprland --verify-config -c ~/.config/hypr/hyprland.lua (and for several files at once,
+-- `hyprctl keyword misc:disable_autoreload true` before, one `hyprctl reload` after).
 
 bromigos = {
     mod = "ALT",

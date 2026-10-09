@@ -30,7 +30,7 @@ K.exec("XF86AudioMicMute", "pactl set-source-mute @DEFAULT_SOURCE@ toggle",
 -- 191-202, so nothing else changes.
 local razer = { device = { list = { "razer-blackwidow" } } }       -- the tag set above
 local razer_release = { release = true, device = razer.device }
-local holo = "~/.config/bromigos/holo/bin/bromigos-holo"
+local holo = "bromigos-holo"   -- VECTOR (bromigos-vector)
 for _, p in ipairs({ "/usr/bin/bromigos-holo", "/usr/lib/bromigos/vector/bin/bromigos-holo" }) do
     local f = io.open(p, "r")
     if f then

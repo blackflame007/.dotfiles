@@ -36,7 +36,7 @@ import urllib.error
 import urllib.request
 
 HOME = os.path.expanduser("~")
-sys.path.insert(0, os.path.join(HOME, ".config/bromigos/lib"))
+sys.path[:0] = ["/usr/lib/bromigos/lib", os.path.join(HOME, ".config/bromigos/lib")]   # bromigos_private: bromigos-core
 import bromigos_private as PRIV  # noqa: E402  the operator's private values (empty on a fresh clone)
 
 GATE = PRIV.url("gnosis_gate")                     # private: endpoints.gnosis_gate

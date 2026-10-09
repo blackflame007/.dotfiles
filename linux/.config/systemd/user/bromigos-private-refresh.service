@@ -1,8 +1,8 @@
 [Unit]
 Description=Re-decrypt the private desktop values (triggered by bromigos-private.path)
-Documentation=file://%h/.config/bromigos/bin/bromigos-private
+Documentation=file:///usr/lib/bromigos/bin/bromigos-private
 
 [Service]
 Type=oneshot
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin
-ExecStart=/usr/bin/python3 %h/.config/bromigos/bin/bromigos-private decrypt --quiet
+ExecStart=/usr/bin/bromigos private decrypt --quiet

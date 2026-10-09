@@ -4,7 +4,7 @@
 # reloads on save; no restart needed. Rule of the house: everything that moves
 # is driven by a real reading or a real event, except the emblem and ambience.
 #
-#   ~/.config/bromigos-live/bin/bromigos-live {start|stop|restart|toggle|mute|radial|ctl <cmd>}
+#   bromigos-live {start|stop|restart|toggle|mute|radial|ctl <cmd>}
 
 [general]
 monitor = "DP-1"

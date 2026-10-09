@@ -1,6 +1,9 @@
-# Bromigos / BLACKFLAME brand kit
+# BLACKFLAME's brand kit (mine)
 
-The house palette is in `palette.json`, `palette.css` and `kitty-colors.conf`. The canon emblem (the burn-in) sources are `emblem*.svg`, rebuilt with `bromigos-emblem build`. The canon Bromigos logo is `bromigos-logo.png`, the hooded operator with shades and headphones. Everything below is new and builds on those files; nothing here replaces them.
+My personal brand and likeness art, my lab's marks and ARBITER's. bromigOS's own brand
+(the Bromigos logos, favicons and lockups, the house palette) lives in bromigOS's `brand/`,
+and the emblem (the burn-in) in each theme's `emblem/` kit there, drawn with
+`bromigos emblem build --theme DIR`. Nothing here ships in bromigOS.
 
 `contact-sheet.jpg` shows every asset on one page.
 
@@ -42,11 +45,6 @@ All logos are transparent and in exact palette hex. Each comes as an SVG (true v
 
 | File | Use | How |
 | --- | --- | --- |
-| `bromigos-lockup-horizontal.*` | Site headers, video end cards, letterhead | Canon glyph + "BROMIGOS" in Geist Mono 700 + a "THE NETWORK" subline. Phosphor, with a phosphor-dim subline. |
-| `bromigos-lockup-horizontal-amber.*` | Monochrome amber (#d4af37): print, merch, anywhere green would clash | Same build, all amber |
-| `bromigos-lockup-stacked.*`, `-stacked-amber.*` | Square spots: avatars with a name, merch fronts | Glyph above the wordmark |
-| `bromigos-glyph.*`, `bromigos-glyph-amber.*` | The glyph alone, as a clean vector | potrace of the canon logo |
-| `bromigos-favicon.svg`, `.ico`, `-16/32/48/180/512/2048.png` | Favicon-scale glyph: a void tile with a phosphor-dim border. The glyph is slightly emboldened so it survives 16–32 px | Local SVG. `-180` is the Apple touch icon. |
 | `arbiter-mark.*` | **ARBITER**, the market's referee (the Floor): an A whose crossbar is a level balance beam, with candlesticks rising inside it | recraft-v4.1, then potrace. Prompt: "Logo for ARBITER, the market's referee. A bold geometric letter A whose crossbar is a level balance beam, with three ascending candlestick bars rising inside the A. The word ARBITER below in a wide, bold monospace typeface. Flat vector logo mark, single colour …" |
 | `arbiter-glyph.*` | The ARBITER A alone, for the app icon or favicon | The same source, cropped above the text |
 | `echocraft-wick-mark.*` | **EchoCraft Lab / the Wick**: a server rack drawn as a candle, with one lit wick. The lit rack room. | recraft-v4.1, then potrace. Prompt: "Logo for ECHOCRAFT LAB, nicknamed the Wick: a tall server rack drawn as a candle, with a single small lit wick flame on top, and three horizontal rack units with indicator dots …" |
@@ -78,31 +76,16 @@ The sting's timings:
 | `stream-overlay.svg`, `-1080p.png`, `-1440p.png`, `-512.png` | OBS stream frame with a transparent centre. It has: <br>• a Bromigos ident, top left; <br>• an ON AIR panel with a tuning dial and CH 142.59, top right; <br>• a "NOW TRANSMITTING" lower third, where the title goes in an OBS text source; <br>• a codec cam window, bottom right; <br>• a STILL LIT. tag. | Local SVG |
 | `youtube-banner-2560x1440.jpg`, `-512.jpg` | YouTube channel banner. The lockup and the tagline "SIGNALS · RELAYS · MACHINES THAT THINK" sit inside the 1546x423 safe area for all devices. | Background from gpt-image-2.5-flare; lockup composited locally. Prompt: "Ultra-wide panoramic channel banner background art, no text. Deep space … wrecked, patched orbital relay stations and dead radio masts strung across the far left and far right edges … The central horizontal band is calm, dark and nearly empty … A single hand-rebuilt relay mast on a derelict station at the far right glows faintly, with a small black flame shape scorched into its housing." |
 
-## wallpaper/ (and `~/.config/wallpaper/`)
+## wallpaper/ (in `wallpaper/.config/wallpaper/`)
 
-The live files sit in `wallpaper/.config/wallpaper/`. The files in `brand/wallpaper/` are symlinks to them. Switch between them with:
-
-```
-bromigos-wallpaper              # show the current one and the choices
-bromigos-wallpaper den|empty|masked|v1
-```
-
-The command lives at `~/.config/bromigos/bin/bromigos-wallpaper`, symlinked into `~/.local/bin`. Each switch does four things:
-
-1. Repoints the canonical symlinks: `bromigos-den-2560x1440.jpg` (swaybg and the live layer's base plate) and `bromigos-lock-2560x1440.jpg` (hyprlock).
-2. Updates `den_fit_sha1` in the live layer config.
-3. Restarts swaybg.
-4. Runs `bromigos-live ctl reload`.
-
-Every variant is composited onto the v1 plate, with only the figure and desk region replaced. The CRT, meter and floor-grid rects that the live layer draws into are pixel-identical across variants, so the den overlays stay fitted.
+My den variants, the ones with me in them. bromigOS's `bromigos-wallpaper` (package
+bromigos-desktop) finds them in `~/.config/wallpaper/` next to its own (the empty den), and
+`bromigos-wallpaper` with no argument lists the choices: `den` (the operator variant,
+mine), `masked`, `v1`, `empty`. Every variant is composited onto the v1 plate, with only the
+figure and desk region replaced, so the live layer's den overlays stay fitted.
 
 | File | Scene | How |
 | --- | --- | --- |
-| `bromigos-den-operator-2560x1440.jpg` | The Wick, with the operator at the desk in three-quarter rear view. Short hair and beard in profile, hood down, the shades and headphones. The left third is untouched. | gpt-image-2.5-flare, using the v1 den as input + the character. Only the figure region was composited back. Prompt: "Edit this wallpaper. Keep the entire composition … Replace ONLY the hooded figure on the right with the man from the reference photo … three-quarter rear view with his face in profile … Short dark brown hair, faded short on the sides, and a short full dark beard clearly visible … hood pushed DOWN … No long hair." |
-| `bromigos-den-empty-2560x1440.jpg` | The same den with nobody in it. The chair is empty and turned, as if he just stepped away. The headphones and folded shades sit by the keyboard, and the mug is still steaming. | gpt-image-2.5-flare, using the v1 den as input. The figure and desk region were composited back. Prompt: "… Remove the person completely … The operator's worn chair … is now EMPTY and turned slightly away … A pair of large over-ear studio headphones … rests on the desk beside the keyboard, with dark sunglasses folded next to them, and the metal mug … has a thin wisp of steam rising." |
-| `bromigos-den-masked-2560x1440.jpg` | The operator den, with the burn-in over his face (the in-canon footage rule) | Local burn-in composite |
-| `bromigos-den-2560x1440-v1.jpg` | The original plate | — |
-| `bromigos-lock-{operator,empty,masked}-2560x1440.jpg`, `bromigos-lock-2560x1440-v1.jpg` | The hyprlock background for each variant | The den variant with a Gaussian blur of 3.5 and a gain of about 0.24. This transform was fitted to reproduce the original lock image. |
 
 ## Credits
 
