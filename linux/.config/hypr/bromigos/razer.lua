@@ -48,4 +48,6 @@ K.exec("code:195", "bromigos-shot region", razer)
 K.exec("code:196", "bromigos-live arbiter", razer)
 K.exec("code:197", "bromigos-live timeline", razer)
 K.exec("code:198", "bromigos-rec region", razer)
-K.exec("code:202", holo .. " mute", razer)
+-- Pressing the dial: the desktop's one mute (theme sounds and VECTOR together; `bromigos mute`,
+-- bromigos-core r65+); on an older core it falls back to muting VECTOR alone.
+K.exec("code:202", "bromigos mute || " .. holo .. " mute", razer)
