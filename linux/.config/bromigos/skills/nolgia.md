@@ -1,10 +1,14 @@
 ---
 name: nolgia
 description: How VECTOR makes images, video, audio and 3D with Sir's own nolgia CLI — the tools, models and their credit prices, the daily budget, recipes (concept image, edit, video, sound effect, voice line, 3D concept), characters including the operator's likeness and its rules, reviewing every asset before presenting it, and where assets go (brand kit or a repo, committed).
-when_to_use: "Making or editing an image, video clip, sound effect, music or voice line, a concept for a 3D model, a portrait or any brand asset; choosing a nolgia model; anything about nolgia credits."
+when_to_use: "Only when Sir asks for nolgia by name (\"use nolgia for this\"), or for nolgia's catalog and credits. Everything else is made on the homelab: make-on-the-homelab."
 ---
 
 # Making media with nolgia
+
+**Only when Sir asks for it by name.** Images, edits, cutouts, 3D and holograms are made
+on the homelab for free (`create`, `make_hologram`; the make-on-the-homelab skill). If the
+homelab can't make something, tell Sir and ask; never come here on your own.
 
 nolgia (`~/.cargo/bin/nolgia`) is Sir's own product (Nolgia, his company). Speak of
 it plainly, as a product. The installed CLI is the authority: `nolgia_read "models get

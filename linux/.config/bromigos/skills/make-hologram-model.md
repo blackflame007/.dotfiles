@@ -1,6 +1,6 @@
 ---
 name: make-hologram-model
-description: How to make a new 3D hologram model for the desktop's gallery (SUPER+O) and holo deck — procedural from primitives first (dish, cylinder, lattice mast, torus …, no credits), or generated with nolgia image-to-3D when it must be organic — with parts, live readings, hover hints and explode directions, baked to .holo.npz and checked with an offscreen render.
+description: How to make a new 3D hologram model for the desktop's gallery (SUPER+O) and holo deck — procedural from primitives first (dish, cylinder, lattice mast, torus …, no credits), or generated on the homelab (image-to-3D, no credits) when it must be organic — with parts, live readings, hover hints and explode directions, baked to .holo.npz and checked with an offscreen render.
 when_to_use: "Making a new hologram, 3D model, wireframe model or 3D object for the gallery or holo deck (a satellite dish, a ship, a station, a machine)."
 ---
 
@@ -13,6 +13,18 @@ the rack) and VECTOR's (`/usr/share/bromigos/vector/holo/`: workstation, wick, e
 format and the tools: `/usr/share/bromigos/vector/holo/README.md` and `/usr/lib/bromigos/vector/tools/holo/`.
 New models go in mine. A new model is a manifest entry plus a bake; no code changes, and it appears without a restart. Decks and
 renderers themselves: `hologram-build.md`.
+
+## From the line (talking to Sir)
+
+You don't build models yourself; the builder does, through the build loop.
+- **A real-world object** (a mug, a helmet, a plant, a creature): call `make_hologram`
+  with a short `name` and the `subject` (or Sir's `image`). It makes the concept, cutout
+  and mesh on the homelab for no credits and returns `build_goal`; call `build_start` with
+  that goal and tell Sir it's under way. Never run commands in your terminal for this.
+- **A machine or structure from simple shapes** (a dish, a mast, a station): call
+  `build_start` with the goal; the builder makes it procedurally (below).
+
+The rest of this skill is the builder's how-to.
 
 ## Procedural first (no credits, exact)
 
@@ -68,12 +80,15 @@ attached parts need their own coordinates computed (rotate the offset yourself).
 - `explode`: the direction a part leaves when the model is exploded (away from the
   centre), `distance` 0.2-0.45. One part may be `"rest": true`.
 
-## Generated (organic shapes only; costs credits)
+## Generated on the homelab (organic shapes; no credits)
 
-1. A concept image: the nolgia skill's 3D concept recipe (isolation block, white
-   background, no text), through `nolgia_generate` (or `nolgia_image` in a build).
-2. Image to 3D: trellis (2 credits) or hunyuan3d-v3 (21) — over the daily cap, ask.
-   Generation scripts are refused in the terminal; use the nolgia tools.
+1. From the line: `make_hologram name subject` (or Sir's image) makes the concept,
+   the cutout and the mesh on the homelab and returns `build_goal`; start the build with
+   it. In a build: `homelab_make` (image.generate for the concept: one whole object,
+   three-quarter view, plain white background, no text; then image.cutout; then
+   model3d.generate with an `out` ending `.glb`), all into the worktree.
+2. If the homelab refuses (down, or no model), stop and tell Sir. Never use nolgia for a
+   hologram unless Sir asks for nolgia by name.
 3. Parts as bbox-fraction boxes (`[x0, x1, y0, y1, z0, z1]`, see `manifest.json`), then
    `make-holo.py --root linux/.config/bromigos/vector/holo glb NAME model.glb parts.json`.
 
