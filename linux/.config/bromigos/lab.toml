@@ -1,0 +1,5 @@
+# bromigos lab models: the model planner's settings (Settings › Lab › Models writes these too).
+# docs/lab-models.md. Read-only to VECTOR.
+
+[plan]
+region = "any"          # a lab: every model counts, wherever its licence is written for
