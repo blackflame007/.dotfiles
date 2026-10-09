@@ -106,7 +106,7 @@
     "model": "large-v3-turbo",
     "device": "cuda",
     "compute_type": "float16",
-    "prompt": "VECTOR, the Wick, ARBITER, the rack room, Argo CD, Prometheus, EchoCraft Lab, vLLM, Qwen, crackle, pop, snap.",
+    "prompt": "VECTOR, the Wick, ARBITER, the rack room, Argo CD, Prometheus, the lab, vLLM, Qwen, crackle, pop, snap.",
     "provider": "lab"
   },
   "fish": {

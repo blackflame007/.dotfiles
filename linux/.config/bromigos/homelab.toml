@@ -16,9 +16,9 @@ positions = "@private:homelab.constellation.positions"   # [{node, at = [x, y, z
 ca_file = "~/.config/homelab/homelab-ca.crt"        # the lab's internal CA
 
 [[source]]
-name = "lab"                                         # EchoCraft Lab: serves the whole snapshot (LAB panel, gadgets, drift map)
+name = "lab"                                         # the lab: serves the whole snapshot (LAB panel, gadgets, drift map)
 type = "lab"
-title = "ECHOCRAFT"
+title = "@private:homelab.name"
 endpoint = "@private:endpoints.lab"
 auth_ref = "@file:~/.local/share/bromigos/lab-token"
 

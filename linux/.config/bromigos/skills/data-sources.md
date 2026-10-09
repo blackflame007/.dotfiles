@@ -15,7 +15,7 @@ The homelab CA is `~/.config/homelab/homelab-ca.crt`; use it for every `*.{{lan.
 | Source | Reach | Cost | Poll at most |
 |--------|-------|------|--------------|
 | Local machine | psutil, `/sys`, one long-lived `nvidia-smi -lms 1500` | ~0 | 1 s (already done by `live/data.py`) |
-| EchoCraft Lab API | `GET {{endpoints.lab}}/api/status`, `Authorization: Bearer <~/.local/share/bromigos/lab-token>` (Vault `{{vault.paths.lab_api}}` read_token) | 22 ms, 47 KB | 20–30 s (it refreshes every 20 s) |
+| The lab's API | `GET {{endpoints.lab}}/api/status`, `Authorization: Bearer <~/.local/share/bromigos/lab-token>` (Vault `{{vault.paths.lab_api}}` read_token) | 22 ms, 47 KB | 20–30 s (it refreshes every 20 s) |
 | Prometheus | `{{endpoints.prometheus}}/api/v1/query` (LAN, no auth) | ~20 ms per instant query | 5–10 s per deck |
 | Argo CD | Prometheus `argocd_app_info{sync_status,health_status}`; or kubectl (below) | 20 ms / 220 ms | 10 s |
 | Kubernetes | `kubectl --kubeconfig ~/.local/share/bromigos/pilot-kubeconfig` (the `pilot-readonly` ServiceAccount: no secrets, no exec) | ~220 ms | 30 s; prefer Prometheus (`kube_pod_info`, `kube_node_info`, `kube_pod_created`) |

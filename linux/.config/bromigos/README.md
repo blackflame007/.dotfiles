@@ -70,7 +70,7 @@ flowchart LR
     SP[start page<br/>snapshot.py timer]
   end
   subgraph Homelab["Homelab (LAN)"]
-    LAB[EchoCraft Lab API]
+    LAB[Lab API]
     PROM[Prometheus]
     ARB[ARBITER console API]
     GG[Gnosis via the gate]

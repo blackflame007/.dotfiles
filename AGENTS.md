@@ -151,7 +151,7 @@ The Hyprland desktop is the operator's control center, styled as the Wick (BLACK
 - Custom image, video and audio assets are made with the operator's `nolgia` CLI (or procedurally).
 - Hover hints on everything hoverable. Heavy reads only while visible.
 - Real money stays the operator's: nothing on the desktop trades or arms; ARBITER is shown as paper.
-- The LAB panel reads EchoCraft Lab's `/api/status` with a read-only token (`~/.local/share/bromigos/lab-token`, from Vault via `bromigos-secrets sync`); its URL is the private overlay's `endpoints.lab`.
+- The LAB panel reads the lab's `/api/status` with a read-only token (`~/.local/share/bromigos/lab-token`, from Vault via `bromigos-secrets sync`); its URL is the private overlay's `endpoints.lab`.
 
 ### Key binds
 
