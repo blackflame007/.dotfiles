@@ -65,5 +65,18 @@ K.exec("SUPER + SHIFT + O", live .. " ops")
 K.exec("SUPER + SHIFT + N", live .. " netmap")
 K.exec("SUPER + R", live .. " replay")
 
--- The Razer BlackWidow V4 Pro: its keymap, mic-mute fix and macro keys.
-require("bromigos.razer")
+-- The Razer BlackWidow V4 Pro: bromigOS's keyboard module once it's on (`bromigos peripheral
+-- enable razer-keyboard`; my side button 1 is in ~/.config/bromigos/peripherals.toml), else my
+-- own file (hypr/bromigos/razer.lua). Mic mute stays pactl (no OSD), never from the Razer:
+-- its side button 3 can arrive as XF86AudioMicMute (bromigos.unbind skips the default's).
+local peripherals = package.loaded["bromigos.peripherals"]
+local razer_module = false
+for _, m in ipairs(type(peripherals) == "table" and peripherals or {}) do
+    if m.id == "razer-keyboard" then razer_module = true end
+end
+if razer_module then
+    K.exec("XF86AudioMicMute", "pactl set-source-mute @DEFAULT_SOURCE@ toggle",
+           { device = { inclusive = false, list = { "bromigos-razer-keyboard" } } })
+else
+    require("bromigos.razer")
+end

@@ -20,8 +20,8 @@ my settings (`bromigos-live/config.toml`, `bromigos/widgets/layout.json`,
 `bromigos/vector/`, `bromigos/live/overrides.toml`), the encrypted private overlay
 (`bromigos/private.sops.yaml`), my plugins (`bromigos/plugins/`: the ARBITER deck and its
 client, the replay, GAME SERVERS; Netmap, Ops, Mind and the Gnosis memory are
-bromigos-homelab's now, configured by my `homelab.toml`), my Razer bits (`hypr/bromigos/razer.lua`,
-`bromigos/bin/bromigos-{knob,rgb}`, `vector-converse`), my backup config
+bromigos-homelab's now, configured by my `homelab.toml`), my Razer bits (`bromigos/peripherals.toml` for bromigOS's keyboard module; until
+the switch `hypr/bromigos/razer.lua`, `bromigos/bin/bromigos-{knob,rgb}`, `vector-converse`), my backup config
 (`bromigos/system/`), my likeness and personal brand (`bromigos/brand/`, my den variants in
 `~/.config/wallpaper/`), my own hologram models (`bromigos/vector/holo/`: the ARBITER monolith; VECTOR's
 workstation, wick and emblem ship in bromigos-vector, the rack in bromigos-homelab) and my copies of his skills (`bromigos/skills/`). Still here until
@@ -50,7 +50,7 @@ The network-wide systems map (every Bromigos service and repo) lives in the priv
 | Skills | `bromigos/skills/` | Markdown know-how VECTOR loads on demand (how the desktop is built, its data sources, homelab ops) | each file's frontmatter |
 | Start page | `bromigos/startpage.toml` (my links; the page is bromigOS's, filled into `bromigos/startpage/`) | The browsers' home and new-tab page | bromigOS docs/desktop.md, "Start page" |
 | Login screen | `bromigos/sddm/` | The SDDM theme at boot: the lock screen's den, burn-in and clock plus account, session and power; no live data; installed by `sddm/install.sh` with sudo | `sddm/bromigos/README.md` |
-| Razer integration | `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-knob`, `bromigos/bin/bromigos-rgb` | Macro keys and the dial bound to the desktop; lighting follows VECTOR | this file, "Razer" |
+| Razer integration | bromigOS's keyboard module and `bromigos/peripherals.toml` (my side button 1); until the switch `hypr/bromigos/razer.lua`, `hypr/razer-blackwidow.xkb`, `bromigos/bin/bromigos-{knob,rgb}` | Macro keys and the dial bound to the desktop; lighting follows VECTOR | this file, "Razer" |
 | Shell | `zsh/.config/zsh/zsh-bromigos` (the banner is bromigOS's `bromigos-banner`; its emblem the theme's kit) | Prompt colours and the `bromigos` banner | `zsh/.config/zsh/AGENTS.md` |
 | Capture | `bromigos-shot`, `bromigos-rec` (bromigOS, package bromigos-desktop) | Screenshots and recordings with a themed notification and a quiet cue | the scripts' headers |
 | Wallpaper switcher | `bromigos-wallpaper` (bromigOS, package bromigos-desktop); my den variants in `~/.config/wallpaper/` | Chooses the den variant (den, empty, masked, v1) for the desktop and the lock screen; a world theme brings its own | the script's header |
@@ -144,8 +144,9 @@ braille), its `settings/gtk/` builders (GTK themes, icons, cursor) and
   autostart, every bromigOS bind, the bind helpers `bromigos/keys.lua`); `hypr/hyprland.lua`
   here sets the `bromigos` table (monitors, workspace→monitor, input options, the default
   binds it replaces), runs the defaults, then adds what's mine: my apps' rules and binds, my
-  decks' binds (personal plugins) and the LAB panel's. The Razer (keymap, macro keys, the
-  mic-mute fix) is `hypr/bromigos/razer.lua`. How to add a bind or rule, and the Lua form of
+  decks' binds (personal plugins) and the LAB panel's. The Razer is bromigOS's keyboard module
+  (`bromigos peripheral`; my key in `bromigos/peripherals.toml`), or `hypr/bromigos/razer.lua`
+  until it's on ("Razer" below). How to add a bind or rule, and the Lua form of
   `hyprctl dispatch`: [`skills/hyprland-config.md`](skills/hyprland-config.md).
 - **Bar, launcher, notifications, idle:** bromigOS's defaults too (`/usr/share/bromigos/default/`):
   `waybar/config` includes them and sets my outputs and the CPU sensor, `waybar/style.css`
@@ -191,22 +192,45 @@ stays here, where my browsers point, plus the ARBITER link) and `librewolf-user.
 
 ## Razer
 
-openrazer (the operator is in the `openrazer` group) puts the BlackWidow V4 Pro in
-driver mode, so M1–M5 send F13–F17, the side buttons F18–F20 and the dial press F24.
-`hypr/razer-blackwidow.xkb` keeps those as plain F-keys; the binds (`hypr/bromigos/razer.lua`)
-use their keycodes and listen to the Razer only (its devices carry the `razer-blackwidow` tag):
+The BlackWidow V4 Pro is moving onto bromigOS's keyboard module (`bromigos peripheral`,
+bromigOS docs/peripherals.md: macro keys, the dial as VECTOR's voice dial, lighting that
+follows him, for any openrazer keyboard). Mine is the module with my side button 1:
+`peripherals.toml` here (`[razer-keyboard.keys] side1 = "bromigos-live arbiter"`).
+
+**Switching over** (once the bromigOS packages with the module are installed: `bromigos
+update`): `bromigos peripheral enable razer-keyboard`. That turns the module on, binds its
+keys (a verified Hyprland reload) and starts `bromigos-peripherals.service`, which stops
+`bromigos-knob` and `bromigos-rgb` (their units conflict with it, and don't start at login
+while the module is on). `hypr/hyprland.lua` sees the module and skips
+`hypr/bromigos/razer.lua`. Then `systemctl --user disable bromigos-knob bromigos-rgb`; the old
+files (`hypr/bromigos/razer.lua`, `hypr/razer-blackwidow.xkb`, `bin/bromigos-{knob,rgb}`,
+`bin/vector-converse`, the two units) can go after that. `bromigos peripheral disable
+razer-keyboard` goes back to them.
+
+openrazer (I'm in the `openrazer` group) puts the keyboard in driver mode, so M1–M5 send
+F13–F17, the side buttons F18–F20 and the dial press F24. The module keeps those as plain
+F-keys with xkeyboard-config's `fkeys:basic_13-24` (until the switch, `hypr/razer-blackwidow.xkb`
+does), binds them by keycode on the Razer only (its devices carry the
+`bromigos-razer-keyboard` tag; `razer-blackwidow` until the switch), and keeps the mic-mute
+key off the Razer (its side button 3 can arrive as XF86AudioMicMute; my mic mute stays
+`pactl`, set in `hypr/hyprland.lua`):
 
 | Key | Action |
 |-----|--------|
 | M1 | show or hide VECTOR (`bromigos-holo vector`) |
 | M2 (hold) | push to talk |
-| M3 | open VECTOR and toggle conversation mode (`bin/vector-converse`) |
+| M3 | open VECTOR and toggle conversation mode |
 | M4 | holo deck |
 | M5 | screenshot a region (`bromigos-shot region`) |
+| Side 1 | the ARBITER deck (mine; the module's default is the desktop menu) |
+| Side 2 | the timeline |
 | Side 3 | start or stop recording a region (`bromigos-rec region`); Shift + M-keys don't combine (Shift and the M-keys are different Razer devices) |
-`bromigos-knob` (service `bromigos-knob`) grabs the dial and steps VECTOR's voice;
-`bromigos-rgb` (service `bromigos-rgb`) lights the keyboard and the Naga in VECTOR's
-voice colour, amber when he is concerned, red breathing when alarmed, green at rest.
+| Dial press | the desktop's one mute (`bromigos mute`) |
+
+Turning the dial steps VECTOR's voice (auto, then each of his voices, named in a
+notification); the roller is the volume. The keyboard and the Naga take VECTOR's voice
+colour, amber when he is concerned, red breathing when alarmed, the theme's primary at rest.
+Until the switch: `bromigos-knob` and `bromigos-rgb` (services of the same names).
 
 ## Services
 
@@ -214,8 +238,9 @@ voice colour, amber when he is concerned, red breathing when alarmed, green at r
 |------|------|-------|
 | `bromigos-startpage.timer` → `.service` | `startpage/snapshot.py`, every minute | `systemctl --user list-timers` |
 | `bromigos-kb-sync.timer` → `.service` | `holo/tools/kb-sync.py`, nightly 03:30 | `~/.local/state/bromigos/kb-sync.log` |
-| `bromigos-knob.service` | `bin/bromigos-knob` | `systemctl --user status bromigos-knob` |
-| `bromigos-rgb.service` | `bin/bromigos-rgb` | `systemctl --user status bromigos-rgb` |
+| `bromigos-knob.service` | `bin/bromigos-knob` (until the Razer switch, above) | `systemctl --user status bromigos-knob` |
+| `bromigos-rgb.service` | `bin/bromigos-rgb` (until the Razer switch, above) | `systemctl --user status bromigos-rgb` |
+| `bromigos-peripherals.service` | bromigOS's keyboard module: the dial and the lighting (after the switch) | `bromigos peripheral status` |
 
 The daemons themselves start from Hyprland's login autostart (`hl.on("hyprland.start", …)`
 in bromigOS's default `hyprland.lua` and `bromigos/live.lua`: `waybar`, `dunst`,

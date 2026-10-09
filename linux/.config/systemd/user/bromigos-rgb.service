@@ -4,6 +4,12 @@ Documentation=file://%h/.config/bromigos/bin/bromigos-rgb
 After=openrazer-daemon.service
 Wants=openrazer-daemon.service
 
+# bromigOS's keyboard module replaces this: once it's on (`bromigos peripheral enable
+# razer-keyboard`), its daemon runs the lighting and starting it stops this one; this one no
+# longer starts at login. Then: systemctl --user disable bromigos-rgb.service
+Conflicts=bromigos-peripherals.service
+ConditionPathExists=!%h/.local/state/bromigos/peripherals/hypr.lua
+
 [Service]
 ExecStart=/usr/bin/python3 %h/.config/bromigos/bin/bromigos-rgb
 Restart=on-failure
