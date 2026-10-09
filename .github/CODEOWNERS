@@ -24,12 +24,14 @@
 /linux/.config/bromigos/holo/holo/vector/plugins.py @blackflame007
 /linux/.config/bromigos/holo/holo/vector/llm.py @blackflame007
 /linux/.config/bromigos/holo/holo/vector/create.py @blackflame007
+/linux/.config/bromigos/holo/holo/vector/money.py @blackflame007
 /linux/.config/bromigos/holo/tools/test-shell.py @blackflame007
 /linux/.config/bromigos/holo/tools/test-act.py @blackflame007
 /linux/.config/bromigos/holo/tools/test-desk.py @blackflame007
 /linux/.config/bromigos/holo/tools/test-build.py @blackflame007
 /linux/.config/bromigos/holo/tools/test-browser.py @blackflame007
 /linux/.config/bromigos/holo/tools/test-ext-guard.py @blackflame007
+/linux/.config/bromigos/holo/tools/test-plugin-systems.py @blackflame007
 /linux/.config/bromigos/holo/bin/bromigos-holo @blackflame007
 /linux/.config/bromigos/holo/nolgia.json @blackflame007
 /linux/.config/bromigos/holo/holo/app.py @blackflame007

@@ -1,0 +1,25 @@
+# My VECTOR settings over bromigos-vector's defaults (its docs/configuration.md). Only what
+# differs from the package: no [llm] here, so his brain still comes from targets.toml and
+# the overlay's LiteLLM. Protected: his terminal can't write this file (guard.PROTECTED).
+
+# ARBITER's real money. VECTOR never touches these: his terminal refuses any command that
+# names one, his act tools refuse the workload, his browser and eyes refuse the console, a
+# push of commits that touch the code is refused, and a PR that touches the homelab's live
+# chart is mine to merge. The generic rules (venue order endpoints, arming live, live API
+# routes, LIVE_OPERATORS, wallet keys) are the package's own.
+[real_money]
+services = ["arbiter-live"]
+hosts = ["@private:endpoints.arbiter"]
+systems = ["arbiter"]
+titles = ['\barbiter\b.*\blive\b']
+about = "ARBITER's live and intents routes, the arbiter-live service"
+
+[real_money.code]
+"bromigos-org/arbiter" = [
+  "engine/internal/live/", "engine/internal/venue/", "engine/internal/evmswap/",
+  "engine/cmd/live/", "engine/cmd/golive/", "engine/cmd/cdp-policy/",
+  "engine/migrations/*live*", "engine/migrations/*live*/",
+  "console/lib/live/", "console/app/*/live/", "console/app/*/wallet/",
+  "console/components/wallet/", "console/e2e/live/",
+]
+"bromigos-org/homelab" = ["helm/arbiter/templates/live.yaml"]
