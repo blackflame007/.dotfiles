@@ -33,6 +33,7 @@ type = "argocd"
 name = "litellm"
 type = "litellm"
 endpoint = "@private:endpoints.litellm"
+auth_ref = "@file:~/.local/share/bromigos/litellm-key"   # the key stays in that file, not here
 
 [[source]]
 name = "vault"
