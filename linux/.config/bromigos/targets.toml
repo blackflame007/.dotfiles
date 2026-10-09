@@ -1,0 +1,16 @@
+# Where my AI work runs (bromigOS docs/targets.md): the art tools, VECTOR's voice and
+# hearing, his brain. `bromigos target` shows what each would use now; `bromigos target
+# homelab|local|cloud` switches it (VECTOR can't: it's my setting).
+#
+# My rule: the homelab first, then this machine; never the cloud (credits) where either
+# can do the job. The homelab's addresses are the packaged defaults' references
+# (@homelab:comfyui, @homelab:voice, @homelab:litellm in homelab.toml, which reads them from
+# my encrypted private overlay), so no hostname lands in this public file.
+format = 1
+
+[targets]
+order = ["homelab", "local"]
+
+# Seamless video loops: no lab or local model makes them yet, so nolgia.
+[service."video.loop"]
+order = ["homelab", "local", "cloud"]
