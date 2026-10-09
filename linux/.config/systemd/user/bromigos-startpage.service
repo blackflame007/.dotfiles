@@ -1,9 +1,0 @@
-[Unit]
-Description=Bromigos start page snapshot (Lab status, switchboard, field notes)
-After=bromigos-private.service
-Documentation=file://%h/.config/bromigos/startpage/snapshot.py
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/python3 %h/.config/bromigos/startpage/snapshot.py
-Nice=10
