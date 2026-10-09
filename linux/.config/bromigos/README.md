@@ -18,14 +18,21 @@ and the tools (`bromigos private`, `secrets`, `emblem`, `session`, `lock-run`,
 thin configs over the defaults (`hypr/`, `waybar/`, `rofi/`, `dunst/`, `hypridle.conf`),
 my settings (`bromigos-live/config.toml`, `bromigos/widgets/layout.json`,
 `bromigos/vector/`, `bromigos/live/overrides.toml`), the encrypted private overlay
-(`bromigos/private.sops.yaml`), my plugins (`bromigos/plugins/`: ARBITER, replay, Netmap,
-Ops, Mind, GAME SERVERS, Gnosis), my Razer bits (`hypr/bromigos/razer.lua`,
+(`bromigos/private.sops.yaml`), my plugins (`bromigos/plugins/`: the ARBITER deck and its
+client, the replay, GAME SERVERS; Netmap, Ops, Mind and the Gnosis memory are
+bromigos-homelab's now, configured by my `homelab.toml`), my Razer bits (`hypr/bromigos/razer.lua`,
 `bromigos/bin/bromigos-{knob,rgb}`, `vector-converse`), my backup config
 (`bromigos/system/`), my likeness and personal brand (`bromigos/brand/`, my den variants in
 `~/.config/wallpaper/`), my own hologram models (`bromigos/vector/holo/`: the ARBITER monolith; VECTOR's
 workstation, wick and emblem ship in bromigos-vector, the rack in bromigos-homelab) and my copies of his skills (`bromigos/skills/`). Still here until
 their own moves: `bromigos/{gtk,sddm,startpage}/` (bromigOS packages them as
 `bromigos-settings`) and the lock screen's full copies (`gtklock/`, `hypr/hyprlock.conf`).
+
+How bromigOS itself works, for anyone, is bromigOS's documentation: its `README.md`, the
+index `docs/README.md`, and the manual (`manual/`, published next to the packages), with
+every command (`manual/src/commands.md`) and default key (`manual/src/keys.md`) generated
+from the code. VECTOR's is the vector repo's `README.md`. This file is only my setup on top
+of them.
 
 The network-wide systems map (every Bromigos service and repo) lives in the private
 `bromigos-org/platform` repo at `docs/SYSTEMS.md`.
@@ -144,8 +151,8 @@ braille), its `settings/gtk/` builders (GTK themes, icons, cursor) and
   `waybar/config` includes them and sets my outputs and the CPU sensor, `waybar/style.css`
   imports the theme then the default style, `rofi/config.rasi` imports the default,
   `dunst/dunstrc` links to the default (drop-ins in `dunstrc.d/`), `hypr/hypridle.conf`
-  sources the default. The lock screen's files (`gtklock/`, `hypr/hyprlock.conf`) are still
-  full copies here.
+  sources the default. The lock screen's files are thin too: `gtklock/style.css` imports the
+  theme and bromigOS's style, `hypr/hyprlock.conf` sources bromigOS's.
 - **Bar** (`waybar/`): HUD modules with icons from the brand kit, GPU and storage scripts,
   VECTOR's pip (`custom/vector`).
 - **Launcher** (`rofi/`): `bromigos.rasi`, a power menu, quick note, and the searchable
@@ -164,8 +171,8 @@ braille), its `settings/gtk/` builders (GTK themes, icons, cursor) and
   (`kitty/bromigos-linux.conf`), `hyprland.lua` loads it with `dofile`, and
   `dunst/dunstrc.d/90-bromigos-theme.conf` and `Bromigos.colors` are symlinks to it.
   bromigOS's docs/theming.md has the format.
-- **File manager:** PCManFM (ALT+E), by operator choice. The WORKBENCH panel's rows
-  still open Dolphin (see "Known issues").
+- **File manager:** PCManFM (ALT+E), by operator choice; the WORKBENCH panel's rows open it
+  too.
 
 ## Start page
 
@@ -260,7 +267,5 @@ in bromigOS's default `hyprland.lua` and `bromigos/live.lua`: `waybar`, `dunst`,
 
 ## Known issues
 
-- The start page's switchboard is empty: `snapshot.py` still looks for the widgets'
-  `SwitchboardPanel`, which became `WorkbenchPanel` (and no longer holds the link list).
-- The WORKBENCH panel opens folders in Dolphin, while the operator's file manager is
-  PCManFM.
+None open. (The start page's empty switchboard and WORKBENCH opening Dolphin are fixed:
+the links come from `startpage.toml`, and the panel opens PCManFM.)
