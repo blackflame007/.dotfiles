@@ -5,6 +5,13 @@
 # synced from Vault (@file:…, 0600, ~/.local/share/bromigos). Nothing private is written out.
 # Inert until the bromigos-homelab package is installed.
 
+name = "@private:homelab.name"                       # the lab's name: the relay map's title, the radial's lab item
+
+[constellation]                                      # the holo deck's lab nodes: who's in the middle, the models' link, where each sits
+hub = "@private:homelab.constellation.hub"
+ai = "@private:homelab.constellation.ai"
+positions = "@private:homelab.constellation.positions"   # [{node, at = [x, y, z]}, …]: a list, so sops encrypts the names too
+
 [tls]
 ca_file = "~/.config/homelab/homelab-ca.crt"        # the lab's internal CA
 

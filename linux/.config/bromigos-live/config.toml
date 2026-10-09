@@ -17,3 +17,21 @@ rings = { "bromigos-org" = 0.48, "nolgiainc" = 0.80, "blackflame007" = 1.10 }
 
 [cluster]
 token_file = "~/.local/share/bromigos/lab-token"
+
+[fills]                  # ARBITER's paper fills: rain bursts, the worlds' catches, FLOOR codec calls
+endpoint = "arbiter"     # the private overlay's endpoints.arbiter
+
+[decks]                  # Tab: my ARBITER deck second, the replay last (both plugins in bromigos/plugins/live)
+cycle = ["holodeck", "arbiter", "timeline", "mind", "ops", "swarm", "netmap", "replay"]
+
+[radial]                 # SUPER+A: the packaged ring with ARBITER first
+items = [
+  { name = "ARBITER",   sub = "THE FLOOR",       endpoint = "arbiter", stat = "fills" },
+  { stat = "lab",       sub = "LAB",             endpoint = "lab" },
+  { name = "ARGO",      sub = "FLEET SYNC",      endpoint = "argocd" },
+  { name = "GRAFANA",   sub = "TELEMETRY",       endpoint = "grafana" },
+  { name = "LITELLM",   sub = "MODEL GATEWAY",   endpoint = "litellm" },
+  { name = "TERMINAL",  sub = "KITTY",           cmd = "kitty" },
+  { name = "BROWSER",   sub = "WEB",             cmd = "xdg-open about:blank" },
+  { name = "NOTES",     sub = "FIELD NOTES",     cmd = "kitty --class bromigos-notes -e nvim ~/notes" },
+]

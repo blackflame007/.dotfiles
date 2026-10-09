@@ -77,6 +77,8 @@ def money(v, sign=True):
 
 class ArbiterDeck(Base):
     name = "arbiter"
+    deck_label = "ARBITER deck"         # the menu, the shortcuts panel and the holo deck's TAB: hint
+    deck_hint = "the Floor"
     rebuild_every = 1.0
 
     def __init__(self, *a, **kw):

@@ -49,6 +49,8 @@ def cause_text(f):
 
 class ReplayDeck(Deck3D):
     name = "replay"
+    deck_label = "Trade replay"         # the menu, the shortcuts panel and the holo deck's TAB: hint
+    deck_hint = "an ARBITER paper trade"
     title = "REPLAY // ONE PAPER TRADE, FROM CAUSE TO RESULT"
     hint = "VECTOR: bromigos-live replay pick <instrument> · replay play"
 
