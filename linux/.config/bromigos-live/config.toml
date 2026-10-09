@@ -15,6 +15,9 @@ den_plate = "~/.config/wallpaper/bromigos-den-2560x1440-v1.jpg"
 orgs = ["bromigos-org", "nolgiainc", "blackflame007"]
 rings = { "bromigos-org" = 0.48, "nolgiainc" = 0.80, "blackflame007" = 1.10 }
 
+[driftmap]               # SUPER+M: my platform checkout's full canon, not the public catalog the package ships
+catalog = "~/github.com/bromigos-org/platform/agents/lore/catalog.json"
+
 [cluster]
 token_file = "~/.local/share/bromigos/lab-token"
 

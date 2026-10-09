@@ -6,9 +6,9 @@ from `bromigos-org/bromigOS` `live/` (its README and `docs/ELEMENTS.md` are ther
 in `/usr/share/doc/bromigos-live/`). Engine changes go in that repo.
 
 Here:
-- `config.toml` — the operator's own switchboard; it replaces the packaged default
-  (`/usr/share/bromigos/live/config.toml`) whole. Animation switches are in
-  `~/.config/bromigos/live/overrides.toml` (`bromigos anim …`).
+- `config.toml` — the operator's own switchboard, merged key by key over the packaged
+  default (`/usr/share/bromigos/live/config.toml`), so it holds only what's mine.
+  Animation switches are in `~/.config/bromigos/live/overrides.toml` (`bromigos anim …`).
 - `bin/bromigos-live` — hands every call to `/usr/bin/bromigos-live`.
 - `layers/` (if any) — shader layers, still read; new ones go in
   `~/.config/bromigos/plugins/live/layers/`.
