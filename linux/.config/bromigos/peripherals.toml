@@ -3,6 +3,7 @@
 # `bromigos peripheral enable razer-keyboard` turns it on.
 [razer-keyboard]
 enabled = true
+rgb_follow = "theme"   # the keyboard's lighting is the theme's colour, not VECTOR's voice
 
 [razer-keyboard.keys]
 side1 = "bromigos-live arbiter"   # the ARBITER deck (my plugin), not the menu
