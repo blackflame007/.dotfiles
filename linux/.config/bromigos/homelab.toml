@@ -103,3 +103,11 @@ name = "plex"                                        # the other media server, s
 type = "plex"
 endpoint = "@private:endpoints.plex"
 auth_ref = "@file:~/.local/share/bromigos/plex-token"     # an X-Plex-Token, synced from Vault by bromigos-secrets
+
+[[source]]
+name = "pinchflat"                                   # the YouTube downloader: the card, and bromigos lab youtube add|list|remove|…
+type = "pinchflat"
+endpoint = "@private:endpoints.pinchflat"
+user_ref = "@file:~/.local/share/bromigos/pinchflat-user"         # its basic auth, synced from Vault by bromigos-secrets
+auth_ref = "@file:~/.local/share/bromigos/pinchflat-password"
+cookies_store = "@private:homelab.pinchflat_cookies_store"        # YouTube cookies: a Vault field the lab's ExternalSecret mounts
