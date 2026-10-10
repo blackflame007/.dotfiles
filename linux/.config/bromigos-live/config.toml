@@ -39,36 +39,33 @@ items = [
   { name = "NOTES",     sub = "FIELD NOTES",     cmd = "kitty --class bromigos-notes -e nvim ~/notes" },
 ]
 
-# The den TV (bromigOS live/README.md, "The den TV"): my libraries as channels, each den
-# screen playing its own at once, after its own picture (channel 1). Scroll over a screen
-# to change channel; click for full screen with sound. Settings › Den TV (SUPER+ALT+G)
-# is the channel guide: add, remove, reorder, pick shows.
+# The den TV (bromigOS live/README.md, "The den TV"): my libraries as channels, every one
+# on every den screen, each screen playing its own at once after its own picture
+# (channel 1). Scroll over a screen to change channel; click for full screen with sound.
+# Settings › Den TV (SUPER+ALT+G) is the channel guide: add, remove, reorder, pick shows.
 [[tv.channel]]
 name = "Shows"
 source = "jellyfin"
 library = "Shows"
-screens = ["big"]
 
 [[tv.channel]]
-name = "Night Block"             # three shows taking turns, each going on where it left off
+name = "Night Block"             # three shows taking turns (each goes on where it left off), with bumpers
 source = "jellyfin"
 shows = ["Ghost in the Shell: Stand Alone Complex", "Final Space", "The Boondocks"]
 order = "in order"
-screens = ["big"]
+bumpers = true
 
 [[tv.channel]]
-name = "Movies"                  # the small monitor, shuffled
+name = "Movies"                  # shuffled
 source = "jellyfin"
 library = "Movies"
 order = "shuffle"
-screens = ["emblem"]
 
 [[tv.channel]]
-name = "YouTube"                 # the downloaded YouTube library, on the scope: offline, no ads
+name = "YouTube"                 # the downloaded YouTube library: offline, no ads
 source = "jellyfin"
 library = "YouTube"
 order = "in order"
-screens = ["wave"]
 
 [[tv.channel]]
 name = "Anime Fights"            # a YouTube playlist, streamed (yt-dlp): no download needed
@@ -79,3 +76,8 @@ order = "in order"
 name = "Anime Openings"          # a YouTube playlist of 1,000+ openings, streamed (yt-dlp)
 youtube = "https://www.youtube.com/playlist?list=PLzSjbEiFKZ_w9zWXjVSTLi5FUlcPHwQCc"
 order = "shuffle"
+
+[tv.start]                       # where each screen starts until I change its channel
+big = "Shows"
+wave = "YouTube"                 # the scope: the downloaded YouTube library, in order
+emblem = "Movies"                # the small monitor
