@@ -1,0 +1,25 @@
+# Use the engine's colour guard on personal overlays and decks too.
+name: live-palette
+on:
+  push:
+    paths:
+      - 'linux/.config/bromigos/plugins/live/**'
+      - '.github/workflows/live-palette.yml'
+  pull_request:
+    paths:
+      - 'linux/.config/bromigos/plugins/live/**'
+      - '.github/workflows/live-palette.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  palette:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: bromigos-org/bromigOS
+          path: .palette-engine
+      - name: Live plugins use the theme palette
+        run: python3 .palette-engine/live/tests/test_palette_literals.py --plugins linux/.config/bromigos/plugins/live
