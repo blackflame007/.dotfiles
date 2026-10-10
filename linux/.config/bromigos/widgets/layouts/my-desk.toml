@@ -1,8 +1,8 @@
-# The operator's own layout: the lab and VECTOR first, then his code, what's playing, and the
-# machine. Two columns on the Wick's dark left wall, a pair under the window; the den's
+# The operator's own layout: the lab and VECTOR on the Wick's dark left wall, his builds and
+# the machine beside them, and the den's remote under the window by the TVs. The den's
 # screens, TVs and window stay clear.
 title = "My desk"
-description = "The lab, its alerts and jobs, VECTOR, CI and GitHub on the left wall; the machine and what's playing under the window"
+description = "The lab and its alerts, VECTOR, CI and pull requests, this machine, and the den TV's remote"
 archetype = "personal"
 budget = 0.4
 
@@ -21,11 +21,10 @@ side = "left"
 priority = 2
 
 [[widget]]
-name = "labjobs"
-size = "standard"
-small = "compact"
+name = "system"
+size = "compact"
 side = "left"
-priority = 4
+priority = 3
 
 [[widget]]
 name = "vector"
@@ -44,24 +43,9 @@ lane = 2
 priority = 2
 
 [[widget]]
-name = ["github", "gitlab"]
-size = "standard"
+name = "media"
+size = "wide"
 small = "compact"
-side = "left"
-lane = 2
-priority = 4
-
-[[widget]]
-name = "system"
-size = "compact"
 side = "right"
 from = "bottom"
-priority = 3
-
-[[widget]]
-name = "nowplaying"
-size = "compact"
-side = "right"
-from = "bottom"
-lane = 2
-priority = 5
+priority = 2
