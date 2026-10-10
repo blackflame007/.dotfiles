@@ -37,7 +37,7 @@ private details out of this public repo.
 
 The Bromigos desktop's private values (internal URLs, LAN hosts, Vault paths) are committed
 encrypted (`linux/.config/bromigos/private.sops.yaml`, sops + age). With the operator's age key
-at `~/.config/sops/age/keys.txt`, `bromigos-private decrypt` unlocks them and `bromigos-secrets sync`
+at `~/.config/sops/age/keys.txt`, `bromigos-private decrypt` unlocks them and `bromigos secrets sync`
 fetches the secrets from Vault. Without the key everything runs with neutral defaults. AGENTS.md
 ("Private values") explains it. The desktop also needs Python environments that are not in git;
 `linux/.config/bromigos/README.md` ("Where state lives") lists each one and how to get it.
