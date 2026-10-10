@@ -62,3 +62,8 @@ order = "in order"
 name = "Anime Fights"            # a YouTube playlist, streamed (yt-dlp): no download needed
 youtube = "https://www.youtube.com/playlist?list=PL6pEyKSSREwSLAt-ybYdLM-LPocXkwP4D"
 order = "in order"
+
+[[tv.channel]]
+name = "Anime Openings"          # a YouTube playlist of 1,000+ openings, streamed (yt-dlp)
+youtube = "https://www.youtube.com/playlist?list=PLzSjbEiFKZ_w9zWXjVSTLi5FUlcPHwQCc"
+order = "shuffle"
