@@ -1,12 +1,9 @@
-# The operator's own layout on the Wick: LAB down the dark left wall as tall as his lab needs,
-# the machine under it; VECTOR and the lab's alerts in the column beside them; CI and pull
-# requests under the window; the den TV's remote along the bottom. The den's screens, TVs
-# and window stay clear. Widgets that fit their content (LAB, ALERTS, CI) get the height
-# their content needs, inside their size class (docs/widgets.md, "Fitting to content").
+# Two columns on the Wick's dark wall; CI below the window. The screens and TVs stay clear.
+# The lab expands to its readings; the small status panels leave room for the scene.
 title = "My desk"
-description = "The lab and its alerts, VECTOR, CI and pull requests, this machine, and the den TV's remote"
+description = "Lab, VECTOR, alerts, builds, releases, community games, weather and the den remote"
 archetype = "personal"
-budget = 0.45
+budget = 0.35
 
 [[widget]]
 name = "lab"
@@ -20,11 +17,19 @@ priority = 1
 name = "system"
 size = "compact"
 side = "left"
-priority = 3
+priority = 2
+
+[[widget]]
+name = "media"
+size = "compact"
+side = "left"
+priority = 2
 
 [[widget]]
 name = "vector"
 size = "standard"
+width = 460
+height = 240
 small = "compact"
 side = "left"
 lane = 2
@@ -37,7 +42,32 @@ small = "compact"
 side = "left"
 lane = 2
 fit = "content"
+priority = 1
+
+[[widget]]
+name = ["game_servers", "games"]
+size = "standard"
+width = 470
+height = 372
+side = "left"
+lane = 2
+fit = "fixed"
 priority = 2
+
+[[widget]]
+name = "calendars"
+size = "standard"
+small = "compact"
+side = "left"
+lane = 2
+priority = 2
+
+[[widget]]
+name = "weather"
+size = "compact"
+side = "left"
+lane = 2
+priority = 3
 
 [[widget]]
 name = "ci"
@@ -46,11 +76,4 @@ small = "compact"
 side = "right"
 from = "bottom"
 fit = "content"
-priority = 2
-
-[[widget]]
-name = "media"
-size = "wide"
-small = "compact"
-side = "bottom"
-priority = 2
+priority = 1
