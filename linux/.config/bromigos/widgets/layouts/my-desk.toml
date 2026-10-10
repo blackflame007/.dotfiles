@@ -1,7 +1,7 @@
 # Two columns on the Wick's dark wall; CI below the window. The screens and TVs stay clear.
 # The lab expands to its readings; the small status panels leave room for the scene.
 title = "My desk"
-description = "Lab, VECTOR, alerts, builds, releases, community games, weather and the den remote"
+description = "Lab, VECTOR, alerts, builds, releases, community games and the den remote"
 archetype = "personal"
 budget = 0.35
 
@@ -61,13 +61,6 @@ small = "compact"
 side = "left"
 lane = 2
 priority = 2
-
-[[widget]]
-name = "weather"
-size = "compact"
-side = "left"
-lane = 2
-priority = 3
 
 [[widget]]
 name = "ci"
