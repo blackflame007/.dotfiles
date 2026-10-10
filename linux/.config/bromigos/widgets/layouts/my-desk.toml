@@ -1,72 +1,69 @@
-# Two columns on the Wick's dark wall; CI below the window. The screens and TVs stay clear.
-# The lab expands to its readings; the small status panels leave room for the scene.
+# Saved with `bromigos panels layout save` on 2026-10-10, from a 2560x1406 area (docs/widgets.md, "Layouts")
 title = "My desk"
-description = "Lab, VECTOR, alerts, builds, releases, community games and the den remote"
-archetype = "personal"
-budget = 0.35
+description = "Your own layout"
+archetype = "yours"
+budget = 1.0
 
 [[widget]]
 name = "lab"
+at = [0.00937, 0.01707]
+width = 470
+height = 1112
 size = "standard"
-small = "compact"
-side = "left"
-fit = "content"
 priority = 1
-
-[[widget]]
-name = "system"
-size = "compact"
-side = "left"
-priority = 2
-
-[[widget]]
-name = "media"
-size = "compact"
-side = "left"
-priority = 2
 
 [[widget]]
 name = "vector"
-size = "standard"
+at = [0.19922, 0.01707]
 width = 460
 height = 240
-small = "compact"
-side = "left"
-lane = 2
-priority = 1
+size = "standard"
+priority = 2
 
 [[widget]]
 name = "alerts"
+at = [0.19922, 0.19915]
+width = 460
+height = 190
 size = "standard"
-small = "compact"
-side = "left"
-lane = 2
-fit = "content"
-priority = 1
+priority = 3
 
 [[widget]]
-name = ["game_servers", "games"]
-size = "standard"
+name = "game_servers"
+at = [0.19922, 0.34566]
 width = 470
 height = 372
-side = "left"
-lane = 2
-fit = "fixed"
-priority = 2
+size = "standard"
+priority = 4
 
 [[widget]]
 name = "calendars"
+at = [0.19922, 0.62162]
+width = 440
+height = 300
 size = "standard"
-small = "compact"
-side = "left"
-lane = 2
-priority = 2
+priority = 5
+
+[[widget]]
+name = "media"
+at = [0.84219, 0.62589]
+width = 380
+height = 150
+size = "compact"
+priority = 6
 
 [[widget]]
 name = "ci"
+at = [0.80312, 0.81223]
+width = 480
+height = 240
 size = "standard"
-small = "compact"
-side = "right"
-from = "bottom"
-fit = "content"
-priority = 1
+priority = 7
+
+[[widget]]
+name = "system"
+at = [0.00937, 0.81935]
+width = 300
+height = 180
+size = "compact"
+priority = 8

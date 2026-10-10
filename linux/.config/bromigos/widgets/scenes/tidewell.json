@@ -1,35 +1,20 @@
 {
-  "_comment": "Panel positions in px from the top-left of the usable area (below the bar) on `monitor`. Edit and run `bromigos-widgets reload`. visible=false starts a panel hidden (toggle it with its keybind).",
-  "monitor": "DP-1",
-  "panels": [
-    {
-      "name": "system",
-      "x": 24,
-      "y": 1152,
-      "width": 300,
-      "height": 180,
+  "scene": "tidewell",
+  "saved": 1791660549,
+  "panels": {
+    "system": {
+      "x": 2066,
+      "y": 280,
+      "width": 470,
+      "height": 470,
       "visible": true
     },
-    {
-      "name": "network",
-      "x": 28,
-      "y": 502,
+    "network": {
+      "x": 2066,
+      "y": 766,
       "width": 470,
       "height": 262,
-      "_ping": "Hosts for the latency radar. host omitted = the default gateway. {\"private\": \"lan.ping\"} expands to the LAN hosts in the private overlay (AGENTS.md, Private values).",
-      "ping": [
-        {
-          "label": "GATEWAY"
-        },
-        {
-          "private": "lan.ping"
-        },
-        {
-          "label": "WAN",
-          "host": "1.1.1.1"
-        }
-      ],
-      "visible": false,
+      "visible": true,
       "output": {
         "make": "Dell Inc.",
         "model": "DELL S3222DGM",
@@ -37,13 +22,12 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "storage",
-      "x": 28,
-      "y": 780,
+    "storage": {
+      "x": 2066,
+      "y": 1044,
       "width": 470,
       "height": 214,
-      "visible": false,
+      "visible": true,
       "output": {
         "make": "Dell Inc.",
         "model": "DELL S3222DGM",
@@ -51,8 +35,7 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "shortcuts",
+    "shortcuts": {
       "x": 28,
       "y": 1010,
       "width": 470,
@@ -65,24 +48,19 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "lab",
+    "lab": {
       "x": 24,
       "y": 24,
       "width": 470,
       "height": 1112,
-      "visible": true
+      "visible": false
     },
-    {
-      "name": "workbench",
-      "x": 514,
-      "y": 784,
+    "workbench": {
+      "x": 24,
+      "y": 280,
       "width": 470,
       "height": 300,
-      "_workbench": "Recent git repos + zoxide's most-visited folders; projects/folders = how many rows of each.",
-      "projects": 5,
-      "folders": 3,
-      "visible": false,
+      "visible": true,
       "output": {
         "make": "Dell Inc.",
         "model": "DELL S3222DGM",
@@ -90,8 +68,7 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "notes",
+    "notes": {
       "x": 514,
       "y": 1100,
       "width": 470,
@@ -104,8 +81,7 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "gpu",
+    "gpu": {
       "x": 1486,
       "y": 352,
       "width": 460,
@@ -118,16 +94,14 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "nowplaying",
-      "x": 500,
-      "y": 680,
+    "nowplaying": {
+      "x": 24,
+      "y": 1272,
       "width": 300,
       "height": 110,
-      "visible": false
+      "visible": true
     },
-    {
-      "name": "spotify",
+    "spotify": {
       "x": 1000,
       "y": 548,
       "width": 460,
@@ -140,8 +114,7 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "twitch",
+    "twitch": {
       "x": 1972,
       "y": 648,
       "width": 460,
@@ -154,8 +127,7 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "updates",
+    "updates": {
       "x": 1000,
       "y": 1080,
       "width": 460,
@@ -168,16 +140,14 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "vector",
+    "vector": {
       "x": 510,
       "y": 24,
       "width": 460,
       "height": 240,
-      "visible": true
+      "visible": false
     },
-    {
-      "name": "youtube",
+    "youtube": {
       "x": 1972,
       "y": 964,
       "width": 460,
@@ -190,40 +160,35 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "alerts",
+    "alerts": {
       "x": 510,
       "y": 280,
       "width": 460,
-      "height": 190,
-      "visible": true
+      "height": 152,
+      "visible": false
     },
-    {
-      "name": "labjobs",
+    "labjobs": {
       "x": 24,
       "y": 996,
       "width": 460,
       "height": 300,
       "visible": false
     },
-    {
-      "name": "game_servers",
+    "game_servers": {
       "x": 510,
-      "y": 486,
+      "y": 448,
       "width": 470,
       "height": 372,
-      "visible": true
+      "visible": false
     },
-    {
-      "name": "ci",
+    "ci": {
       "x": 2056,
       "y": 1142,
       "width": 480,
       "height": 240,
-      "visible": true
+      "visible": false
     },
-    {
-      "name": "discord",
+    "discord": {
       "x": 1560,
       "y": 1200,
       "width": 420,
@@ -236,16 +201,14 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "github",
+    "github": {
       "x": 510,
       "y": 340,
       "width": 460,
       "height": 320,
       "visible": false
     },
-    {
-      "name": "gitlab",
+    "gitlab": {
       "x": 1486,
       "y": 16,
       "width": 460,
@@ -258,30 +221,26 @@
         "name": "DP-1"
       }
     },
-    {
-      "name": "media",
+    "media": {
       "x": 2156,
       "y": 880,
       "width": 380,
       "height": 150,
-      "visible": true
+      "visible": false
     },
-    {
-      "name": "calendars",
+    "calendars": {
       "x": 510,
-      "y": 874,
+      "y": 836,
       "width": 440,
       "height": 300,
-      "visible": true
+      "visible": false
     },
-    {
-      "name": "weather",
+    "weather": {
       "x": 340,
       "y": 1242,
       "width": 300,
       "height": 140,
-      "visible": false
+      "visible": true
     }
-  ],
-  "version": 2
+  }
 }

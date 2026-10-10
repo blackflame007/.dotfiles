@@ -1,0 +1,2 @@
+# Ci & Prs's settings (Settings › Widgets; bromigos panels set ci KEY VALUE)
+repos = ["bromigos-org/bromigOS", "bromigos-org/vector", "bromigos-org/extensions"]
