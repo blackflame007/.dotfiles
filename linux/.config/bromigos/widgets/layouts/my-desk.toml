@@ -1,24 +1,20 @@
-# The operator's own layout: the lab and VECTOR on the Wick's dark left wall, his builds and
-# the machine beside them, and the den's remote under the window by the TVs. The den's
-# screens, TVs and window stay clear.
+# The operator's own layout on the Wick: LAB down the dark left wall as tall as his lab needs,
+# the machine under it; VECTOR and the lab's alerts in the column beside them; CI and pull
+# requests under the window; the den TV's remote along the bottom. The den's screens, TVs
+# and window stay clear. Widgets that fit their content (LAB, ALERTS, CI) get the height
+# their content needs, inside their size class (docs/widgets.md, "Fitting to content").
 title = "My desk"
 description = "The lab and its alerts, VECTOR, CI and pull requests, this machine, and the den TV's remote"
 archetype = "personal"
-budget = 0.4
+budget = 0.45
 
 [[widget]]
 name = "lab"
 size = "standard"
 small = "compact"
 side = "left"
+fit = "content"
 priority = 1
-
-[[widget]]
-name = "alerts"
-size = "standard"
-small = "compact"
-side = "left"
-priority = 2
 
 [[widget]]
 name = "system"
@@ -35,17 +31,26 @@ lane = 2
 priority = 1
 
 [[widget]]
-name = "ci"
+name = "alerts"
 size = "standard"
 small = "compact"
 side = "left"
 lane = 2
+fit = "content"
+priority = 2
+
+[[widget]]
+name = "ci"
+size = "standard"
+small = "compact"
+side = "right"
+from = "bottom"
+fit = "content"
 priority = 2
 
 [[widget]]
 name = "media"
 size = "wide"
 small = "compact"
-side = "right"
-from = "bottom"
+side = "bottom"
 priority = 2
