@@ -91,3 +91,15 @@ endpoint = "@private:endpoints.tts"
 name = "comfyui"                                     # the 5090's ComfyUI: queue, VRAM, models (bromigos art's homelab provider)
 type = "comfyui"
 endpoint = "@private:env.BROMIGOS_COMFYUI_URL"
+
+[[source]]
+name = "jellyfin"                                    # the media server: its health, and the den TV's channels (the video capability)
+type = "jellyfin"
+endpoint = "@private:endpoints.jellyfin"
+auth_ref = "@file:~/.local/share/bromigos/jellyfin-key"   # an API key, synced from Vault by bromigos-secrets
+
+[[source]]
+name = "plex"                                        # the other media server, same libraries; MEDIA's continue watching reads Jellyfin first
+type = "plex"
+endpoint = "@private:endpoints.plex"
+auth_ref = "@file:~/.local/share/bromigos/plex-token"     # an X-Plex-Token, synced from Vault by bromigos-secrets

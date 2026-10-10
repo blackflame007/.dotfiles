@@ -38,3 +38,22 @@ items = [
   { name = "BROWSER",   sub = "WEB",             cmd = "xdg-open about:blank" },
   { name = "NOTES",     sub = "FIELD NOTES",     cmd = "kitty --class bromigos-notes -e nvim ~/notes" },
 ]
+
+# The den TV (bromigOS live/README.md, "The den TV"): my libraries as channels on the big
+# monitor, after its own relay map (channel 1, what it shows until I change channel).
+# Scroll over the monitor to change channel; click for full screen with sound.
+[[tv.channel]]
+name = "Shows"
+source = "jellyfin"
+library = "Shows"
+
+[[tv.channel]]
+name = "Movies"
+source = "jellyfin"
+library = "Movies"
+
+[[tv.channel]]
+name = "YouTube"                 # the downloaded YouTube library: offline, no ads
+source = "jellyfin"
+library = "YouTube"
+order = "in order"
