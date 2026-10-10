@@ -22,10 +22,12 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from . import gadgets, glkit
-from .arbiter import Feed
-from .glkit import col, level
-from .overlays import Base, ease
+from live import gadgets, glkit
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))   # this folder's arbiter.py
+from arbiter import Feed
+from live.glkit import col, level
+from live.overlays import Base, ease
 
 TAU = 2 * math.pi
 PORT_ROAD = ["history", "warmup", "record90", "evidence", "portfolio_level", "review", "funded"]
@@ -548,7 +550,7 @@ class ArbiterDeck(Base):
         elif name == "Tab" and self.app:
             self.close()
             from gi.repository import GLib
-            from .deckkit import next_deck
+            from live.deckkit import next_deck
             GLib.timeout_add(300, lambda: (self.app.overlay(next_deck(self.name)), False)[1])
         elif name in ("Left", "h"):
             self.yaw -= 0.2

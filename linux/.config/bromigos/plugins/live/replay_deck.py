@@ -20,9 +20,11 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from .arbiter import Feed as ArbiterFeed
-from .deckkit import TAU, Deck3D, ascii_, frame_panel, wrap
-from .glkit import col
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))   # this folder's arbiter.py
+from arbiter import Feed as ArbiterFeed
+from live.deckkit import TAU, Deck3D, ascii_, frame_panel, wrap
+from live.glkit import col
 
 RANGES = [("24h", 86400), ("7d", 7 * 86400), ("30d", 30 * 86400), ("90d", 90 * 86400)]
 X0, X1 = -1.25, 1.25
@@ -197,7 +199,7 @@ class ReplayDeck(Deck3D):
         cx, cy, R = self.L["center"]
         if self.bars is not None and (self.playing or self.cur > 0):
             zoom = 1.0 + 0.35 * math.sin(min(self.cur, 1.0) * math.pi) * (1.0 if self.playing else 0.6)
-            from . import glkit
+            from live import glkit
             xw, yw = self._xy(self.window[0] + (self.window[1] - self.window[0]) * self.cur,
                               float(np.interp(self.window[0] + (self.window[1] - self.window[0]) * self.cur,
                                               self.bars[0], self.bars[1])))
