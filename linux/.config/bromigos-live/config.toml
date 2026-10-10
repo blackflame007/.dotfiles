@@ -57,3 +57,8 @@ name = "YouTube"                 # the downloaded YouTube library: offline, no a
 source = "jellyfin"
 library = "YouTube"
 order = "in order"
+
+[[tv.channel]]
+name = "Anime Fights"            # a YouTube playlist, streamed (yt-dlp): no download needed
+youtube = "https://www.youtube.com/playlist?list=PL6pEyKSSREwSLAt-ybYdLM-LPocXkwP4D"
+order = "in order"
