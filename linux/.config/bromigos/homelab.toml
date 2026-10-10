@@ -111,3 +111,67 @@ endpoint = "@private:endpoints.pinchflat"
 user_ref = "@file:~/.local/share/bromigos/pinchflat-user"         # its basic auth, synced from Vault by bromigos-secrets
 auth_ref = "@file:~/.local/share/bromigos/pinchflat-password"
 cookies_store = "@private:homelab.pinchflat_cookies_store"        # YouTube cookies: a Vault field the lab's ExternalSecret mounts
+
+# Media requests: bromigos lab media search|get|status|upcoming|language, VECTOR's media_* tools, the
+# console's Requests card and the calendar's TV and Movies. Keys are files synced from Vault.
+[[source]]
+name = "seerr"                                       # requests go through it, so they show in Seerr
+type = "seerr"
+endpoint = "@private:endpoints.seerr"
+auth_ref = "@file:~/.local/share/bromigos/seerr-key"
+
+[[source]]
+name = "sonarr"
+type = "arr"
+endpoint = "@private:endpoints.sonarr"
+auth_ref = "@file:~/.local/share/bromigos/sonarr-key"
+
+[[source]]
+name = "radarr"
+type = "arr"
+endpoint = "@private:endpoints.radarr"
+auth_ref = "@file:~/.local/share/bromigos/radarr-key"
+
+[[source]]
+name = "lidarr"
+type = "arr"
+endpoint = "@private:endpoints.lidarr"
+auth_ref = "@file:~/.local/share/bromigos/lidarr-key"
+
+[[source]]
+name = "prowlarr"                                    # read-only: which indexers answered, when nothing's found
+type = "arr"
+endpoint = "@private:endpoints.prowlarr"
+auth_ref = "@file:~/.local/share/bromigos/prowlarr-key"
+
+[[source]]
+name = "bazarr"                                      # subtitles
+type = "arr"
+endpoint = "@private:endpoints.bazarr"
+auth_ref = "@file:~/.local/share/bromigos/bazarr-key"
+
+[[source]]
+name = "qbittorrent"                                 # real progress, speed and time left
+type = "qbittorrent"
+endpoint = "@private:endpoints.qbittorrent"
+auth_ref = "@file:~/.local/share/bromigos/qbittorrent-key"   # a WebUI API key (Bearer)
+
+[[source]]
+name = "sabnzbd"
+type = "sabnzbd"
+endpoint = "@private:endpoints.sabnzbd"
+auth_ref = "@file:~/.local/share/bromigos/sabnzbd-key"
+
+[[source]]
+name = "slskd"                                       # Soulseek: music when Lidarr's indexers find nothing
+type = "slskd"
+endpoint = "@private:endpoints.slskd"
+auth_ref = "@file:~/.local/share/bromigos/slskd-password"
+import_path = "/media/downloads/slskd"               # its downloads folder, as Lidarr sees it
+
+[media]
+audio = ["en", "ja"]                                 # English required; Japanese welcome as a second track (dual audio first)
+anime_audio = ["en", "ja"]                           # anime the same: the English dub, dual audio preferred
+audio_required = true
+subtitles = ["en"]                                   # what Bazarr fetches
+quality = "best"
