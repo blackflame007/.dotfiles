@@ -1,0 +1,50 @@
+# The operator's own layout: the lab and VECTOR first, then his code, what's playing in the
+# den, and the machine. Fitted around the Wick's screens and window like every layout.
+title = "My desk"
+description = "The lab's hologram and alerts, VECTOR, CI and pull requests, the den TV, and this machine"
+archetype = "personal"
+
+[[widget]]
+name = "lab"
+size = "large"
+small = "standard"
+side = "left"
+priority = 1
+
+[[widget]]
+name = "alerts"
+size = "standard"
+small = "compact"
+side = "left"
+priority = 2
+
+[[widget]]
+name = "vector"
+size = "standard"
+small = "compact"
+side = "left"
+lane = 2
+priority = 1
+
+[[widget]]
+name = "ci"
+size = "standard"
+small = "compact"
+side = "left"
+lane = 2
+priority = 2
+
+[[widget]]
+name = "system"
+size = "compact"
+side = "left"
+lane = 2
+priority = 3
+
+[[widget]]
+name = ["media", "nowplaying"]
+size = "standard"
+small = "compact"
+side = "right"
+from = "bottom"
+priority = 3
