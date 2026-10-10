@@ -39,24 +39,36 @@ items = [
   { name = "NOTES",     sub = "FIELD NOTES",     cmd = "kitty --class bromigos-notes -e nvim ~/notes" },
 ]
 
-# The den TV (bromigOS live/README.md, "The den TV"): my libraries as channels on the big
-# monitor, after its own relay map (channel 1, what it shows until I change channel).
-# Scroll over the monitor to change channel; click for full screen with sound.
+# The den TV (bromigOS live/README.md, "The den TV"): my libraries as channels, each den
+# screen playing its own at once, after its own picture (channel 1). Scroll over a screen
+# to change channel; click for full screen with sound. Settings › Den TV (SUPER+ALT+G)
+# is the channel guide: add, remove, reorder, pick shows.
 [[tv.channel]]
 name = "Shows"
 source = "jellyfin"
 library = "Shows"
+screens = ["big"]
 
 [[tv.channel]]
-name = "Movies"
+name = "Night Block"             # three shows taking turns, each going on where it left off
+source = "jellyfin"
+shows = ["Ghost in the Shell: Stand Alone Complex", "Final Space", "The Boondocks"]
+order = "in order"
+screens = ["big"]
+
+[[tv.channel]]
+name = "Movies"                  # the small monitor, shuffled
 source = "jellyfin"
 library = "Movies"
+order = "shuffle"
+screens = ["emblem"]
 
 [[tv.channel]]
-name = "YouTube"                 # the downloaded YouTube library: offline, no ads
+name = "YouTube"                 # the downloaded YouTube library, on the scope: offline, no ads
 source = "jellyfin"
 library = "YouTube"
 order = "in order"
+screens = ["wave"]
 
 [[tv.channel]]
 name = "Anime Fights"            # a YouTube playlist, streamed (yt-dlp): no download needed
