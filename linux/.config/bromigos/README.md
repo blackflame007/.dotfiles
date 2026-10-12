@@ -1,5 +1,9 @@
 # The Bromigos desktop
 
+The Floor feed resolves its console address from the encrypted overlay's
+`endpoints.arbiter` when no explicit `[arbiter] console` is configured. Personal
+plugins own that lookup; the packaged live layer stays independent of it.
+
 The operator's Hyprland workstation, themed as **the Wick**: BLACKFLAME's relay station
 in the Bromigos universe. Phosphor green on void, a retro sci-fi HUD in which every
 light and number is a real reading. It exists so the operator can run his homelab, his

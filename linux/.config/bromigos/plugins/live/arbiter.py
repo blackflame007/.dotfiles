@@ -17,6 +17,8 @@ import time
 import urllib.parse
 import urllib.request
 
+import bromigos_private as PRIV
+
 READS = {  # name: (path, seconds between reads while open)
     "now": ("/api/overview/now", 30),
     "overview": ("/api/overview", 30),
@@ -32,7 +34,7 @@ READS = {  # name: (path, seconds between reads while open)
 class Feed:
     def __init__(self, cfg):
         a = cfg.get("arbiter", {})
-        self.base = (a.get("console") or "").rstrip("/")
+        self.base = (a.get("console") or PRIV.url("arbiter") or "").rstrip("/")
         ca = os.path.expanduser(cfg.get("cluster", {}).get("ca_file", "") or "")
         self.ctx = ssl.create_default_context(cafile=ca) if ca and os.path.exists(ca) else ssl.create_default_context()
         self.lock = threading.Lock()
