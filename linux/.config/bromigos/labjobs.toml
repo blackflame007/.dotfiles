@@ -1,0 +1,8 @@
+# The lab's creation jobs on this desktop (bromigOS docs/activity.md, "Lab jobs"): the start
+# page's LAB JOBS card and `bromigos activity watch` follow the lab's ComfyUI. No address or
+# secret here: the address is the private overlay's, and the relay token is a file that
+# `bromigos secrets sync` keeps from Vault (the overlay's `secrets:` list, comfyui-relay-token).
+[[comfyui]]
+name = "homelab"
+url = "@private:env.BROMIGOS_COMFYUI_URL"
+relay_token = "@file:~/.local/share/bromigos/comfyui-relay-token"
