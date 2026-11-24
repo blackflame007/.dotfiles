@@ -82,6 +82,9 @@ aliases = "@private:netmap.aliases"
 show_prefixes = "@private:netmap.show_prefixes"
 show_hosts = "@private:netmap.show_hosts"
 
+[power]                                              # the rack's PDU, for `bromigos lab power status`
+readings = "metrics"                                 # its outlets come from the prometheus source above (unpoller exports them); no controller key here
+
 [[source]]
 name = "voice"                                       # the lab's voice (homelab chart voice): VECTOR speaks and listens through it first
 type = "bromigos-voice"
